@@ -1,4 +1,9 @@
 # Install necessary packages (GPU version with CUDA 12.4)
+# GPU 버전 PyTorch 설치 (CUDA 12.4)
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch
+torchvision
+
 regex
 pandas
 numpy
@@ -6,6 +11,7 @@ tqdm
 openpyxl
 soynlp
 jieba
+mecab_ko
 mecab-ko-msvc
 mecab-ko-dic-msvc
 prompt_toolkit

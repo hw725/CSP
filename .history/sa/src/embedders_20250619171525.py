@@ -4,17 +4,10 @@ import logging
 import numpy as np
 from typing import List, Optional, Dict
 from pathlib import Path
-import os
+
+from .interfaces import BaseEmbedder
 
 logger = logging.getLogger(__name__)
-
-class BaseEmbedder:
-    """임베더 기본 클래스 (인터페이스 역할)"""
-    def __init__(self, **kwargs): # kwargs를 받아 하위 클래스에서 super() 호출 시 문제 없도록
-        pass
-
-    def embed(self, texts: List[str]) -> np.ndarray:
-        raise NotImplementedError("Embedder의 하위 클래스는 embed 메서드를 구현해야 합니다.")
 
 class CachedEmbedder(BaseEmbedder):
     """캐시 기능이 있는 임베더"""
@@ -63,7 +56,7 @@ class CachedEmbedder(BaseEmbedder):
         """기본 캐시 로직"""
         if not texts:
             return np.array([])
-        
+
         all_embeddings_map: Dict[int, np.ndarray] = {}
         texts_to_encode_indices: List[int] = []
         texts_to_encode_values: List[str] = []

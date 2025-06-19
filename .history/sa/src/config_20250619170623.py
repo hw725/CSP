@@ -1,11 +1,11 @@
 # src/config.py
 import os
+import logging
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional # Optional 추가
-import logging # logging 추가
+from typing import Dict, Any, Optional
 import yaml
 
-logger = logging.getLogger(__name__) # 로거 추가
+logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Config:

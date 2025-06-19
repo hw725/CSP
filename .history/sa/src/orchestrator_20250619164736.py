@@ -6,8 +6,7 @@ from tqdm import tqdm
 
 from .config import Config
 from .pipeline import process_single_row
-# TextMasker와 이를 가져오는 함수 추가
-from .components import get_tokenizer, get_embedder, get_aligner, get_text_masker 
+from .components import get_tokenizer, get_embedder, get_text_masker
 from .file_io import load_data, save_data
 
 logger = logging.getLogger(__name__)
@@ -90,7 +89,7 @@ def process_chunk(chunk_data: List[Dict[str, Any]], config: Config) -> List[Dict
 def run_processing(config: Config):
     logger.info("데이터 로드 시작...")
     try:
-        data = load_data(config.input_path) 
+        data = load_data(config.input_path)
     except Exception as e:
         logger.error(f"데이터 로드 중 치명적 에러: {e}", exc_info=True)
         return
@@ -139,15 +138,18 @@ def run_processing(config: Config):
             for row_data in data:
                 try:
                     processed_result_dict = process_single_row(
-                        row_data, source_tokenizer, target_tokenizer, embedder, aligner
+                        row_data,
+                        source_tokenizer,
+                        target_tokenizer,
+                        embedder
                     )
                     
                     # 언마스킹 수행
                     unmasked_result_dict = _unmask_texts_in_result(
-                        processed_result_dict, 
-                        text_masker, 
-                        getattr(config, 'output_unmask_type', 'original')  # 기본값 'original' 제공
-        )
+                        processed_result_dict,
+                        text_masker,
+                        getattr(config, 'output_unmask_type', 'original')
+                    )
                     
                     merged_row = {**row_data, **unmasked_result_dict}
                     processed_data.append(merged_row)

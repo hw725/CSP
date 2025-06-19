@@ -1,11 +1,11 @@
 # src/config.py
 import os
+import logging
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional # Optional 추가
-import logging # logging 추가
+from typing import Dict, Any, Optional
 import yaml
 
-logger = logging.getLogger(__name__) # 로거 추가
+logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Config:
@@ -15,7 +15,7 @@ class Config:
     output_path: str
     
     # 클래스 변수로 기본값 정의
-    DEFAULT_SOURCE_TOKENIZER = "jieba"
+    DEFAULT_SOURCE_TOKENIZER = "mecab"
     DEFAULT_TARGET_TOKENIZER = "mecab" 
     DEFAULT_EMBEDDER_TYPE = "sentence-transformer"
     DEFAULT_NUM_WORKERS = 4
