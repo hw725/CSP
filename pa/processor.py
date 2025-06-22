@@ -3,51 +3,16 @@
 import pandas as pd
 from typing import List, Dict
 from sentence_splitter import split_target_sentences_advanced, split_source_with_spacy
+import torch
+from aligner import get_embedder_function  # ✅ aligner의 임베더 함수만 사용
 
-def get_embedder_function(embedder_name: str):
-    """임베더 함수 로드"""
-    
-    if embedder_name == 'bge':
-        try:
-            import sys
-            sys.path.append('../sa')
-            from sa_embedders.bge import compute_embeddings_with_cache
-            return compute_embeddings_with_cache
-        except ImportError:
-            return fallback_embedder
-            
-    elif embedder_name == 'st':
-        try:
-            import sys
-            sys.path.append('../sa')
-            from sa_embedders.sentence_transformer import compute_embeddings_with_cache
-            return compute_embeddings_with_cache
-        except ImportError:
-            return fallback_embedder
-    
-    return fallback_embedder
+def get_device(device_preference="cuda"):
+    if device_preference == "cuda" and not torch.cuda.is_available():
+        print("⚠️ CUDA(GPU)를 사용할 수 없습니다. CPU로 전환합니다.")
+        return "cpu"
+    return device_preference
 
-def fallback_embedder(texts: List[str]):
-    """대체 임베더 - TF-IDF"""
-    import numpy as np
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    
-    if not texts:
-        return np.array([]).reshape(0, 512)
-    
-    try:
-        vectorizer = TfidfVectorizer(max_features=512, ngram_range=(1, 2))
-        embeddings = vectorizer.fit_transform(texts).toarray()
-        
-        # L2 정규화
-        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-        embeddings = embeddings / (norms + 1e-8)
-        
-        return embeddings
-    except Exception:
-        return np.random.randn(len(texts), 512)
-
-def simple_align_paragraphs(
+def improved_align_paragraphs(
     tgt_sentences: List[str], 
     src_chunks: List[str], 
     embed_func,
@@ -61,9 +26,14 @@ def simple_align_paragraphs(
     if not tgt_sentences or not src_chunks:
         return []
     
-    # 임베딩 생성
-    tgt_embeddings = embed_func(tgt_sentences)
-    src_embeddings = embed_func(src_chunks)
+    # 임베딩 생성 (항상 numpy array로 변환)
+    tgt_embeddings = np.array(embed_func(tgt_sentences))
+    src_embeddings = np.array(embed_func(src_chunks))
+
+    # 임베딩 차원 체크
+    if tgt_embeddings.shape[1] != src_embeddings.shape[1]:
+        print(f"❌ 임베딩 차원 불일치: tgt={tgt_embeddings.shape}, src={src_embeddings.shape}")
+        return []
     
     # 유사도 매트릭스 계산
     sim_matrix = cosine_similarity(tgt_embeddings, src_embeddings)
@@ -118,7 +88,9 @@ def process_paragraph_file(
     output_file: str, 
     embedder_name: str = 'bge',
     max_length: int = 150,
-    similarity_threshold: float = 0.3
+    similarity_threshold: float = 0.3,
+    device: str = "cuda",
+    splitter: str = "spacy"   # splitter 인자 추가
 ):
     """파일 단위 처리 (메인 함수)"""
     
@@ -144,11 +116,12 @@ def process_paragraph_file(
     
     # 임베더 로드
     try:
-        embed_func = get_embedder_function(embedder_name)
-        print(f"🧠 임베더 로드 완료: {embedder_name}")
+        embed_func = get_embedder_function(embedder_name, device=device)
+        print(f"🧠 임베더 로드 완료: {embedder_name} (device={device})")
     except Exception as e:
         print(f"❌ 임베더 로드 실패: {e}")
-        embed_func = fallback_embedder
+        from aligner import fallback_embedder_bge
+        embed_func = fallback_embedder_bge(device)
     
     all_results = []
     
@@ -163,9 +136,9 @@ def process_paragraph_file(
         try:
             print(f"📝 처리 중: 문단 {idx + 1}/{len(df)}")
             
-            # ✅ 문장 분할 (올바른 호출)
-            tgt_sentences = split_target_sentences_advanced(tgt_paragraph, max_length)
-            src_chunks = split_source_with_spacy(src_paragraph, tgt_sentences)  # List[str] 전달
+            # 문장 분할
+            tgt_sentences = split_target_sentences_advanced(tgt_paragraph, max_length, splitter=splitter)
+            src_chunks = split_source_with_spacy(src_paragraph, tgt_sentences, splitter=splitter)
             
             print(f"   번역문: {len(tgt_sentences)}개 문장")
             print(f"   원문: {len(src_chunks)}개 청크")

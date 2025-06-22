@@ -9,56 +9,54 @@ from typing import List, Dict
 from sentence_splitter import split_target_sentences_advanced, split_source_with_spacy
 
 # ✅ SA 임베더 직접 import
-def get_embedder_function(embedder_name: str):
-    """SA 임베더 함수 직접 로드"""
-    
+def get_embedder_function(embedder_name: str, device: str = "cpu"):
+    """SA 임베더 함수 직접 로드 (GPU 지원)"""
     if embedder_name == 'bge':
-        try:
-            from sa_embedders.bge import compute_embeddings_with_cache
-            return compute_embeddings_with_cache
-        except ImportError:
-            print("❌ BGE 임베더 import 실패")
-            return fallback_embedder
-            
+        from sa_embedders.bge import compute_embeddings_with_cache
+        def embed_func(texts):
+            return compute_embeddings_with_cache(texts)  # device 인자 제거!
+        return embed_func
     elif embedder_name == 'st':
         try:
             from sa_embedders.sentence_transformer import compute_embeddings_with_cache
-            return compute_embeddings_with_cache
+            def embed_func(texts):
+                return compute_embeddings_with_cache(texts, device=device)
+            return embed_func
         except ImportError:
             print("❌ SentenceTransformer 임베더 import 실패")
-            return fallback_embedder
-            
+            return fallback_embedder_bge(device)
     elif embedder_name == 'openai':
         try:
             from sa_embedders.openai import compute_embeddings_with_cache
-            return compute_embeddings_with_cache
+            def embed_func(texts):
+                try:
+                    return compute_embeddings_with_cache(texts)
+                except Exception as e:
+                    print(f"⚠️ OpenAI 임베더 실패: {e}")
+                    print("➡️ BGE-m3 fallback")
+                    return fallback_embedder_bge(device)(texts)
+            return embed_func
         except ImportError:
             print("❌ OpenAI 임베더 import 실패")
-            return fallback_embedder
-    
-    return fallback_embedder
+            return fallback_embedder_bge(device)
+    return fallback_embedder_bge(device)
 
-def fallback_embedder(texts: List[str]):
-    """대체 임베더 - TF-IDF 기반"""
-    
-    import numpy as np
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    
-    if not texts:
-        return np.array([]).reshape(0, 512)
-    
-    try:
-        vectorizer = TfidfVectorizer(max_features=512, ngram_range=(1, 2))
-        embeddings = vectorizer.fit_transform(texts).toarray()
-        
-        # L2 정규화
-        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-        embeddings = embeddings / (norms + 1e-8)
-        
-        return embeddings
-    except Exception as e:
-        print(f"⚠️ TF-IDF 임베더 실패: {e}")
-        return np.random.randn(len(texts), 512)
+def fallback_embedder_bge(device: str = "cpu"):
+    """BGE-m3 SentenceTransformer 기반 fallback"""
+    def embed_func(texts):
+        try:
+            from sentence_transformers import SentenceTransformer
+            import torch
+            model = SentenceTransformer('BAAI/bge-m3')
+            dev = "cuda" if device == "cuda" and torch.cuda.is_available() else "cpu"
+            model = model.to(dev)
+            embeddings = model.encode(texts, convert_to_numpy=True, device=dev, show_progress_bar=False)
+            return embeddings
+        except Exception as e:
+            print(f"❌ BGE-m3 fallback 실패: {e}")
+            import numpy as np
+            return np.random.randn(len(texts), 1024)  # BGE-m3 기본 차원(1024)
+    return embed_func
 
 def align_paragraphs_with_sa_dp(
     tgt_sentences: List[str], 
@@ -149,17 +147,17 @@ def advanced_align_paragraphs(
     similarity_threshold: float = 0.3
 ) -> List[Dict]:
     """고품질 대체 정렬 (DP 스타일)"""
-    
     from sklearn.metrics.pairwise import cosine_similarity
     import numpy as np
-    
-    # 임베딩 생성
+
     tgt_embeddings = embed_func(tgt_sentences)
     src_embeddings = embed_func(src_chunks)
-    
-    # 유사도 매트릭스 계산
-    sim_matrix = cosine_similarity(tgt_embeddings, src_embeddings)
-    
+
+    # 임베딩 차원 체크
+    if tgt_embeddings.shape[1] != src_embeddings.shape[1]:
+        print(f"❌ 임베딩 차원 불일치: tgt={tgt_embeddings.shape}, src={src_embeddings.shape}")
+        return []
+
     # ✅ DP 스타일 정렬 (순서 보존 + 무결성 보장)
     alignments = []
     used_src_indices = set()
@@ -214,21 +212,22 @@ def process_paragraph_alignment(
     tgt_paragraph: str, 
     embedder_name: str = 'bge',
     max_length: int = 150,
-    similarity_threshold: float = 0.3
+    similarity_threshold: float = 0.3,
+    device: str = "cpu"
 ):
-    """PA 처리 (SA DP 연동)"""
+    """PA 처리 (SA DP 연동, GPU 지원)"""
     
     print(f"🔄 PA 처리 시작")
     
     # 1. 분할
-    tgt_sentences = split_target_sentences_advanced(tgt_paragraph, max_length)
-    src_chunks = split_source_with_spacy(src_paragraph, len(tgt_sentences))
+    tgt_sentences = split_target_sentences_advanced(tgt_paragraph, max_length, splitter="stanza")
+    src_chunks = split_source_with_spacy(src_paragraph, tgt_sentences, splitter="stanza")
     
     print(f"   번역문: {len(tgt_sentences)}개 문장")
     print(f"   원문: {len(src_chunks)}개 청크")
     
-    # 2. 임베더 로드
-    embed_func = get_embedder_function(embedder_name)
+    # 2. 임베더 로드 (device 전달)
+    embed_func = get_embedder_function(embedder_name, device=device)
     
     # 3. SA DP 정렬
     alignments = align_paragraphs_with_sa_dp(
@@ -245,9 +244,11 @@ def process_paragraph_file(
     output_file: str, 
     embedder_name: str = 'bge',
     max_length: int = 150,
-    similarity_threshold: float = 0.3
+    similarity_threshold: float = 0.3,
+    device: str = "cpu",
+    splitter: str = "stanza"  # 기본값 추가
 ):
-    """파일 단위 처리 - 올바른 컬럼명"""
+    """파일 단위 처리 - GPU 지원"""
     
     print(f"📂 파일 처리 시작: {input_file}")
     
@@ -268,7 +269,8 @@ def process_paragraph_file(
                 tgt_paragraph,
                 embedder_name=embedder_name,
                 max_length=max_length,
-                similarity_threshold=similarity_threshold
+                similarity_threshold=similarity_threshold,
+                device=device
             )
             
             # 문단식별자 업데이트
