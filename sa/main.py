@@ -6,6 +6,7 @@ import time
 import sys
 import os
 from typing import Optional
+from io_manager import process_file as process_file_parallel
 
 def setup_logging(verbose: bool = False):
     """로깅 설정"""
@@ -73,8 +74,9 @@ def process_single_file(
     parallel: bool = False,
     **kwargs
 ) -> bool:
-    """단일 파일 처리"""
-    
+    """단일 파일 처리 (병렬 옵션 지원)"""
+    import time
+    start_time = time.time()  # ⏱️ 처리 시작 시간 기록
     print(f"🚀 파일 처리 시작: {input_file}")
     print(f"📊 설정:")
     print(f"   토크나이저: {tokenizer_name}")
@@ -82,46 +84,41 @@ def process_single_file(
     print(f"   의미 매칭: {use_semantic}")
     print(f"   병렬 처리: {parallel}")
     print(f"   토큰 범위: {min_tokens}-{max_tokens}")
-    
     try:
-        # 🔧 수정: 기본 토크나이저는 동적 로딩 없이 바로 처리
-        if tokenizer_name == 'jieba' and embedder_name == 'st':
-            print("✅ 기본 모듈 사용 (jieba + sentence_transformer)")
-            
-            from processor import process_file
-            
-            start_time = time.time()
-            
-            results = process_file(
+        if parallel:
+            print("⚡ 병렬 처리 모드로 실행합니다.")
+            from io_manager import process_file as io_process_file
+            # 병렬 처리 함수 호출
+            results_df = io_process_file(
                 input_file,
-                use_semantic=use_semantic,
-                min_tokens=min_tokens,
-                max_tokens=max_tokens,
-                save_results=True,
-                output_file=output_file
+                output_file,
+                parallel=True,
+                workers=4,
+                batch_size=20
             )
-            
-        else:
-            print("✅ 동적 모듈 로딩...")
-            
-            # 동적 모듈 로드
-            tokenizer_module = get_tokenizer_module(tokenizer_name)
-            embedder_module = get_embedder_module(embedder_name)
-            
-            print(f"✅ 모듈 로드 완료")
-            
-            from processor import process_file_with_modules
-            
-            start_time = time.time()
-            
-            results = process_file_with_modules(
-                input_file, output_file,
-                tokenizer_module, embedder_module,
-                use_semantic, min_tokens, max_tokens
-            )
-        
-        end_time = time.time()
-        
+            if results_df is not None:
+                print(f"🎉 병렬 처리 완료! 결과: {len(results_df)}개 구")
+                return True
+            else:
+                print(f"❌ 병렬 처리 실패")
+                return False
+        # 항상 동적 모듈 로딩 경로 사용
+        print("✅ 동적 모듈 로딩...")
+        tokenizer_module = get_tokenizer_module(tokenizer_name)
+        embedder_module = get_embedder_module(embedder_name)
+        print(f"✅ 모듈 로드 완료")
+        from processor import process_file_with_modules
+        results = process_file_with_modules(
+            input_file, output_file,
+            tokenizer_module, embedder_module,
+            embedder_name,  # 추가!
+            use_semantic, min_tokens, max_tokens,
+            openai_model=openai_model,
+            openai_api_key=openai_api_key
+        )
+
+        end_time = time.time()  # ⏱️ 처리 종료 시간 기록
+
         if results is not None:
             print(f"🎉 처리 완료!")
             print(f"⏱️  처리 시간: {end_time - start_time:.2f}초")

@@ -56,16 +56,12 @@ def main():
     parser.add_argument("--embedder", default="bge", choices=["bge", "st", "openai"])
     parser.add_argument("--threshold", type=float, default=0.3, help="유사도 임계값")
     parser.add_argument("--max-length", type=int, default=150, help="최대 문장 길이")
-    parser.add_argument("--parallel", action="store_true", help="병렬 처리 (미구현)")  # ✅ 추가
+    parser.add_argument("--parallel", action="store_true", help="병렬 처리")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--device", default="cuda", help="임베더 연산 디바이스 (cuda/gpu/cpu, 기본값: cuda)")  # 기본값을 cuda로 변경
     parser.add_argument("--splitter", default="spacy", choices=["spacy", "stanza"], help="문장 분할기 선택")
 
     args = parser.parse_args()
-    
-    # 병렬 처리 경고
-    if args.parallel:
-        print("⚠️ --parallel 옵션은 현재 미구현 상태입니다.")
     
     # 파일 존재 확인
     if not os.path.exists(args.input_file):
@@ -80,16 +76,30 @@ def main():
     
     try:
         from processor import process_paragraph_file
-        
-        result_df = process_paragraph_file(
-            args.input_file,
-            args.output_file,
-            embedder_name=args.embedder,
-            max_length=args.max_length,
-            similarity_threshold=args.threshold,
-            device=args.device,
-            splitter=args.splitter   # splitter 인자 전달
-        )
+
+        if args.parallel:
+            print("⚡ 병렬 처리 모드로 실행합니다.")
+            result_df = process_paragraph_file(
+                args.input_file,
+                args.output_file,
+                embedder_name=args.embedder,
+                max_length=args.max_length,
+                similarity_threshold=args.threshold,
+                device=args.device,
+                splitter=args.splitter,
+                parallel=True,
+                workers=4
+            )
+        else:
+            result_df = process_paragraph_file(
+                args.input_file,
+                args.output_file,
+                embedder_name=args.embedder,
+                max_length=args.max_length,
+                similarity_threshold=args.threshold,
+                device=args.device,
+                splitter=args.splitter
+            )
         
         if result_df is not None:
             print(f"\n✅ PA 처리 완료!")
