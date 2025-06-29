@@ -1,189 +1,123 @@
-"""PA 메인 프로세서 - 단순화"""
-
+import sys, os
 import pandas as pd
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+"""PA 메인 프로세서 - 의미적 병합만 사용 (단일 프로세스 버전)"""
 from typing import List, Dict
-from sentence_splitter import split_target_sentences_advanced, split_source_with_spacy
-import torch
-from aligner import get_embedder_function  # ✅ aligner의 임베더 함수만 사용
-
-def get_device(device_preference="cuda"):
-    if device_preference == "cuda" and not torch.cuda.is_available():
-        print("⚠️ CUDA(GPU)를 사용할 수 없습니다. CPU로 전환합니다.")
-        return "cpu"
-    return device_preference
-
-def improved_align_paragraphs(
-    tgt_sentences: List[str], 
-    src_chunks: List[str], 
-    embed_func,
-    similarity_threshold: float = 0.3
-) -> List[Dict]:
-    """단순 정렬"""
-    
-    from sklearn.metrics.pairwise import cosine_similarity
-    import numpy as np
-    
-    if not tgt_sentences or not src_chunks:
+from sentence_splitter import split_target_sentences_advanced
+try:
+    from aligner import get_embedder_function, improved_align_paragraphs
+except ImportError as e:
+    print(f"\u274c aligner import 실패: {e}")
+    def get_embedder_function(*args, **kwargs):
+        print("\u274c 임베더 기능을 사용할 수 없습니다.")
+        return None
+    def improved_align_paragraphs(*args, **kwargs):
+        print("\u274c 의미적 병합 기능을 사용할 수 없습니다.")
         return []
-    
-    # 임베딩 생성 (항상 numpy array로 변환)
-    tgt_embeddings = np.array(embed_func(tgt_sentences))
-    src_embeddings = np.array(embed_func(src_chunks))
-
-    # 임베딩 차원 체크
-    if tgt_embeddings.shape[1] != src_embeddings.shape[1]:
-        print(f"❌ 임베딩 차원 불일치: tgt={tgt_embeddings.shape}, src={src_embeddings.shape}")
-        return []
-    
-    # 유사도 매트릭스 계산
-    sim_matrix = cosine_similarity(tgt_embeddings, src_embeddings)
-    
-    # 단순 정렬
-    alignments = []
-    used_src_indices = set()
-    
-    for tgt_idx, tgt_sent in enumerate(tgt_sentences):
-        similarities = sim_matrix[tgt_idx]
-        
-        best_score = -1.0
-        best_src_idx = -1
-        
-        for src_idx in range(len(src_chunks)):
-            if src_idx not in used_src_indices:
-                if similarities[src_idx] > best_score:
-                    best_score = similarities[src_idx]
-                    best_src_idx = src_idx
-        
-        if best_src_idx != -1:
-            used_src_indices.add(best_src_idx)
-            src_text = src_chunks[best_src_idx]
-        else:
-            src_text = ""
-        
-        alignments.append({
-            '문단식별자': 1,
-            '원문': src_text,
-            '번역문': tgt_sent,
-            'similarity': best_score,
-            'split_method': 'spacy_lg',
-            'align_method': 'simple_align'
-        })
-    
-    # 사용되지 않은 원문들 추가
-    for src_idx, src_chunk in enumerate(src_chunks):
-        if src_idx not in used_src_indices:
-            alignments.append({
-                '문단식별자': 1,
-                '원문': src_chunk,
-                '번역문': "",
-                'similarity': 0.0,
-                'split_method': 'spacy_lg',
-                'align_method': 'unmatched_source'
-            })
-    
-    return alignments
+from tqdm import tqdm
 
 def process_paragraph_file(
-    input_file: str, 
-    output_file: str, 
-    embedder_name: str = 'bge',
-    max_length: int = 150,
-    similarity_threshold: float = 0.3,
-    device: str = "cuda",
-    splitter: str = "spacy"   # splitter 인자 추가
+    input_file, 
+    output_file, 
+    embedder_name="bge", 
+    max_length=150, 
+    similarity_threshold=0.3, 
+    device="cuda"
 ):
-    """파일 단위 처리 (메인 함수)"""
-    
+    """
+    입력 엑셀 파일을 읽어 문단 단위로 정렬하고, 결과를 출력 파일로 저장합니다.
+    의미적 병합만 지원.
+    """
     print(f"📂 PA 파일 처리 시작: {input_file}")
-    
     try:
-        # Excel 파일 로드
         df = pd.read_excel(input_file)
         print(f"📄 {len(df)}개 문단 로드됨")
-        
     except FileNotFoundError:
         print(f"❌ 입력 파일을 찾을 수 없습니다: {input_file}")
         return None
     except Exception as e:
-        print(f"❌ 파일 로드 에러: {e}")
+        print(f"❌ 파일 로드 오류: {e}")
         return None
-    
-    # 필수 컬럼 확인
     if '원문' not in df.columns or '번역문' not in df.columns:
-        print(f"❌ 필수 컬럼이 없습니다: '원문', '번역문'")
-        print(f"현재 컬럼: {list(df.columns)}")
+        print(f"❌ 입력 파일에 '원문', '번역문' 컬럼이 없습니다.")
         return None
-    
-    # 임베더 로드
-    try:
-        embed_func = get_embedder_function(embedder_name, device=device)
-        print(f"🧠 임베더 로드 완료: {embedder_name} (device={device})")
-    except Exception as e:
-        print(f"❌ 임베더 로드 실패: {e}")
-        from aligner import fallback_embedder_bge
-        embed_func = fallback_embedder_bge(device)
-    
     all_results = []
-    
-    for idx, row in df.iterrows():
-        src_paragraph = str(row.get('원문', '')).strip()
-        tgt_paragraph = str(row.get('번역문', '')).strip()
-        
-        if not src_paragraph or not tgt_paragraph:
-            print(f"⚠️ 빈 내용 건너뜀: 행 {idx + 1}")
-            continue
-        
-        try:
-            print(f"📝 처리 중: 문단 {idx + 1}/{len(df)}")
-            
-            # 문장 분할
-            tgt_sentences = split_target_sentences_advanced(tgt_paragraph, max_length, splitter=splitter)
-            src_chunks = split_source_with_spacy(src_paragraph, tgt_sentences, splitter=splitter)
-            
-            print(f"   번역문: {len(tgt_sentences)}개 문장")
-            print(f"   원문: {len(src_chunks)}개 청크")
-            
-            # 정렬 수행
-            alignments = simple_align_paragraphs(
-                tgt_sentences, 
-                src_chunks, 
-                embed_func, 
+    total = len(df)
+    for idx, row in tqdm(df.iterrows(), total=total, desc="전체 진행률"):
+        src_paragraph = str(row.get('원문', ''))
+        tgt_paragraph = str(row.get('번역문', ''))
+        if src_paragraph and tgt_paragraph:
+            tgt_sentences = split_target_sentences_advanced(tgt_paragraph, max_length, splitter="spacy")
+            embed_func = get_embedder_function(embedder_name, device=device)
+            alignments = improved_align_paragraphs(
+                tgt_sentences,
+                src_paragraph,
+                embed_func,
                 similarity_threshold
             )
-            
-            # 문단식별자 업데이트
-            for result in alignments:
-                result['문단식별자'] = idx + 1
-            
+            for a in alignments:
+                a['문단식별자'] = idx + 1
             all_results.extend(alignments)
-            
-        except Exception as e:
-            print(f"❌ 문단 {idx + 1} 처리 실패: {e}")
-            import traceback
-            traceback.print_exc()  # 디버깅용 상세 에러
-            continue
-    
     if not all_results:
-        print("❌ 처리된 결과가 없습니다.")
+        print("❌ 결과가 없습니다.")
         return None
+    result_df = pd.DataFrame(all_results)
+    final_columns = ['문단식별자', '원문', '번역문', 'similarity', 'split_method', 'align_method']
+    result_df = result_df[final_columns]
+    result_df.to_excel(output_file, index=False)
+    print(f"💾 결과 저장: {output_file}")
+    print(f"📊 총 {len(all_results)}개 문장 쌍 생성")
+    return result_df
+
+def analyze_alignment_results(result_df: pd.DataFrame):
+    """정렬 결과 분석 (개선된 버전)"""
     
-    # 결과 저장
-    try:
-        result_df = pd.DataFrame(all_results)
-        
-        # 컬럼 순서 정리
-        available_columns = result_df.columns.tolist()
-        desired_columns = ['문단식별자', '원문', '번역문', 'similarity', 'split_method', 'align_method']
-        final_columns = [col for col in desired_columns if col in available_columns]
-        
-        result_df = result_df[final_columns]
-        result_df.to_excel(output_file, index=False)
-        
-        print(f"💾 결과 저장 완료: {output_file}")
-        print(f"📊 총 {len(all_results)}개 문장 쌍 생성")
-        
-        return result_df
-        
-    except Exception as e:
-        print(f"❌ 결과 저장 실패: {e}")
-        return None
+    print("\n📊 정렬 결과 분석:")
+    
+    # 문단별 통계
+    paragraph_stats = result_df.groupby('문단식별자').agg({
+        '원문': lambda x: sum(1 for text in x if str(text).strip()),
+        '번역문': lambda x: sum(1 for text in x if str(text).strip()),
+        'similarity': 'mean'
+    }).round(3)
+    
+    print("📈 문단별 통계:")
+    for idx, row in paragraph_stats.iterrows():
+        print(f"   문단 {idx}: 원문 {row['원문']}개, 번역문 {row['번역문']}개, 유사도 {row['similarity']:.3f}")
+    
+    # 전체 유사도 분포
+    print(f"\n🎯 전체 유사도:")
+    print(f"   평균: {result_df['similarity'].mean():.3f}")
+    print(f"   최고: {result_df['similarity'].max():.3f}")
+    print(f"   최저: {result_df['similarity'].min():.3f}")
+    
+    # 고품질 매칭 비율
+    high_quality = sum(1 for x in result_df['similarity'] if x > 0.7)
+    medium_quality = sum(1 for x in result_df['similarity'] if 0.5 <= x <= 0.7)
+    low_quality = sum(1 for x in result_df['similarity'] if x < 0.5)
+    total = len(result_df)
+    
+    print(f"\n📊 품질별 매칭:")
+    print(f"   고품질 (>0.7): {high_quality}/{total} ({high_quality/total*100:.1f}%)")
+    print(f"   중품질 (0.5-0.7): {medium_quality}/{total} ({medium_quality/total*100:.1f}%)")
+    print(f"   저품질 (<0.5): {low_quality}/{total} ({low_quality/total*100:.1f}%)")
+    
+    # 빈 매칭 확인
+    empty_source = sum(1 for x in result_df['원문'] if not str(x).strip())
+    empty_target = sum(1 for x in result_df['번역문'] if not str(x).strip())
+    
+    if empty_source > 0:
+        print(f"⚠️ 빈 원문: {empty_source}개")
+    if empty_target > 0:
+        print(f"⚠️ 빈 번역문: {empty_target}개")
+    
+    # 정렬 방법별 통계
+    if 'align_method' in result_df.columns:
+        align_stats = result_df['align_method'].value_counts()
+        print(f"\n🔀 정렬 방법별 통계:")
+        for method, count in align_stats.items():
+            avg_sim = result_df[result_df['align_method'] == method]['similarity'].mean()
+            print(f"   {method}: {count}회 (평균 유사도 {avg_sim:.3f})")
+    
+    return paragraph_stats
