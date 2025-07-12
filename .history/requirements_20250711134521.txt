@@ -1,0 +1,27 @@
+# Install necessary packages (GPU version with CUDA 12.8)
+# PyTorch (BGE/transformers 임베더 호환, CUDA 12.8)
+torch==2.1.2
+torchvision==0.16.2
+torchaudio==2.1.2
+# 설치 명령: pip install torch==2.1.2 torchvision==0.16.2 torchaudio==2.1.2 --extra-index-url https://download.pytorch.org/whl/cu128
+
+# 공통 패키지
+pandas==2.2.3
+numpy==1.26.4
+openpyxl>=3.0.0
+regex>=2022.0.0
+tqdm>=4.64.0
+FlagEmbedding
+jieba
+openai>=1.0.0
+transformers==4.35.2
+sentence-transformers==2.2.2
+
+# pa 전용
+scikit-learn==1.5.2
+spacy==3.7.6
+
+# sa 전용
+mecab-ko>=1.0.0
+mecab-ko-dic>=1.0.0
+mecab-python3>=1.0.0

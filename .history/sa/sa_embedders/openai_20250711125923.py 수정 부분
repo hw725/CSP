@@ -1,0 +1,35 @@
+def get_embed_func(api_key: str = None, model: str = "text-embedding-3-large") -> Optional[callable]:
+    """OpenAI 임베딩 함수 반환 - 실패 시 None 반환"""
+    try:
+        import openai
+        from openai import OpenAI
+    except ImportError as e:
+        error_msg = "OpenAI 패키지가 설치되지 않았습니다"
+        logger.error(error_msg)
+        print(f"❌ {error_msg}: {e}")
+        raise ImportError(error_msg + "\n설치 명령: pip install openai")
+    
+    if not api_key:
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            error_msg = "OpenAI API 키가 설정되지 않았습니다"
+            logger.error(error_msg)
+            print(f"❌ {error_msg}")
+            print("환경변수 설정: export OPENAI_API_KEY=your-api-key")
+            raise ValueError(error_msg)
+    
+    try:
+        embedder = OpenAIEmbedder(api_key=api_key, model=model, max_retries=5)
+        
+        def embed_func(texts: List[str]) -> np.ndarray:
+            return embedder.embed(texts)
+        
+        logger.info(f"OpenAI 임베더 초기화 성공 (모델: {model})")
+        print(f"✅ OpenAI 임베더 초기화 성공 (모델: {model})")
+        return embed_func
+        
+    except Exception as e:
+        error_msg = f"OpenAI 임베더 초기화 실패: {e}"
+        logger.error(error_msg)
+        print(f"❌ {error_msg}")
+        raise RuntimeError(error_msg)

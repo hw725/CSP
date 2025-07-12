@@ -1,0 +1,19 @@
+def process_single_file(...):
+    # OpenAI 사용 시 강제 설정
+    if embedder_name == 'openai':
+        print("⚠️  OpenAI 임베더 사용 시 제한 설정:")
+        print("   - 병렬 처리 비활성화 (순차 처리)")
+        print("   - 워커 수: 1개")
+        print("   - 배치 크기: 1문장씩")
+        print("   - 요청 간격: 3초")
+        print("   - 예상 처리 시간이 매우 오래 걸립니다")
+        print()
+        
+        # 강제 설정
+        parallel = False
+        workers = 1
+        
+        user_input = input("계속 진행하시겠습니까? (y/N): ")
+        if user_input.lower() != 'y':
+            print("처리를 중단합니다.")
+            return False

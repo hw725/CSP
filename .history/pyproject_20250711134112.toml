@@ -1,0 +1,65 @@
+[tool.poetry]
+name = "CSP"
+packages = [{include = "core"}, {include = "pa"}]
+version = "0.1.0"
+description = "Multilingual NLP project with Korean/ClassicalChinese support"
+authors = ["hw725 <hw725@g.skku.edu>"]
+readme = "README.md"
+
+
+
+[tool.poetry.dependencies]
+python = "^3.10.11"
+
+# 데이터 처리 및 분석
+pandas = ">=1.5.0,<2.4.0"  # 안정적인 범위로 제한
+numpy = ">=1.21.0,<1.27.0"  # numpy 1.26.x로 고정
+openpyxl = ">=3.0.0"
+scipy = ">=1.10.0,<1.16.0"
+
+# 유틸리티
+regex = ">=2022.0.0"
+tqdm = ">=4.64.0"
+jieba = "*"
+
+# 머신러닝
+scikit-learn = ">=1.3.0,<1.8.0"
+
+# NLP 및 임베딩 패키지 (안정적인 버전)
+spacy = ">=3.7.0,<3.8.0"
+sentence-transformers = ">=2.2.0,<3.0.0"
+transformers = ">=4.35.0,<4.45.0"  # 너무 최신 버전 방지
+
+# 한국어 처리
+mecab-ko = ">=1.0.0"
+mecab-ko-dic = ">=1.0.0"
+mecab-python3 = ">=1.0.0"
+
+# 기타
+jinja2 = "^3.1.6"
+flagembedding = "^1.3.5"
+openai = "^1.93.1"
+
+[tool.poetry.group.dev.dependencies]
+jupyter = "*"
+ipykernel = "*"
+matplotlib = ">=3.7.0,<3.11.0"
+seaborn = ">=0.12.0,<0.14.0"
+black = "*"
+isort = "*"
+pytest = "*"
+
+[tool.poetry.scripts]
+install-models = "scripts.install_models:main"
+setup-mecab = "scripts.setup_mecab:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"

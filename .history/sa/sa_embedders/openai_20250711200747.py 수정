@@ -1,0 +1,51 @@
+import time
+import random
+import numpy as np
+from typing import List
+
+class OpenAIEmbedder:
+    def __init__(self, api_key: str, model: str = "text-embedding-3-large", max_retries: int = 5):
+        # ...existing code...
+        self.min_request_interval = 3.0  # 3초로 증가
+        self.batch_size = 5  # 배치 크기 더 축소
+    
+    def _exponential_backoff(self, retry_count: int) -> float:
+        """더 긴 백오프 시간"""
+        base_delay = 5.0  # 기본 대기 시간 증가
+        max_delay = 120.0  # 최대 2분 대기
+        delay = min(base_delay * (2 ** retry_count) + random.uniform(0, 2), max_delay)
+        return delay
+    
+    def _embed_batch_with_retry(self, texts: List[str], retry_count: int = 0) -> List[np.ndarray]:
+        """임베딩 배치를 재시도 로직과 함께 처리"""
+        try:
+            return self._embed_batch(texts)  # 기존 임베딩 배치 호출
+        except Exception as e:
+            if retry_count < self.max_retries:
+                delay = self._exponential_backoff(retry_count)
+                print(f"⚠️ 임베딩 요청 실패: {e}. {delay:.1f}초 후 재시도...")
+                time.sleep(delay)
+                return self._embed_batch_with_retry(texts, retry_count + 1)
+            else:
+                raise RuntimeError(f"임베딩 요청이 {self.max_retries}회 실패했습니다.") from e
+    
+    def embed(self, texts: List[str]) -> np.ndarray:
+        """더 보수적인 임베딩 요청"""
+        if not texts:
+            return np.array([])
+        
+        # 배치 크기를 1개로 제한 (429 에러 방지)
+        batch_size = 1
+        all_embeddings = []
+        
+        for i, text in enumerate(texts):
+            print(f"🔄 OpenAI 임베딩 {i+1}/{len(texts)}: {text[:50]}...")
+            
+            batch_embeddings = self._embed_batch_with_retry([text])
+            all_embeddings.extend(batch_embeddings)
+            
+            # 각 요청 후 대기
+            if i < len(texts) - 1:
+                time.sleep(3.0)  # 3초 대기
+        
+        return np.array(all_embeddings)

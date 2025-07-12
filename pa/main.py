@@ -27,7 +27,7 @@ def check_dependencies():
         import torch
     except ImportError:
         missing.append("torch")
-    # transformers, sentence-transformers 체크 삭제
+    
     if missing:
         print(f"\u274c 필수 패키지 누락: {', '.join(missing)}")
         print("설치 명령: pip install " + " ".join(missing))

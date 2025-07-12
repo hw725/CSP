@@ -25,8 +25,7 @@ def get_tokenizer_module(tokenizer_name: str):
     tokenizer_map = {
         'jieba': 'sa_tokenizers.jieba_mecab',
         'mecab': 'sa_tokenizers.jieba_mecab', 
-        'soy': 'sa_tokenizers.soynlp',
-        'kkma': 'sa_tokenizers.kkma'
+        
     }
     
     if tokenizer_name not in tokenizer_map:
@@ -171,14 +170,7 @@ def check_dependencies():
         import torch
     except ImportError:
         missing.append("torch")
-    try:
-        import transformers
-    except ImportError:
-        missing.append("transformers")
-    try:
-        import sentence_transformers
-    except ImportError:
-        missing.append("sentence_transformers")
+    
     try:
         import mecab
     except ImportError:
