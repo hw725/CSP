@@ -1,54 +1,78 @@
-"""PA 전용 정렬기 - spaCy 순차적 분할 정렬만 사용 (SA 연동 완전 제거, circular import 완전 제거)"""
+"""PA 전용 정렬기 - common 디렉토리 사용"""
+
 import sys
 import os
-import importlib
 import numpy as np
-import pandas as pd
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from pathlib import Path
 from typing import List, Dict
-from sentence_splitter import split_target_sentences_advanced, split_source_by_whitespace_and_align
 
-# 패키지 import 방식으로 복원
-from sa.sa_embedders import get_embedder
+# 경로 설정
+current_dir = Path(__file__).parent
+project_root = current_dir.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(current_dir))
+
+# 로컬 모듈 import
+from sentence_splitter import split_target_sentences_advanced, split_source_by_whitespace_and_align
 
 try:
     import torch
+    TORCH_AVAILABLE = True
 except ImportError:
     torch = None
+    TORCH_AVAILABLE = False
 
 def get_embedder_function(embedder_name: str, device: str = "cpu", openai_model: str = None, openai_api_key: str = None):
-    # Robust device selection: if device=="cuda" but not available, fallback to cpu
+    """임베더 함수 반환 - common 디렉토리에서 가져오기"""
+    
+    # 디바이스 확인
     if device == "cuda":
-        if torch is None or not torch.cuda.is_available():
-            print("⚠️ torch 미설치 또는 CUDA 미지원: CPU로 전환합니다.")
+        if not TORCH_AVAILABLE or not torch.cuda.is_available():
+            print("⚠️ CUDA 미지원: CPU로 전환합니다.")
             device = "cpu"
+    
     if embedder_name == 'bge':
-        return get_embedder("bge", device_id=device)
+        try:
+            # common 모듈에서 BGE 임베더 가져오기
+            sys.path.insert(0, str(project_root / 'common' / 'embedders'))
+            from bge import get_embed_func
+            return get_embed_func(device_id=0 if device == "cuda" else None)
+        except ImportError as e:
+            print(f"❌ BGE 임베더 로드 실패: {e}")
+            print(f"💡 FlagEmbedding 패키지 설치 필요: pip install FlagEmbedding")
+            return None
+            
     elif embedder_name == 'openai':
-        sa_openai = importlib.import_module('sa.sa_embedders.openai')
-        compute_embeddings_with_cache = sa_openai.compute_embeddings_with_cache
-        if openai_api_key:
-            os.environ["OPENAI_API_KEY"] = openai_api_key
-        def embed_func(texts):
-            return compute_embeddings_with_cache(
-                texts, 
-                model=openai_model if openai_model else "text-embedding-3-large"
-            )
-        return embed_func
+        try:
+            # 환경변수 설정
+            if openai_api_key:
+                os.environ["OPENAI_API_KEY"] = openai_api_key
+            
+            # common 모듈에서 OpenAI 임베더 가져오기
+            sys.path.insert(0, str(project_root / 'common' / 'embedders'))
+            from openai import compute_embeddings_with_cache
+            
+            def embed_func(texts):
+                return compute_embeddings_with_cache(
+                    texts, 
+                    model=openai_model if openai_model else "text-embedding-3-large"
+                )
+            return embed_func
+        except ImportError as e:
+            print(f"❌ OpenAI 임베더 로드 실패: {e}")
+            print(f"💡 OpenAI 패키지 설치 필요: pip install openai")
+            return None
     else:
-        raise ValueError(f"지원하지 않는 임베더: {embedder_name}. 지원: openai, bge")
+        print(f"❌ 지원하지 않는 임베더: {embedder_name}")
+        return None
 
-# improved_align_paragraphs 직접 포함 (circular import 제거)
 def improved_align_paragraphs(
     tgt_sentences: List[str], 
     src_text: str, 
     embed_func=None,
     similarity_threshold: float = 0.3
 ) -> List[Dict]:
-    """
-    순차적 1:1 정렬 (공백/포맷 100% 보존, 의미적 align 제거)
-    """
+    """순차적 1:1 정렬 (공백/포맷 100% 보존)"""
     if not tgt_sentences:
         return []
     

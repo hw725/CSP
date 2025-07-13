@@ -1,92 +1,82 @@
-"""PA 메인 실행기 - 완전 버전 (병렬 처리 완전 제거)"""
+"""PA (Paragraph Aligner) 메인 실행기"""
 
-import sys
 import os
+import sys
 import argparse
+import time
+from pathlib import Path
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-def check_dependencies():
-    """의존성 및 환경 점검
-    - 필수 패키지, torch 등
-    """
-    missing = []
-    try:
-        import pandas
-    except ImportError:
-        missing.append("pandas")
-    try:
-        import spacy
-    except ImportError:
-        missing.append("spacy")
-    try:
-        import numpy
-    except ImportError:
-        missing.append("numpy")
-    try:
-        import torch
-    except ImportError:
-        missing.append("torch")
-    # transformers, sentence-transformers 체크 삭제
-    if missing:
-        print(f"\u274c 필수 패키지 누락: {', '.join(missing)}")
-        print("설치 명령: pip install " + " ".join(missing))
-        return False
-    return True
+# 프로젝트 루트와 현재 디렉토리를 Python 경로에 추가
+current_dir = Path(__file__).parent
+project_root = current_dir.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(current_dir))
 
 def main():
-    print("🚀 PA (Paragraph Aligner) 시작")
+    """메인 실행 함수"""
+    parser = argparse.ArgumentParser(description='PA: 한문-한국어 문단 정렬 도구')
     
-    # 의존성 확인
-    if not check_dependencies():
-        return
+    # 위치 인수
+    parser.add_argument('input_file', help='입력 Excel 파일 경로')
+    parser.add_argument('output_file', help='출력 Excel 파일 경로')
     
-    parser = argparse.ArgumentParser(description="PA: Paragraph Aligner")
-    parser.add_argument("input_file", help="입력 파일 (Excel) - 컬럼: 원문, 번역문")
-    parser.add_argument("output_file", help="출력 파일 (Excel) - 컬럼: 문단식별자, 원문, 번역문")
-    parser.add_argument("--embedder", default="bge", choices=["bge", "st", "openai"])
-    parser.add_argument("--threshold", type=float, default=0.3, help="유사도 임계값")
-    parser.add_argument("--max-length", type=int, default=150, help="최대 문장 길이")
-    parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--device", default="cuda", help="임베더 연산 디바이스 (cuda/gpu/cpu, 기본값: cuda)")
-
+    # 선택적 인수들
+    parser.add_argument('--embedder', default='bge', choices=['bge', 'openai'],
+                       help='임베더 선택 (기본값: bge)')
+    parser.add_argument('--max-length', type=int, default=180,
+                       help='최대 문장 길이 (기본값: 180)')
+    parser.add_argument('--threshold', type=float, default=0.35,
+                       help='유사도 임계값 (기본값: 0.35)')
+    parser.add_argument('--openai-model', default='text-embedding-3-large',
+                       help='OpenAI 모델명')
+    parser.add_argument('--openai-api-key', 
+                       help='OpenAI API 키')
+    parser.add_argument('--verbose', action='store_true',
+                       help='상세 로그 출력')
+    
     args = parser.parse_args()
     
-    # 파일 존재 확인
-    if not os.path.exists(args.input_file):
-        print(f"❌ 입력 파일이 없습니다: {args.input_file}")
-        return
-    
-    # 출력 디렉토리 생성
-    output_dir = os.path.dirname(args.output_file)
-    if output_dir and not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-        print(f"📁 출력 디렉토리 생성: {output_dir}")
+    print("🚀 PA (Paragraph Aligner) 시작")
+    print()
     
     try:
+        # 현재 디렉토리에서 processor 직접 import
         from processor import process_paragraph_file
-
+        
+        start_time = time.time()
+        
+        # 파일 처리 실행
         result_df = process_paragraph_file(
-            args.input_file,
-            args.output_file,
+            input_file=args.input_file,
+            output_file=args.output_file,
             embedder_name=args.embedder,
             max_length=args.max_length,
             similarity_threshold=args.threshold,
-            device=args.device
+            openai_model=args.openai_model,
+            openai_api_key=args.openai_api_key,
+            verbose=args.verbose
         )
         
+        end_time = time.time()
+        processing_time = end_time - start_time
+        
         if result_df is not None:
-            print(f"\n✅ PA 처리 완료!")
-            print(f"입력: {args.input_file}")
-            print(f"출력: {args.output_file}")
-            print(f"결과: {len(result_df)}개 문장 쌍")
+            print(f"\n🎉 PA 처리 완료!")
+            print(f"⏱️  총 처리 시간: {processing_time:.2f}초")
+            print(f"📁 출력 파일: {args.output_file}")
+            print(f"📊 생성된 문장 쌍: {len(result_df)}개")
+            return True
         else:
-            print("\n❌ PA 처리 실패!")
+            print(f"\n❌ PA 처리 실패!")
+            return False
             
     except Exception as e:
-        print(f"\n❌ 실행 중 오류: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ 실행 중 오류: {e}")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
+        return False
 
 if __name__ == "__main__":
-    main()
+    success = main()
+    sys.exit(0 if success else 1)

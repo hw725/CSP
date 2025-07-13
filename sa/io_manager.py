@@ -1,106 +1,63 @@
-"""개선된 병렬 처리 - 작업 단위 분산"""
-try:
-    import pandas as pd
-except ImportError as e:
-    import logging
-    logging.error(f"\u274c pandas import 실패: {e}")
-    pd = None
-try:
-    from tqdm import tqdm
-except ImportError as e:
-    import logging
-    logging.error(f"\u274c tqdm import 실패: {e}")
-    def tqdm(x, *args, **kwargs):
-        return x
+"""간소화된 병렬 처리 - 불필요한 코드 제거"""
+
+import pandas as pd
+from tqdm import tqdm
 import logging
 from pathlib import Path
 import multiprocessing as mp
 from typing import Dict, Any, List
-import math
-import sys, os
+import sys
+import os
 
-CSP_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-if CSP_ROOT not in sys.path:
-    sys.path.insert(0, CSP_ROOT)
+# 경로 설정
+current_dir = Path(__file__).parent
+project_root = current_dir.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(current_dir))
 
 logger = logging.getLogger(__name__)
 
 # 전역 변수 (각 프로세스에서 초기화)
 worker_embed_func = None
 worker_modules = {}
-verbose_mode = False  # 기본적으로 비활성화
 
-def set_verbose_mode(verbose=False):
-    """전역 verbose 모드 설정"""
-    global verbose_mode
-    verbose_mode = verbose
-
-def init_worker(device_id=None, embedder_name='bge'):
-    """워커 프로세스 초기화 - 한 번만 실행 (device_id로 GPU 분배, 임베더 선택)"""
+def init_worker(embedder_name='bge'):
+    """워커 프로세스 초기화 - 간소화"""
     global worker_embed_func, worker_modules
+    
     try:
-        # jinja2 관련 오류 우회 - 멀티프로세싱 환경에서 jinja2.tests 모듈 누락 문제 해결
-        import sys
-        try:
-            import jinja2.tests
-        except (ImportError, ModuleNotFoundError):
-            # jinja2.tests 모듈을 mock으로 생성하여 임포트 오류 방지
-            import types
-            mock_module = types.ModuleType('jinja2.tests')
-            sys.modules['jinja2.tests'] = mock_module
-            try:
-                import jinja2
-                jinja2.tests = mock_module
-            except:
-                pass
-        
-        if verbose_mode:
-            print(f"워커 {mp.current_process().pid}: 초기화 시작 (device_id={device_id}, embedder={embedder_name})")
-        
-        # 임베더 초기화 - 임베더 타입에 따라 다른 함수 사용
+        # 임베더 초기화
         if embedder_name == 'openai':
-            from sa_embedders import get_embedder
-            worker_embed_func = get_embedder('openai')
-            if verbose_mode:
-                print(f"워커 {mp.current_process().pid}: OpenAI 임베더 초기화 완료")
-        else:  # bge 또는 기본값
-            from sa_embedders import get_embed_func
-            worker_embed_func = get_embed_func(device_id=device_id)
-            if verbose_mode:
-                print(f"워커 {mp.current_process().pid}: BGE 임베더 초기화 완료")
+            from common.embedders.openai import compute_embeddings_with_cache
+            worker_embed_func = compute_embeddings_with_cache
+        else:  # bge 기본값
+            from common.embedders.bge import get_embed_func
+            worker_embed_func = get_embed_func()
         
-        # 필요한 모듈들 임포트 (핵심 함수만)
+        # 필요한 모듈들 import
         from sa_tokenizers.jieba_mecab import (
             split_src_meaning_units, 
-            split_tgt_meaning_units_sequential,  # 메인 번역문 분할 함수
-            split_tgt_by_src_units_semantic     # 폴백용
+            split_tgt_by_src_units_semantic
         )
         from punctuation import mask_brackets, restore_brackets
         
         worker_modules = {
             'split_src_meaning_units': split_src_meaning_units,
-            'split_tgt_meaning_units_sequential': split_tgt_meaning_units_sequential,
             'split_tgt_by_src_units_semantic': split_tgt_by_src_units_semantic,
             'mask_brackets': mask_brackets,
             'restore_brackets': restore_brackets
         }
         
-        if verbose_mode:
-            print(f"워커 {mp.current_process().pid}: 초기화 완료 (device_id={device_id})")
-        
     except Exception as e:
-        # 초기화 실패는 중요한 오류이므로 항상 출력
-        print(f"워커 {mp.current_process().pid}: 초기화 실패: {e}")
+        print(f"워커 초기화 실패: {e}")
         worker_embed_func = None
         worker_modules = {}
 
-def process_batch_sentences(sentence_batch: List[Dict[str, Any]], device_id=None) -> List[Dict[str, Any]]:
-    """배치 단위 문장 처리 - 한 프로세스가 여러 문장 처리"""
+def process_batch_sentences(sentence_batch: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """배치 단위 문장 처리 - 간소화"""
     global worker_embed_func, worker_modules
     
     if worker_embed_func is None or not worker_modules:
-        # 중요 오류는 항상 출력
-        print(f"워커 {mp.current_process().pid}: 초기화되지 않음")
         return []
     
     results = []
@@ -116,19 +73,14 @@ def process_batch_sentences(sentence_batch: List[Dict[str, Any]], device_id=None
             restore_brackets = worker_modules['restore_brackets']
             split_src_meaning_units = worker_modules['split_src_meaning_units']
             split_tgt_by_src_units_semantic = worker_modules['split_tgt_by_src_units_semantic']
-            split_tgt_meaning_units_sequential = worker_modules['split_tgt_meaning_units_sequential']
             
             # 처리 파이프라인
             masked_src, src_masks = mask_brackets(src_text, 'source')
             masked_tgt, tgt_masks = mask_brackets(tgt_text, 'target')
             
             src_units = split_src_meaning_units(masked_src)
-            # 🆕 의미 기반 순차 분할 (임베딩 함수 전달)
-            tgt_units = split_tgt_meaning_units_sequential(
-                masked_src,  # 원문도 전달
-                masked_tgt, 
-                min_tokens=1,
-                embed_func=worker_embed_func  # 임베딩 함수 전달
+            tgt_units = split_tgt_by_src_units_semantic(
+                src_units, masked_tgt, worker_embed_func, min_tokens=1
             )
             
             # 결과 생성
@@ -144,42 +96,38 @@ def process_batch_sentences(sentence_batch: List[Dict[str, Any]], device_id=None
                 })
             
         except Exception as e:
-            if verbose_mode:
-                print(f"워커 {mp.current_process().pid}: 문장 {sentence_data.get('sentence_id', '?')} 실패: {e}")
             logger.error(f"문장 {sentence_data.get('sentence_id', '?')} 처리 오류: {e}")
             continue
     
-    if verbose_mode:
-        print(f"워커 {mp.current_process().pid}: 배치 {len(sentence_batch)}개 문장 처리 완료 → {len(results)}개 구")
-    
     return results
 
-def process_file(input_path: str, output_path: str, parallel: bool = False, workers: int = 4, 
-                batch_size: int = 20, device_ids=None, verbose: bool = False, embedder_name: str = 'bge'):
-    """개선된 병렬 처리 (임베더 선택 지원)"""
-    
-    # verbose 모드 설정
-    set_verbose_mode(verbose)
+def process_file(
+    input_path: str, 
+    output_path: str, 
+    parallel: bool = False, 
+    workers: int = 4, 
+    embedder_name: str = 'bge'
+) -> pd.DataFrame:
+    """파일 처리 함수 - 간소화"""
     
     # 데이터 로드
-    logger.info(f"파일 로드: {input_path}")
+    print(f"📂 파일 로드 중: {input_path}")
     
     try:
-        if input_path.endswith('.xlsx'):
-            df = pd.read_excel(input_path)
-        else:
-            df = pd.read_csv(input_path)
+        df = pd.read_excel(input_path) if input_path.endswith('.xlsx') else pd.read_csv(input_path)
     except Exception as e:
-        logger.error(f"파일 로드 실패: {e}")
+        print(f"❌ 파일 로드 실패: {e}")
         raise
     
-    logger.info(f"로드 완료: {len(df)}개 행")
+    print(f"✅ 로드 완료: {len(df)}개 행")
     
     # 필수 컬럼 확인
     required_columns = ['문장식별자', '원문', '번역문']
     missing_columns = [col for col in required_columns if col not in df.columns]
     if missing_columns:
-        raise ValueError(f"필수 컬럼 누락: {missing_columns}")
+        error_msg = f"필수 컬럼 누락: {missing_columns}"
+        print(f"❌ {error_msg}")
+        raise ValueError(error_msg)
     
     # 데이터 준비
     sentence_data_list = []
@@ -194,96 +142,71 @@ def process_file(input_path: str, output_path: str, parallel: bool = False, work
                 'tgt_text': tgt_text
             })
     
-    logger.info(f"처리할 문장: {len(sentence_data_list)}개")
+    total_sentences = len(sentence_data_list)
+    print(f"📊 처리할 문장: {total_sentences}개")
+    
+    if total_sentences == 0:
+        raise ValueError("처리할 문장이 없습니다")
     
     # 처리 실행
     results = []
     
-    if parallel and len(sentence_data_list) > workers:
-        logger.info(f"배치 병렬 처리 시작 ({workers}개 프로세스)")
+    if parallel and total_sentences > workers:
+        print(f"🔄 병렬 처리 시작 ({workers}개 프로세스)")
         
         # 문장들을 배치로 분할
-        batch_size_per_worker = max(1, len(sentence_data_list) // workers)
+        batch_size_per_worker = max(1, total_sentences // workers)
         sentence_batches = []
         
-        for i in range(0, len(sentence_data_list), batch_size_per_worker):
+        for i in range(0, total_sentences, batch_size_per_worker):
             batch = sentence_data_list[i:i + batch_size_per_worker]
             sentence_batches.append(batch)
         
-        logger.info(f"배치 분할: {len(sentence_batches)}개 배치, 배치당 평균 {batch_size_per_worker}개 문장")
-        
-        # device id 분배
-        if device_ids is None:
-            # 기본: 워커 수만큼 device id를 0,1,2,...로 분배 (단일 GPU면 모두 0)
-            import torch
-            n_gpu = torch.cuda.device_count() if torch.cuda.is_available() else 0
-            if n_gpu > 1:
-                device_ids = [i % n_gpu for i in range(workers)]
-            else:
-                device_ids = [0 for _ in range(workers)]
+        print(f"📋 배치 분할: {len(sentence_batches)}개 배치")
+        print(f"🔧 {embedder_name.upper()} 모델 로딩 중...")
         
         # 프로세스 풀로 배치 처리
-        logger.info("⏳ 워커 프로세스 초기화 중... (모델 로딩으로 인해 시간이 걸릴 수 있습니다)")
-        print(f"⏳ {embedder_name.upper()} 모델 로딩 중... 잠시만 기다려주세요.")
-        
-        with mp.Pool(processes=workers, initializer=init_worker, initargs=(device_ids[0], embedder_name)) as pool:
+        with mp.Pool(processes=workers, initializer=init_worker, initargs=(embedder_name,)) as pool:
             try:
-                async_results = []
-                for i, batch in enumerate(sentence_batches):
-                    device_id = device_ids[i % len(device_ids)]
-                    async_result = pool.apply_async(process_batch_sentences, (batch,), {'device_id': device_id})
-                    async_results.append((i, async_result))
-                
                 print(f"✅ 모델 로딩 완료! 문장 처리를 시작합니다...")
-                logger.info("✅ 워커 프로세스 초기화 완료, 문장 처리 시작")
                 
-                # 결과 수집 - 문장 기준 진행률 표시
-                processed_sentences = 0
-                with tqdm(total=len(sentence_data_list), desc="문장 처리", unit="문장") as pbar:
-                    for batch_idx, async_result in async_results:
+                # 결과 수집
+                with tqdm(total=total_sentences, desc="문장 처리", unit="문장") as pbar:
+                    for i, batch in enumerate(sentence_batches):
                         try:
-                            batch_results = async_result.get()  # 타임아웃 제거
+                            batch_results = pool.apply(process_batch_sentences, (batch,))
                             results.extend(batch_results)
                             
-                            # 현재 배치의 문장 수 계산
-                            batch_sentences = len(sentence_batches[batch_idx])
-                            processed_sentences += batch_sentences
-                            pbar.update(batch_sentences)
-                            pbar.set_postfix({"구": len(results), "배치": f"{batch_idx+1}/{len(sentence_batches)}"})
+                            pbar.update(len(batch))
+                            pbar.set_postfix({"구": len(results), "배치": f"{i+1}/{len(sentence_batches)}"})
                             
-                            logger.info(f"배치 {batch_idx+1}/{len(sentence_batches)} 완료: {batch_sentences}개 문장 → {len(batch_results)}개 구")
                         except Exception as e:
-                            # 실패한 배치의 문장 수도 업데이트
-                            batch_sentences = len(sentence_batches[batch_idx])
-                            processed_sentences += batch_sentences
-                            pbar.update(batch_sentences)
-                            logger.error(f"배치 {batch_idx+1} 처리 오류: {e}")
+                            pbar.update(len(batch))
+                            logger.error(f"배치 {i+1} 처리 오류: {e}")
                         
             except KeyboardInterrupt:
-                logger.info("사용자 중단")
+                print("사용자 중단")
                 pool.terminate()
                 pool.join()
                 raise
                 
     else:
-        logger.info("순차 처리 시작")
+        print(f"🔄 순차 처리 시작")
+        print(f"🔧 {embedder_name.upper()} 모델 로딩 중...")
         
-        # 순차 처리 - 임베더 선택
-        print(f"⏳ {embedder_name.upper()} 모델 로딩 중... 잠시만 기다려주세요.")
+        # 순차 처리
         if embedder_name == 'openai':
-            from sa_embedders import get_embedder
-            embed_func = get_embedder('openai')
-        else:  # bge 또는 기본값
-            from sa_embedders import get_embed_func
+            from common.embedders.openai import compute_embeddings_with_cache
+            embed_func = compute_embeddings_with_cache
+        else:  # bge 기본값
+            from common.embedders.bge import get_embed_func
             embed_func = get_embed_func()
         
         print(f"✅ 모델 로딩 완료! 문장 처리를 시작합니다...")
-        logger.info("✅ 모델 로딩 완료, 순차 처리 시작")
         
         from sa_tokenizers.jieba_mecab import (
             split_src_meaning_units, 
-            split_tgt_meaning_units_sequential,
-            split_tgt_by_src_units_semantic  # 폴백용
+            split_tgt_by_src_units_semantic
         )
         from punctuation import mask_brackets, restore_brackets
         
@@ -316,22 +239,24 @@ def process_file(input_path: str, output_path: str, parallel: bool = False, work
                 
             except Exception as e:
                 logger.error(f"문장 {sentence_data.get('sentence_id', '?')} 순차 처리 오류: {e}")
-                if verbose:
-                    print(f"순차 처리 문장 {sentence_data.get('sentence_id', '?')} 실패: {e}")
                 continue
     
-    # 결과 저장 (기존과 동일)
+    # 결과 저장
     if not results:
         raise ValueError("처리된 결과가 없습니다")
     
+    print(f"💾 결과 저장 중: {output_path}")
     result_df = pd.DataFrame(results)
     
-    if output_path.endswith('.xlsx'):
+    try:
         result_df.to_excel(output_path, index=False)
-    else:
-        result_df.to_csv(output_path, index=False, encoding='utf-8-sig')
-    
-    logger.info(f"처리 완료: {len(sentence_data_list)}개 문장 → {len(results)}개 구")
-    logger.info(f"출력: {output_path}")
-    
-    return result_df
+        
+        print(f"🎉 처리 완료!")
+        print(f"📊 결과: {total_sentences}개 문장 → {len(results)}개 구")
+        print(f"📁 출력: {output_path}")
+        
+        return result_df
+        
+    except Exception as e:
+        print(f"❌ 결과 저장 실패: {e}")
+        raise
