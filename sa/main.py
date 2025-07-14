@@ -1,17 +1,10 @@
-"""SA 정렬 시스템 메인 실행기 - 간소화"""
+"""SA (Sentence Aligner) 메인 실행 파일"""
 
 import argparse
-import logging
 import time
-import sys
-import os
+import logging
+import traceback
 from pathlib import Path
-
-# 경로 설정
-current_dir = Path(__file__).parent
-project_root = current_dir.parent
-sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(current_dir))
 
 def setup_logging(verbose: bool = False):
     """로깅 설정"""
@@ -20,122 +13,108 @@ def setup_logging(verbose: bool = False):
         level=level,
         format='%(asctime)s - %(levelname)s:%(name)s:%(message)s',
         handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler('sa_processing.log', encoding='utf-8')
+            logging.StreamHandler()
         ]
     )
 
-def process_single_file(
-    input_file: str,
-    output_file: str,
-    embedder_name: str = 'bge',
-    parallel: bool = True,
-    workers: int = 4,
-    openai_api_key: str = None,
-    verbose: bool = False
-) -> bool:
-    """단일 파일 처리 - 간소화"""
-    
-    start_time = time.time()
-    print(f"🚀 SA 파일 처리 시작: {input_file}")
-    print(f"⚙️  설정: 임베더={embedder_name}, 병렬={parallel}, 워커={workers}")
-    print()
-    
-    try:
-        from io_manager import process_file
-        
-        results_df = process_file(
-            input_file,
-            output_file,
-            parallel=parallel,
-            workers=workers,
-            embedder_name=embedder_name
-        )
-        
-        if results_df is not None:
-            end_time = time.time()
-            print(f"\n🎉 처리 완료!")
-            print(f"⏱️  처리 시간: {end_time - start_time:.2f}초")
-            print(f"📊 결과: {len(results_df)}개 구")
-            print(f"📁 출력: {output_file}")
-            return True
-        else:
-            print(f"\n❌ 처리 실패")
-            return False
-            
-    except Exception as e:
-        print(f"❌ 처리 오류: {e}")
-        if verbose:
-            import traceback
-            traceback.print_exc()
-        return False
-
 def main():
-    """메인 함수 - 간소화"""
+    """메인 실행 함수"""
+    parser = argparse.ArgumentParser(description='SA: 한문-한국어 문장 분할 도구')
     
-    parser = argparse.ArgumentParser(
-        description='SA: 한문-한국어 문장/구 정렬 도구',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-사용 예시:
-  python main.py input.xlsx output.xlsx
-  python main.py input.xlsx output.xlsx --embedder openai --openai-api-key your-key
-  python main.py input.xlsx output.xlsx --no-parallel
-        """
-    )
+    # 필수 인수
+    parser.add_argument('input_file', help='입력 엑셀 파일 경로')
+    parser.add_argument('output_file', help='출력 엑셀 파일 경로')
     
-    # 필수 인자
-    parser.add_argument('input_file', help='입력 Excel 파일')
-    parser.add_argument('output_file', help='출력 Excel 파일')
-    
-    # 선택 인자
-    parser.add_argument('--embedder', '-e', default='bge',
-                       choices=['bge', 'openai'], 
+    # 선택적 인수
+    parser.add_argument('--embedder', choices=['bge', 'openai'], default='bge',
                        help='임베더 선택 (기본: bge)')
-    
+    parser.add_argument('--max-workers', type=int, default=4,
+                       help='최대 워커 수 (기본: 4)')
+    parser.add_argument('--chunk-size', type=int, default=100,
+                       help='청크 크기 (기본: 100)')
     parser.add_argument('--no-parallel', action='store_true',
                        help='병렬 처리 비활성화')
-    
-    parser.add_argument('--workers', '-w', type=int, default=4,
-                       help='워커 프로세스 수 (기본: 4)')
-    
-    parser.add_argument('--openai-api-key', 
-                       help='OpenAI API 키')
-    
     parser.add_argument('--verbose', '-v', action='store_true',
                        help='상세 로그 출력')
+    
+    # 토크나이저 옵션
+    parser.add_argument('--min-src-tokens', type=int, default=1,
+                       help='원문 최소 토큰 수 (기본: 1)')
+    parser.add_argument('--max-src-tokens', type=int, default=20,
+                       help='원문 최대 토큰 수 (기본: 20)')
+    parser.add_argument('--min-tgt-tokens', type=int, default=1,
+                       help='번역문 최소 토큰 수 (기본: 1)')
+    parser.add_argument('--max-tgt-tokens', type=int, default=30,
+                       help='번역문 최대 토큰 수 (기본: 30)')
     
     args = parser.parse_args()
     
     # 로깅 설정
     setup_logging(args.verbose)
     
-    # 파일 존재 확인
-    if not os.path.exists(args.input_file):
-        print(f"❌ 입력 파일을 찾을 수 없습니다: {args.input_file}")
-        sys.exit(1)
+    # use_parallel 계산 (기존 코드와 호환)
+    use_parallel = not args.no_parallel
     
-    # OpenAI 설정 확인
-    if args.embedder == 'openai':
-        if not args.openai_api_key and not os.getenv('OPENAI_API_KEY'):
-            print("❌ OpenAI 임베더 사용 시 API 키가 필요합니다")
-            sys.exit(1)
+    print("🚀 SA 파일 처리 시작:", args.input_file)
+    print(f"⚙️  설정: 임베더={args.embedder}, 병렬={use_parallel}, 워커={args.max_workers}")
+    print()
+    
+    start_time = time.time()
+    
+    try:
+        # io_manager의 process_file 함수 호출
+        from io_manager import process_file
         
-        if args.openai_api_key:
-            os.environ['OPENAI_API_KEY'] = args.openai_api_key
+        success = process_file(
+            input_file=args.input_file,
+            output_file=args.output_file,
+            embedder_name=args.embedder,
+            max_workers=args.max_workers,
+            chunk_size=args.chunk_size,
+            use_parallel=use_parallel,  # 계산된 값 사용
+            min_src_tokens=args.min_src_tokens,
+            max_src_tokens=args.max_src_tokens,
+            min_tgt_tokens=args.min_tgt_tokens,
+            max_tgt_tokens=args.max_tgt_tokens,
+            verbose=args.verbose
+        )
+        
+        elapsed_time = time.time() - start_time
+        
+        print()
+        print("🎉 처리 완료!")
+        print(f"⏱️  처리 시간: {elapsed_time:.2f}초")
+        
+        if success:
+            print(f"✅ 결과 파일: {args.output_file}")
+            
+            # 결과 파일 통계 출력
+            try:
+                import pandas as pd
+                result_df = pd.read_excel(args.output_file)
+                print(f"📊 처리 결과: {len(result_df)}개 문장")
+                
+                # 분할 방법별 통계
+                if '분할방법' in result_df.columns:
+                    method_counts = result_df['분할방법'].value_counts()
+                    print("📈 분할 방법별 통계:")
+                    for method, count in method_counts.items():
+                        print(f"   {method}: {count}개")
+                
+            except Exception as stats_error:
+                print(f"📊 통계 계산 오류: {stats_error}")
+        else:
+            print("❌ 처리 실패")
+            return 1
+            
+    except Exception as e:
+        print(f"❌ 처리 오류: {e}")
+        if args.verbose:
+            print("\n상세 오류 정보:")
+            print(traceback.format_exc())
+        return 1
     
-    # 처리 실행
-    success = process_single_file(
-        input_file=args.input_file,
-        output_file=args.output_file,
-        embedder_name=args.embedder,
-        parallel=not args.no_parallel,
-        workers=args.workers,
-        openai_api_key=args.openai_api_key,
-        verbose=args.verbose
-    )
-    
-    sys.exit(0 if success else 1)
+    return 0
 
 if __name__ == "__main__":
-    main()
+    exit(main())
