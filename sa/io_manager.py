@@ -10,6 +10,9 @@ from pathlib import Path
 import traceback
 import hashlib
 
+# 진행률 막대
+from tqdm import tqdm
+
 # 무결성 모듈 import
 try:
     from punctuation import integrity_guard, safe_mask_brackets, safe_restore_brackets, get_integrity_status
@@ -28,9 +31,10 @@ logger = logging.getLogger(__name__)
 class SafeFileProcessor:
     """무결성 보장 파일 처리기"""
     
-    def __init__(self, max_workers: int = 4, chunk_size: int = 100):
+    def __init__(self, max_workers: int = 4, chunk_size: int = 100, verbose: bool = False):
         self.max_workers = max_workers
         self.chunk_size = chunk_size
+        self.verbose = verbose  # 🔧 verbose 옵션 추가
         self.processed_count = 0
         self.error_count = 0
         self.integrity_failures = 0
@@ -60,10 +64,36 @@ class SafeFileProcessor:
             results = []
             chunks = self._create_chunks(df)
             
-            logger.info(f"데이터를 {len(chunks)}개 청크로 분할하여 처리")
+            if not self.verbose:
+                # 기본 모드: 간단한 시작 메시지
+                print(f"📊 SA 분할 시작: {len(df):,}개 행", flush=True)
+                
+                # 🔧 행 단위 진행률 막대 생성
+                try:
+                    progress_bar = tqdm(
+                        total=len(df),  # 🔧 전체 행 수로 설정
+                        desc="🔄 SA 분할", 
+                        unit="행",  # 🔧 단위를 '행'으로 변경
+                        ncols=100,
+                        bar_format='{desc}: {percentage:3.0f}%|{bar:50}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]',
+                        leave=True,
+                        mininterval=0.1,
+                        maxinterval=1.0,
+                    )
+                    use_progress_bar = True
+                except Exception as e:
+                    # tqdm 오류 시 폴백
+                    logger.warning(f"진행률 막대 생성 실패: {e}")
+                    progress_bar = None
+                    use_progress_bar = False
+            else:
+                # verbose 모드에서는 진행률 막대 없이
+                progress_bar = None
+                use_progress_bar = False
             
             for i, chunk in enumerate(chunks):
-                logger.info(f"청크 {i+1}/{len(chunks)} 처리 중...")
+                if self.verbose:
+                    logger.info(f"청크 {i+1}/{len(chunks)} 처리 중...")
                 
                 chunk_results = self._process_chunk_with_integrity(
                     chunk, processing_function, f"{file_id}_chunk_{i}", **kwargs
@@ -74,6 +104,25 @@ class SafeFileProcessor:
                     self.processed_count += len(chunk_results)
                 else:
                     self.error_count += len(chunk)
+                
+                # 🔧 행 단위 진행률 업데이트
+                if use_progress_bar and progress_bar:
+                    try:
+                        # 현재 청크의 행 수만큼 진행률 업데이트
+                        progress_bar.update(len(chunk))
+                        progress_bar.set_postfix({
+                            '성공': self.processed_count,
+                            '실패': self.error_count
+                        })
+                    except:
+                        pass  # 업데이트 실패 시 무시
+            
+            # 🔧 진행률 막대 정리
+            if use_progress_bar and progress_bar:
+                try:
+                    progress_bar.close()
+                except:
+                    pass
             
             # 3. 결과 저장 및 검증
             if results:
@@ -84,15 +133,22 @@ class SafeFileProcessor:
                 
                 if final_integrity['valid']:
                     result_df.to_excel(output_file, index=False)
-                    logger.info(f"결과 저장 완료: {output_file}")
-                    logger.info(f"처리 통계: 성공 {self.processed_count}, 실패 {self.error_count}, 무결성실패 {self.integrity_failures}")
+                    if self.verbose:
+                        logger.info(f"결과 저장 완료: {output_file}")
+                        logger.info(f"처리 통계: 성공 {self.processed_count}, 실패 {self.error_count}, 무결성실패 {self.integrity_failures}")
+                    else:
+                        print(f"✅ 완료: {len(result_df):,}개 구문 생성")
                     return True
                 else:
-                    logger.error(f"최종 무결성 검증 실패: {final_integrity['message']}")
+                    if self.verbose:
+                        logger.error(f"최종 무결성 검증 실패: {final_integrity['message']}")
                     # 복구된 결과로 저장
                     if final_integrity.get('restored_df') is not None:
                         final_integrity['restored_df'].to_excel(output_file, index=False)
-                        logger.info(f"복구된 결과로 저장: {output_file}")
+                        if self.verbose:
+                            logger.info(f"복구된 결과로 저장: {output_file}")
+                        else:
+                            print(f"⚠️ 무결성 문제 있지만 결과 저장됨: {len(final_integrity['restored_df']):,}개 구문")
                         return True
                     else:
                         return False
@@ -386,19 +442,25 @@ def process_file(
     max_workers: int = 4,
     chunk_size: int = 100,
     use_parallel: bool = True,
+    verbose: bool = False,  # 🔧 verbose 옵션 추가
     **kwargs
 ) -> bool:
     """기존 SA 호환 파일 처리 함수 (무결성 보장)"""
     
-    logger.info(f"SA 파일 처리 시작: {input_file}")
-    logger.info(f"설정: 임베더={embedder_name}, 병렬={use_parallel}, 워커={max_workers}")
+    if verbose:
+        logger.info(f"SA 파일 처리 시작: {input_file}")
+        logger.info(f"설정: 임베더={embedder_name}, 병렬={use_parallel}, 워커={max_workers}")
     
     try:
         # SA 처리 함수 import
         from sa_tokenizers.jieba_mecab import process_single_row
         
         # 무결성 보장 처리기 생성
-        processor = SafeFileProcessor(max_workers=max_workers, chunk_size=chunk_size)
+        processor = SafeFileProcessor(
+            max_workers=max_workers, 
+            chunk_size=chunk_size, 
+            verbose=verbose  # 🔧 verbose 옵션 전달
+        )
         
         # 무결성 보장 처리 실행
         success = processor.process_file_with_integrity(
@@ -410,9 +472,11 @@ def process_file(
         )
         
         if success:
-            logger.info(f"✅ SA 파일 처리 완료: {output_file}")
+            if verbose:
+                logger.info(f"✅ SA 파일 처리 완료: {output_file}")
         else:
-            logger.error(f"❌ SA 파일 처리 실패")
+            if verbose:
+                logger.error(f"❌ SA 파일 처리 실패")
         
         return success
         

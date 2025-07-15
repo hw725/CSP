@@ -8,7 +8,7 @@ from typing import List, Callable, Dict
 try:
     import numpy as np
 except ImportError:
-    print("⚠️ numpy 없음 - 임베딩 분석 비활성화")
+    # 🔧 verbose 모드에서만 출력 (logger가 아직 설정되기 전이므로 나중에 처리)
     np = None
 
 try:
@@ -16,13 +16,11 @@ try:
     jieba.setLogLevel(logging.WARNING)
 except ImportError:
     jieba = None
-    print("⚠️ jieba 없음")
 
 try:
     import MeCab
 except ImportError:
     MeCab = None
-    print("⚠️ MeCab 없음")
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +36,13 @@ try:
         dicdir_path = 'C:/Users/junto/Downloads/head-repo/CSP/.venv/Lib/site-packages/mecab_ko_dic/dicdir'
         userdic_path = 'C:/Users/junto/Downloads/head-repo/CSP/.venv/Lib/site-packages/mecab_ko_dic/dicdir/user.dic'
         mecab = MeCab.Tagger(f'-r {mecabrc_path} -d {dicdir_path} -u {userdic_path}')
-        print("✅ MeCab 초기화 성공")
+        # 🔧 verbose 모드에서만 출력
+        if logger.isEnabledFor(logging.DEBUG):
+            print("✅ MeCab 초기화 성공")
         logger.info("✅ MeCab 초기화 성공")
 except Exception as e:
-    print(f"⚠️ MeCab 초기화 실패: {e}")
+    if logger.isEnabledFor(logging.DEBUG):
+        print(f"⚠️ MeCab 초기화 실패: {e}")
     logger.warning(f"⚠️ MeCab 초기화 실패: {e}")
     mecab = None
 
@@ -185,8 +186,24 @@ def process_single_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Dic
         while len(tgt_units) < max_units:
             tgt_units.append('')
         
-        # 4. 결과 생성
+        # 4. 결과 생성 - 구식별자 포함한 형식으로 출력
         results = []
+        
+        # row_id에서 문장식별자 추출 (안전하게)
+        try:
+            if row_id and '_' in row_id:
+                # file_14bfb2de_chunk_0_row_1 -> 1 추출 시도
+                parts = row_id.split('_')
+                # 마지막 부분이 숫자인지 확인
+                if parts[-1].isdigit():
+                    sentence_id = int(parts[-1]) + 1  # 0-based를 1-based로 변환
+                else:
+                    sentence_id = getattr(row, 'name', 0) + 1
+            else:
+                sentence_id = getattr(row, 'name', 0) + 1
+        except (ValueError, AttributeError):
+            sentence_id = getattr(row, 'name', 0) + 1
+        
         for i in range(max_units):
             src_unit = src_units[i]
             tgt_unit = tgt_units[i]
@@ -195,13 +212,10 @@ def process_single_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Dic
                 continue
             
             result = {
-                '문장식별자': f"{row_id}_{i}" if row_id else f"row_{getattr(row, 'name', 0)}_{i}",
+                '문장식별자': sentence_id,  # 🔧 안전한 정수 추출
+                '구식별자': i + 1,  # 🔧 구식별자 컬럼 추가
                 '원문': src_unit,
-                '번역문': tgt_unit,
-                '분할방법': f'sa_whitespace_semantic_{embedder_name}',
-                '유사도': _calculate_simple_similarity(src_unit, tgt_unit),
-                '원문_토큰수': len(src_unit.split()) if src_unit else 0,
-                '번역문_토큰수': len(tgt_unit.split()) if tgt_unit else 0
+                '번역문': tgt_unit
             }
             results.append(result)
         
@@ -210,14 +224,25 @@ def process_single_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Dic
         
     except Exception as e:
         logger.error(f"SA 행 처리 실패: {e}")
+        
+        # 오류 시에도 같은 형식으로 반환 (안전하게)
+        try:
+            if row_id and '_' in row_id:
+                parts = row_id.split('_')
+                if parts[-1].isdigit():
+                    sentence_id = int(parts[-1]) + 1
+                else:
+                    sentence_id = getattr(row, 'name', 0) + 1
+            else:
+                sentence_id = getattr(row, 'name', 0) + 1
+        except (ValueError, AttributeError):
+            sentence_id = getattr(row, 'name', 0) + 1
+        
         return [{
-            '문장식별자': f"{row_id}_error" if row_id else f"row_{getattr(row, 'name', 0)}_error",
+            '문장식별자': sentence_id,  # 🔧 안전한 정수 추출
+            '구식별자': 1,  # 🔧 구식별자 컬럼 추가
             '원문': str(row.get('원문', '')),
             '번역문': str(row.get('번역문', '')),
-            '분할방법': 'sa_error_fallback',
-            '유사도': 1.0,
-            '원문_토큰수': len(str(row.get('원문', '')).split()),
-            '번역문_토큰수': len(str(row.get('번역문', '')).split())
         }]
 
 def tokenize_text(text):
