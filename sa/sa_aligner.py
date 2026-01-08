@@ -21,18 +21,12 @@ from common.tokenizers import (
     detect_chinese_period,
     # 전근대 고전 전용 모델들
     get_siku_tokenizer,
-    get_anchi_tokenizer, 
     siku_get_embeddings,
     siku_similarity,
-    anchi_get_embeddings,
-    anchi_similarity,
     # 전근대 고전 전용 토크나이저 사용 (교체 완료)
     get_siku_tokenizer,
-    get_anchi_tokenizer,
     siku_get_embeddings,
-    siku_similarity,
-    anchi_get_embeddings,
-    anchi_similarity
+    siku_similarity
 )
 
 logger = logging.getLogger(__name__)
@@ -96,7 +90,7 @@ def split_tgt_meaning_units(text: str, src_units_count: int, src_units: List[str
     return _split_tgt_by_src_units_simple(text, src_units_count)
 
 def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_tokens: int = 1, **kwargs) -> List[str]:
-    """원문 단위에 따른 번역문 분할 (시간 표현 감지 개선)"""
+    """원문 단위에 따른 번역문 분할 (BGE-M3 Multi-Vector 의미 매칭)"""
     
     tgt_tokens = tgt_text.split()
     N, T = len(src_units), len(tgt_tokens)
@@ -118,164 +112,135 @@ def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_to
                 result.append("")
         return result
     
-def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_tokens: int = 1, **kwargs) -> List[str]:
-    """원문 단위에 따른 번역문 분할 (고어 패턴 감지 개선)"""
-    
-    tgt_tokens = tgt_text.split()
-    N, T = len(src_units), len(tgt_tokens)
-    
-    if N == 0 or T == 0:
-        return [''] * N if N > 0 else []
-    
-    # 🎯 빠른 처리: 단일 단위면 전체 반환
-    if N == 1:
-        return [tgt_text]
-    
-    # 🎯 빠른 처리: 토큰이 단위보다 적으면 1:1 매칭
-    if T <= N:
-        result = []
-        for i in range(N):
-            if i < T:
-                result.append(tgt_tokens[i])
-            else:
-                result.append("")
-        return result
-    
-    # 🆕 의미적 시간 표현 감지 (BGE 임베딩 활용)
+    # 🧠 BGE-M3 Multi-Vector 의미 기반 매칭 시도
     try:
         from common.embedders.bge import get_embedding_manager
-        from common.korean_particle_matcher import get_archaic_bonus
-        
         embedder = get_embedding_manager()
         
-        # 시간 관련 원문 단위 찾기 (今 포함)
-        time_src_idx = None
-        for i, src_unit in enumerate(src_units):
-            if '今' in src_unit:
-                time_src_idx = i
-                break
+        logger.debug("✅ BGE-M3 Multi-Vector 의미 기반 매칭 시작")
         
-        # 시간 표현이 있는 경우 의미적 매칭 시도
-        if time_src_idx is not None:
-            time_src_unit = src_units[time_src_idx]
-            
-            # 번역문의 각 토큰과 시간 원문의 유사도 계산
-            src_emb = embedder.compute_embeddings_with_cache([time_src_unit], batch_size=1)[0]
-            token_embs = embedder.compute_embeddings_with_cache(tgt_tokens, batch_size=8)
-            
-            best_time_token_idx = None
-            best_similarity = 0.0
-            
-            for i, token_emb in enumerate(token_embs):
-                similarity = np.dot(src_emb, token_emb) / (
-                    np.linalg.norm(src_emb) * np.linalg.norm(token_emb) + 1e-8
-                )
-                if similarity > best_similarity:
-                    best_similarity = similarity
-                    best_time_token_idx = i
-            
-            # 유사도가 충분히 높으면 우선 배치
-            if best_time_token_idx is not None and best_similarity > 0.3:
-                result = [''] * N
-                result[time_src_idx] = tgt_tokens[best_time_token_idx]
-                
-                # 나머지 토큰들 분배
-                remaining_tokens = tgt_tokens[:best_time_token_idx] + tgt_tokens[best_time_token_idx+1:]
-                remaining_units = [i for i in range(N) if i != time_src_idx]
-                
-                if remaining_tokens and remaining_units:
-                    avg_len = len(remaining_tokens) // len(remaining_units)
-                    remainder = len(remaining_tokens) % len(remaining_units)
-                    
-                    start_idx = 0
-                    for i, unit_idx in enumerate(remaining_units):
-                        tokens_for_this_unit = avg_len
-                        if i < remainder:
-                            tokens_for_this_unit += 1
-                        
-                        end_idx = min(start_idx + tokens_for_this_unit, len(remaining_tokens))
-                        
-                        if start_idx < len(remaining_tokens):
-                            unit_text = " ".join(remaining_tokens[start_idx:end_idx])
-                            
-                            # 🆕 고어 패턴 보너스 적용
-                            archaic_bonus = get_archaic_bonus(unit_text, mode='SA')
-                            if archaic_bonus > 0.05:
-                                logger.debug(f"고어 패턴 감지: {unit_text} (보너스: {archaic_bonus})")
-                            
-                            result[unit_idx] = unit_text
-                        
-                        start_idx = end_idx
-                
-                return result
-                
-    except Exception as e:
-        logger.warning(f"의미적 시간 표현 매칭 실패: {e}")
+        # 원문 단위별 Multi-Vector 임베딩 (Dense + Sparse + ColBERT)
+        src_embeddings = embedder.compute_embeddings_with_cache(
+            src_units, 
+            batch_size=4,  # SA는 작은 배치 사용
+            use_multi_vector=True  # Multi-vector 활성화
+        )
+        
+        # 번역문 토큰들의 Multi-Vector 임베딩
+        tgt_embeddings = embedder.compute_embeddings_with_cache(
+            tgt_tokens, 
+            batch_size=8,  # 토큰은 더 작은 단위
+            use_multi_vector=True  # Multi-vector 활성화
+        )
+        
+        # Dynamic Programming으로 최적 분할 찾기
+        optimal_split = _find_optimal_split_dp(
+            src_embeddings, tgt_embeddings, tgt_tokens, N, T
+        )
+        
+        if optimal_split:
+            logger.debug(f"✅ BGE-M3 Multi-Vector 최적 분할 성공: {len(optimal_split)}개 단위")
+            return optimal_split
     
-    # ⚡ 기본 모드: 평균 길이 기반 분할 (고어 패턴 보정 적용)
-    try:
-        from common.korean_particle_matcher import get_archaic_bonus
-        
-        avg_len = T // N
-        remainder = T % N
-        
-        result = []
-        start_idx = 0
-        
-        for i in range(N):
-            # 각 원문 단위당 할당할 토큰 수
-            tokens_for_this_unit = avg_len
-            if i < remainder:  # 나머지를 앞쪽 단위들에 분배
-                tokens_for_this_unit += 1
-            
-            end_idx = min(start_idx + tokens_for_this_unit, T)
-            
-            if start_idx < T:
-                unit_text = " ".join(tgt_tokens[start_idx:end_idx])
-                
-                # 🆕 고어 패턴 보정 적용
-                archaic_bonus = get_archaic_bonus(unit_text, mode='SA')
-                if archaic_bonus > 0.05:
-                    logger.debug(f"기본 분할에서 고어 패턴 감지: {unit_text} (보너스: {archaic_bonus})")
-                
-                result.append(unit_text)
-            else:
-                result.append("")
-            
-            start_idx = end_idx
-        
-        return result
-        start_idx = 0
-        
-        for i in range(N):
-            # 각 원문 단위당 할당할 토큰 수
-            tokens_for_this_unit = avg_len
-            if i < remainder:  # 나머지를 앞쪽 단위들에 분배
-                tokens_for_this_unit += 1
-            
-            end_idx = min(start_idx + tokens_for_this_unit, T)
-            
-            if start_idx < T:
-                unit_text = " ".join(tgt_tokens[start_idx:end_idx])
-                result.append(unit_text)
-            else:
-                result.append("")
-            
-            start_idx = end_idx
-        
-        return result
-        
     except Exception as e:
-        # 폴백: 동일 길이로 분할
-        chunk_size = max(1, T // N)
-        result = []
-        for i in range(N):
-            start = i * chunk_size
-            end = (i + 1) * chunk_size if i < N - 1 else T
-            if start < T:
-                result.append(" ".join(tgt_tokens[start:end]))
-            else:
-                result.append("")
+        logger.warning(f"⚠️ BGE-M3 Multi-Vector 매칭 실패, 순차 분할로 대체: {e}")
+    
+    # ⚡ 폴백: 순차적 분할 (토큰 순서 절대 변경 금지)
+    avg_len = T // N
+    remainder = T % N
+    
+    result = []
+    start_idx = 0
+    
+    for i in range(N):
+        # 각 원문 단위당 할당할 토큰 수
+        tokens_for_this_unit = avg_len
+        if i < remainder:  # 나머지를 앞쪽 단위들에 분배
+            tokens_for_this_unit += 1
+        
+        end_idx = min(start_idx + tokens_for_this_unit, T)
+        
+        if start_idx < T:
+            unit_text = " ".join(tgt_tokens[start_idx:end_idx])
+            result.append(unit_text)
+        else:
+            result.append("")
+        
+        start_idx = end_idx
+    
+    return result
+
+def _find_optimal_split_dp(src_embeddings, tgt_embeddings, tgt_tokens, N, T) -> List[str]:
+    """BGE-M3 Multi-Vector 기반 Dynamic Programming 최적 분할"""
+    
+    # 각 토큰과 각 원문 단위 간의 Multi-Vector 유사도 행렬 계산
+    similarity_matrix = np.zeros((T, N))
+    
+    for t in range(T):
+        for s in range(N):
+            # Multi-Vector 코사인 유사도 (1636차원)
+            sim = np.dot(tgt_embeddings[t], src_embeddings[s]) / (
+                np.linalg.norm(tgt_embeddings[t]) * np.linalg.norm(src_embeddings[s]) + 1e-8
+            )
+            similarity_matrix[t, s] = float(sim)
+    
+    # DP 테이블: dp[i][j] = i번째 토큰까지 j개 단위로 분할하는 최대 점수
+    dp = np.full((T + 1, N + 1), -np.inf)
+    parent = np.full((T + 1, N + 1), -1, dtype=int)
+    
+    dp[0][0] = 0  # 기저 사례
+    
+    # DP 수행
+    for i in range(1, T + 1):
+        for j in range(1, min(i, N) + 1):
+            # k는 j번째 단위의 시작 위치 (0-indexed)
+            for k in range(j - 1, i):
+                if dp[k][j - 1] == -np.inf:
+                    continue
+                
+                # k부터 i-1까지 토큰들을 j번째 단위에 할당
+                unit_score = 0
+                token_count = i - k
+                
+                for t in range(k, i):
+                    unit_score += similarity_matrix[t, j - 1]
+                
+                # 평균 점수로 정규화
+                if token_count > 0:
+                    unit_score /= token_count
+                
+                new_score = dp[k][j - 1] + unit_score
+                
+                if new_score > dp[i][j]:
+                    dp[i][j] = new_score
+                    parent[i][j] = k
+    
+    # 백트래킹으로 최적 분할 복원
+    if dp[T][N] == -np.inf:
+        return None
+    
+    splits = []
+    i, j = T, N
+    
+    while j > 0:
+        start = parent[i][j]
+        end = i
+        
+        if start >= 0:
+            unit_tokens = tgt_tokens[start:end]
+            splits.append(" ".join(unit_tokens))
+            i = start
+            j -= 1
+        else:
+            break
+    
+    splits.reverse()
+    
+    # 결과 검증
+    if len(splits) == N:
+        return splits
+    else:
+        return None
 
 def _split_tgt_by_src_units_simple(text: str, target_count: int) -> List[str]:
     """번역문 단순 분할 (폴백용)"""
@@ -317,7 +282,7 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
     
     # 시대 정보 분석
     try:
-        period = detect_chinese_period(source_text, use_koichi=False)  # 전근대 고전 가정
+        period = detect_chinese_period(source_text)  # 전근대 고전 가정
     except Exception as e:
         logger.warning(f"시대 감지 실패: {e}")
         period = 'unknown'
@@ -429,7 +394,7 @@ def process_sa_alignment(src_text: str, translation: str, **kwargs) -> Dict[str,
     
     # 시대 정보 추가 (분석용)
     try:
-        period = detect_chinese_period(src_text, use_koichi=False)  # 전근대 고전 가정
+        period = detect_chinese_period(src_text)  # 전근대 고전 가정
         metadata['detected_period'] = period
     except Exception as e:
         logger.warning(f"시대 감지 실패: {e}")

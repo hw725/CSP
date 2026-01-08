@@ -1,19 +1,36 @@
-"""PA 문장 분할기 - 하이브리드 토크나이저 기반 (RoBERTa-Hanja + Kiwipiepy + SikuBERT)"""
+"""PA 문장 분할기 - SuPar-Kanbun & Stanza 기반 (spaCy 대체)"""
 from typing import List, Tuple
 import torch
 
-# 번역문 분할에만 spaCy 사용 (폴백용)
+# SuPar-Kanbun과 Stanza 사용 (spaCy 대체)
 import re
 import regex
 try:
-    import spacy
-    nlp_ko = spacy.load("ko_core_news_lg")
-except Exception:
-    nlp_ko = None
-try:
-    nlp_zh = spacy.load("zh_core_web_lg")
-except Exception:
-    nlp_zh = None
+    import sys
+    import os
+    current_dir = os.path.dirname(__file__)
+    project_root = os.path.dirname(current_dir)  # CSP 디렉토리
+    sys.path.insert(0, project_root)
+    
+    from common.new_parsers import (
+        smart_sentence_split,
+        split_source_with_supar, 
+        split_target_with_stanza,
+        fallback_split_by_punctuation,
+        SUPAR_AVAILABLE,
+        STANZA_AVAILABLE
+    )
+    print("✅ PA: SuPar-Kanbun & Stanza 파서 로드됨")
+except ImportError as e:
+    print(f"⚠️ PA: 새 파서 로드 실패, 폴백 모드 (정상): {e}")
+    SUPAR_AVAILABLE = False
+    STANZA_AVAILABLE = False
+    
+    def smart_sentence_split(text: str, is_source: bool = True) -> List[str]:
+        """폴백: 정규식 기반 분할"""
+        pattern = r'(?<=[。？！○])\s*|(?<=[.!?])\s+'
+        sentences = re.split(pattern, text.strip())
+        return [s.strip() for s in sentences if s.strip()]
 
 # 하이브리드 토크나이저 추가
 try:
@@ -21,16 +38,11 @@ try:
     import os
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     
-    # 중국어: SikuBERT/AnchiBERT (기존 유지)
+    # 중국어: SikuBERT (기존 유지)
     from common.tokenizers import (
         get_siku_tokenizer,
-        get_anchi_tokenizer,
         siku_get_embeddings,
-        siku_similarity,
-        anchi_get_embeddings,
-        anchi_similarity,
-        detect_chinese_period,
-        PeriodDetector
+        siku_similarity
     )
     
     # 🆕 한국어: 하이브리드 토크나이저 (RoBERTa-Hanja + Kiwipiepy)
@@ -43,18 +55,14 @@ try:
     
     # 토크나이저 초기화
     siku_tokenizer = get_siku_tokenizer()
-    anchi_tokenizer = get_anchi_tokenizer()
-    period_detector = PeriodDetector()
     
     # 🆕 하이브리드 한국어 토크나이저 초기화
     hybrid_korean_tokenizer = get_hybrid_korean_tokenizer()
     
-    print("✅ PA: 하이브리드 토크나이저 초기화 완료 (중국어: SikuBERT/AnchiBERT, 한국어: RoBERTa-Hanja+Kiwipiepy)")
+    print("✅ PA: 하이브리드 토크나이저 초기화 완료 (중국어: SikuBERT, 한국어: RoBERTa-Hanja+Kiwipiepy)")
     
 except Exception as e:
     siku_tokenizer = None
-    anchi_tokenizer = None  
-    period_detector = None
     hybrid_korean_tokenizer = None
     print(f"⚠️ PA: 하이브리드 토크나이저 초기화 실패: {e}")
 
@@ -198,22 +206,19 @@ def split_target_sentences_advanced(text: str, max_length: int = 150, splitter: 
     sentences = [s.strip() for s in sentences if s.strip()]
     return sentences
 
-def split_with_spacy(text: str, is_target: bool = True, use_siku_preprocessing: bool = True) -> List[str]:
+def split_with_new_parsers(text: str, is_target: bool = True, use_siku_preprocessing: bool = True) -> List[str]:
+    """새로운 파서들(SuPar-Kanbun/Stanza)을 사용한 문장 분할"""
     # SikuBERT 전처리 적용
     if use_siku_preprocessing and contains_chinese(text):
         text = preprocess_with_siku_tokenization(text)
     
-    if contains_chinese(text):
-        nlp_model = nlp_zh
-    else:
-        nlp_model = nlp_ko
-    if not nlp_model:
-        return []
     try:
-        doc = nlp_model(text)
-        return [sent.text for sent in doc.sents if sent.text]
-    except Exception:
-        return []
+        # is_target이 True면 번역문(Stanza), False면 원문(SuPar-Kanbun)
+        sentences = smart_sentence_split(text, is_source=not is_target)
+        return sentences if sentences else [text]
+    except Exception as e:
+        print(f"⚠️ 새 파서 분할 실패, 폴백: {e}")
+        return split_with_smart_punctuation_rules(text)
 
 def split_with_smart_punctuation_rules(text: str) -> List[str]:
     """중국고전 문장 분할 패턴 강화"""
@@ -329,7 +334,7 @@ def split_source_by_whitespace_and_align(source: str, target_count: int, target_
     words = source.split()  # 어절 단위로 분할
     if not words:
         return [''] * target_count
-    
+
     # 어절이 target_count보다 적으면 균등 분배
     if len(words) <= target_count:
         result = []
@@ -343,15 +348,54 @@ def split_source_by_whitespace_and_align(source: str, target_count: int, target_
     # 2. 임베딩 기반 의미적 분할 (어절 경계에서만!)
     if target_sentences and len(target_sentences) > 0:
         try:
-            # SikuBERT 임베딩 사용 
-            from common.tokenizers import siku_get_embeddings, anchi_get_embeddings
-            
+            # 🎯 SA와 동일한 BGE 사용 방식: 작은 배치, 안전한 처리
             try:
-                target_embeddings = siku_get_embeddings(target_sentences, batch_size=32)
-                embed_func = lambda texts: siku_get_embeddings(texts, batch_size=32)
+                from common.embedders.bge import get_embedding_manager
+                
+                embedder = get_embedding_manager()
+                print("✅ BGE-M3 Multi-Vector 임베딩 사용 (SA 방식, 작은 배치)")
+                
+                # SA 방식: 작은 배치 크기 + Multi-vector로 안전하게 처리
+                target_embeddings = embedder.compute_embeddings_with_cache(
+                    target_sentences, 
+                    batch_size=4, 
+                    use_multi_vector=True
+                )
+                
+                def bge_embed_source(texts):
+                    # SA처럼 작은 배치 + Multi-vector로 처리
+                    return embedder.compute_embeddings_with_cache(
+                        texts, 
+                        batch_size=4, 
+                        use_multi_vector=True
+                    )
+                
+                embed_func = bge_embed_source
+                
             except Exception as e:
-                target_embeddings = anchi_get_embeddings(target_sentences, batch_size=32)
-                embed_func = lambda texts: anchi_get_embeddings(texts, batch_size=32)
+                print(f"⚠️ BGE 임베딩 실패, 하이브리드로 폴백: {e}")
+                # 폴백: 하이브리드 임베딩
+                from common.tokenizers import siku_get_embeddings
+                from common.tokenizers import get_roberta_hanja_tokenizer
+                import numpy as np
+                
+                print("✅ 하이브리드 임베딩 폴백 (원문:SikuBERT + 번역문:RoBERTa)")
+                
+                roberta_tokenizer = get_roberta_hanja_tokenizer()
+                
+                def get_roberta_embeddings(texts, batch_size=32):
+                    embeddings = []
+                    for text in texts:
+                        emb = roberta_tokenizer.get_embeddings(text)
+                        embeddings.append(emb.cpu().numpy())
+                    return np.array(embeddings)
+                
+                target_embeddings = get_roberta_embeddings(target_sentences, batch_size=32)
+                
+                def hybrid_embed_source(texts):
+                    return siku_get_embeddings(texts, batch_size=32)
+                
+                embed_func = hybrid_embed_source
             
             # 어절 경계 기반 스팬 임베딩 계산
             N, W = target_count, len(words)
@@ -375,7 +419,7 @@ def split_source_by_whitespace_and_align(source: str, target_count: int, target_
             back = np.zeros((N+1, W+1), dtype=int)
             dp[0, 0] = 0.0
             
-            # DP로 어절 경계에서만 최적 분할 찾기
+            # DP로 어절 경계에서만 최적 분할 찾기 (강제 분할점 고려)
             for i in range(1, N+1):
                 target_emb = target_embeddings[i-1]
                 target_norm = np.linalg.norm(target_emb)
@@ -388,145 +432,121 @@ def split_source_by_whitespace_and_align(source: str, target_count: int, target_
                         span_emb = span_cache[(k, j)]
                         span_norm = np.linalg.norm(span_emb)
                         
-                        # 코사인 유사도 계산
+                        # 🔥 BGE-M3 임베딩 정규화 및 유사도 계산
                         if target_norm > 1e-8 and span_norm > 1e-8:
-                            embedding_sim = float(np.dot(target_emb, span_emb) / (target_norm * span_norm))
+                            # 임베딩 정규화 (BGE-M3 추가 정규화)
+                            target_emb_norm = target_emb / target_norm
+                            span_emb_norm = span_emb / span_norm
+                            
+                            # 정규화된 코사인 유사도
+                            base_cosine = float(np.dot(target_emb_norm, span_emb_norm))
+                            
+                            # 🎯 BGE-M3 유사도 기준 (현실적인 범위로 조정)
+                            if base_cosine > 0.15:  # 0.15 이상 = 강한 매칭
+                                embedding_sim = base_cosine * 5.0 + 0.5  # 강한 가중치
+                                print(f"🎯 강신뢰 매칭: {' '.join(words[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 5.0")
+                            elif base_cosine > 0.10:  # 0.10-0.15 = 좋은 매칭  
+                                embedding_sim = base_cosine * 4.0 + 0.3  # 좋은 가중치
+                                print(f"🔍 중강신뢰 매칭: {' '.join(words[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 4.0")
+                            elif base_cosine > 0.05:  # 0.05-0.10 = 보통 매칭
+                                embedding_sim = base_cosine * 3.0 + 0.2  # 보통 가중치
+                                print(f"🔍 중신뢰 매칭: {' '.join(words[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 3.0")
+                            elif base_cosine > 0.01:  # 0.01-0.05 = 약한 매칭
+                                embedding_sim = base_cosine * 2.0 + 0.1  # 약한 가중치
+                                print(f"⚠️ 저신뢰 매칭: {' '.join(words[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 2.0")
+                            elif base_cosine > -0.05:  # -0.05-0.01 = 매우 약한 매칭
+                                embedding_sim = base_cosine + 0.05  # 최소 보상
+                                print(f"❌ 부정매칭: {' '.join(words[k:j])[:15]}... -> 유사도 {base_cosine:.3f} + 0.05")
+                            else:
+                                embedding_sim = base_cosine * 0.2  # 임계값 이하는 페널티
+                                print(f"❌ 부정매칭: {span_text[:15]}... -> 유사도 {base_cosine:.3f} * 0.2")
                         else:
                             embedding_sim = 0.0
                         
-                        # 구조적 힌트 보정 (어절 단위) - 하이브리드 방식
+                        # 🔥 구조적 가중치 대폭 강화 (의미+구조 균형)
                         span_words = words[k:j]
                         span_text = ' '.join(span_words).strip()
                         structural_bonus = 0.0
                         
-                        # 🆕 방법 1: Kiwipiepy 동적 어미 감지 (우선 시도)
-                        morphological_bonus = 0.0
-                        if span_text:
-                            try:
-                                from common.korean_particle_matcher import get_korean_particle_matcher
-                                matcher = get_korean_particle_matcher()
-                                
-                                # 형태소 분석으로 어미 감지
-                                morphs = matcher._get_kiwi_tokenizer().analyze(span_text, top_n=1)[0][0]
-                                last_morph = morphs[-1] if morphs else None
-                                
-                                if last_morph:
-                                    pos_tag = last_morph[1]  # 품사 태그
-                                    morph_text = last_morph[0]  # 형태소 텍스트
-                                    
-                                    # 종결어미 자동 감지 (낮은 보조 가중치)
-                                    if pos_tag in ['EF']:  # 종결어미
-                                        if morph_text in ['도다', '로다', '구나']:
-                                            morphological_bonus = 0.08  # 강한 감탄 종결 (0.35→0.08)
-                                        elif morph_text in ['구려', '어라', '지어다']:
-                                            morphological_bonus = 0.06  # 일반 감탄 종결 (0.3→0.06)
-                                        else:
-                                            morphological_bonus = 0.05  # 기타 종결어미 (0.25→0.05)
-                                    
-                                    # 연결어미 자동 감지 (미미한 가중치)
-                                    elif pos_tag in ['EC']:  # 연결어미
-                                        if morph_text in ['이고', '며', '여', '니']:
-                                            morphological_bonus = 0.03  # 일반 연결어미 (0.2→0.03)
-                                        else:
-                                            morphological_bonus = 0.02  # 기타 연결어미 (0.15→0.02)
-                                        
-                            except Exception:
-                                morphological_bonus = 0.0  # 형태소 분석 실패
-                        
-                        # 🆕 방법 2: 하드코딩 패턴 매칭 (폴백 + 보완)
-                        hardcoded_bonus = 0.0
-                        if span_text:
-                            # 앞 부분 텍스트도 확인 (한문 원문과 한글 어미 분리 케이스)
-                            preceding_text = ' '.join(words[max(0, k-10):k]).strip() if k > 0 else ""
-                            full_context = preceding_text + " " + span_text if preceding_text else span_text
-                            
-                            # 한자 어미 패턴 (미미한 참고 가중치로 조정)
-                            if re.search(r'曰\w+이요$', span_text):
-                                hardcoded_bonus = 0.08  # 가장 높은 가중치 (0.4→0.08)
-                            elif span_text.endswith('이요'):
-                                hardcoded_bonus = 0.06  # (0.25→0.06)
-                            elif span_text.endswith('라'):
-                                hardcoded_bonus = 0.08  # (0.4→0.08)
-                            elif span_text.endswith('也'):
-                                hardcoded_bonus = 0.05  # (0.3→0.05)
-                            elif span_text.endswith('矣'):
-                                hardcoded_bonus = 0.08  # (0.4→0.08)
-                            # 🆕 고어 감탄 종결어미 (확실한 패턴만, 참고용 가중치)
-                            elif span_text.endswith('고') and not span_text.endswith('이고'):
-                                # 현재 span이나 앞 부분에서 한문 WH의문사 확인
-                                wh_question_words = ['何', '誰', '安', '孰', '焉', '奚', '胡', '曷']
-                                has_wh = any(word in full_context for word in wh_question_words)
-                                if has_wh:
-                                    hardcoded_bonus = 0.08  # WH의문사 + "고" 조합 (0.4→0.08)
-                                # else: 일반적인 "고"는 제외 (연결어미 가능성)
-                            elif span_text.endswith('아') and len(span_text) > 1:
-                                # "아" 감탄 종결어미: 한문 의문허사가 있을 때만
-                                question_particles = ['乎', '耶', '歟', '與', '邪', '也']
-                                has_question_particle = any(particle in full_context for particle in question_particles)
-                                if has_question_particle:
-                                    hardcoded_bonus = 0.07  # 의문허사 + "아" 조합 (0.35→0.07)
-                                # else: 일반적인 "아"는 제외
-                            elif span_text.endswith('오') and not span_text.endswith('이오') and len(span_text) > 1:
-                                # "오" 감탁 종결어미: WH의문사가 있을 때만
-                                wh_question_words = ['何', '誰', '安', '孰', '焉', '奚', '胡', '曷']
-                                has_wh = any(word in full_context for word in wh_question_words)
-                                if has_wh:
-                                    hardcoded_bonus = 0.07  # WH의문사 + "오" 조합 (0.35→0.07)
-                                # else: 일반적인 "오"는 제외
-                            # 기존 고어 감탄 종결어미들 (참고용 미미한 가중치)
-                            elif span_text.endswith('구나'):
-                                hardcoded_bonus = 0.07  # (0.35→0.07)
-                            elif span_text.endswith('도다'):
-                                hardcoded_bonus = 0.07  # (0.35→0.07)
-                            elif span_text.endswith('로다'):
-                                hardcoded_bonus = 0.07  # (0.35→0.07)
-                            elif span_text.endswith('구려'):
-                                hardcoded_bonus = 0.05  # (0.3→0.05)
-                            elif span_text.endswith('어라'):
-                                hardcoded_bonus = 0.05  # (0.3→0.05)
-                            elif span_text.endswith('을지어다'):
-                                hardcoded_bonus = 0.05  # (0.3→0.05)
-                            elif span_text.endswith('지어다'):
-                                hardcoded_bonus = 0.05  # (0.3→0.05)
-                            # 연결 어미들 (미미한 참고 가중치)
-                            elif span_text.endswith('이고'):
-                                hardcoded_bonus = 0.03  # 연결어미 "이고" (0.2→0.03)
-                            elif span_text.endswith('하고'):
-                                hardcoded_bonus = 0.03  # (0.2→0.03)
-                            elif span_text.endswith('하여'):
-                                hardcoded_bonus = 0.03  # (0.2→0.03)
-                            elif span_text.endswith('하니'):
-                                hardcoded_bonus = 0.03  # (0.2→0.03)
-                            elif span_text.endswith('이며'):
-                                hardcoded_bonus = 0.02  # (0.15→0.02)
-                            elif span_text.endswith('것을'):
-                                hardcoded_bonus = 0.02  # (0.15→0.02)
-                            elif span_text.endswith('것이'):
-                                hardcoded_bonus = 0.02  # (0.15→0.02)
-                        
-                        # 🆕 하이브리드 선택: 더 높은 가중치 사용
-                        structural_bonus = max(morphological_bonus, hardcoded_bonus)
-                        
-                        # 디버깅용 로깅 (필요시)
-                        if morphological_bonus > 0 or hardcoded_bonus > 0:
-                            import logging
-                            logger = logging.getLogger(__name__)
-                            logger.debug(f"어미 감지: '{span_text}' -> 형태소:{morphological_bonus:.2f}, 하드코딩:{hardcoded_bonus:.2f}, 최종:{structural_bonus:.2f}")
-                        
-                        # 토씨 매칭 보정 (미미한 참고 가중치)
+                        # 🎯 실제 파서 기반 구조 분석
                         try:
-                            from common.korean_particle_matcher import get_korean_particle_matcher
-                            matcher = get_korean_particle_matcher()
-                            target_sentence = target_sentences[i-1] if i <= len(target_sentences) else ""
-                            span_particles = matcher.extract_particles_from_text(span_text)
-                            target_particles = matcher.extract_particles_from_text(target_sentence)
-                            particle_sim = matcher.calculate_particle_similarity(span_particles, target_particles)
-                            particle_bonus = particle_sim * 0.05  # 0.3 → 0.05 (의미 우선, 토씨는 참고만)
-                        except Exception:
-                            particle_bonus = 0.0
+                            from common.new_parsers import SUPAR_AVAILABLE, supar_parser
+                            
+                            if SUPAR_AVAILABLE and 'supar_parser' in globals():
+                                # SuPar로 실제 구문 분석
+                                parsed_result = supar_parser.predict([span_text], verbose=False)
+                                
+                                # 구문 트리에서 대구 구조 감지
+                                if len(parsed_result.sentences) > 0:
+                                    sentence = parsed_result.sentences[0]
+                                    
+                                    # 병렬 구조 감지
+                                    pos_sequence = [word.upos for word in sentence.words]
+                                    
+                                    # 대구 패턴 감지 (품사 반복)
+                                    if len(pos_sequence) >= 6:
+                                        mid = len(pos_sequence) // 2
+                                        first_half = pos_sequence[:mid]
+                                        second_half = pos_sequence[mid:mid*2] if mid*2 <= len(pos_sequence) else pos_sequence[mid:]
+                                        
+                                        if len(first_half) == len(second_half):
+                                            similarity = sum(1 for a, b in zip(first_half, second_half) if a == b) / len(first_half)
+                                            if similarity > 0.5:
+                                                structural_bonus = 0.5  # 실제 대구 구조
+                                                print(f"🔥 파서 기반 대구 감지: '{span_text[:15]}...' -> +{structural_bonus}")
+                                            else:
+                                                structural_bonus = 0.2
+                                        else:
+                                            structural_bonus = 0.1
+                                    else:
+                                        structural_bonus = 0.1
+                                else:
+                                    structural_bonus = 0.0
+                            else:
+                                # 폴백: 기존 하드코딩 방식
+                                if '이요' in span_text and span_text.endswith('니'):
+                                    structural_bonus = 0.4  # 대구 구조 확실성 -> 강력한 보너스
+                                    print(f"🔥 대구 구조 강화: '{span_text[:15]}...' -> +{structural_bonus}")
+                                elif span_text.endswith('니') and len(span_text) > 10:
+                                    structural_bonus = 0.2  # 긴 문장의 '니' 종결 -> 중간 보너스
+                                elif span_text.endswith('이요') and len(span_text) > 8:
+                                    structural_bonus = 0.15  # '이요' 종결 -> 소폭 보너스
+                                elif span_text.endswith('라') or span_text.endswith('다'):
+                                    structural_bonus = 0.1  # 일반 종결 -> 최소 보너스
+                                else:
+                                    structural_bonus = 0.0
+                                    
+                        except Exception as e:
+                            print(f"⚠️ 구조 분석 실패, 폴백 사용: {e}")
+                            # 폴백: 기존 하드코딩 방식
+                            if '이요' in span_text and span_text.endswith('니'):
+                                structural_bonus = 0.4  # 대구 구조 확실성 -> 강력한 보너스
+                                print(f"🔥 대구 구조 강화: '{span_text[:15]}...' -> +{structural_bonus}")
+                            elif span_text.endswith('니') and len(span_text) > 10:
+                                structural_bonus = 0.2  # 긴 문장의 '니' 종결 -> 중간 보너스
+                            elif span_text.endswith('이요') and len(span_text) > 8:
+                                structural_bonus = 0.15  # '이요' 종결 -> 소폭 보너스
+                            elif span_text.endswith('라') or span_text.endswith('다'):
+                                structural_bonus = 0.1  # 일반 종결 -> 최소 보너스
+                            else:
+                                structural_bonus = 0.0
                         
-                        # 최종 점수
+                        # 🆕 의미+구조 균형: 토씨 매칭은 생략
+                        particle_bonus = 0.0
+                        
+                        # 최종 점수 계산
                         final_sim = embedding_sim + structural_bonus + particle_bonus
+                        
+                        # 🔥 구조적 확실성 exponential 보너스
+                        if structural_bonus >= 0.4:  # 대구 구조 확실성
+                            structural_certainty_bonus = structural_bonus * 2.0  # 구조 확실성 2배 증폭
+                            final_sim += structural_certainty_bonus
+                            print(f"🚀 구조 확실성 보너스: +{structural_certainty_bonus:.2f}")
+                        elif final_sim > 0.8:  # 의미적 고신뢰
+                            quality_bonus = (final_sim - 0.8) * 1.5  # 의미 확실성 보너스
+                            final_sim += quality_bonus
+                        
+                        # DP 점수 계산
                         score = dp[i-1, k] + final_sim
                         
                         if score > dp[i, j]:

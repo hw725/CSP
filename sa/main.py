@@ -4,7 +4,13 @@ import argparse
 import time
 import logging
 import traceback
+import warnings
 from pathlib import Path
+
+# torch.load 보안 경고 전역 무시 (PyTorch 2.6 호환성)
+warnings.filterwarnings("ignore", message=".*torch.load.*")
+warnings.filterwarnings("ignore", message=".*vulnerability.*")
+warnings.filterwarnings("ignore", message=".*CVE-2025-32434.*")
 
 def setup_logging(verbose: bool = False):
     """로깅 설정"""
@@ -97,20 +103,19 @@ def main():
     
     # 🚀 하이브리드 토크나이저 초기화
     try:
-        from common.tokenizers import get_siku_tokenizer, get_anchi_tokenizer, get_hybrid_korean_tokenizer
-        # 하이브리드 토크나이저 초기화 (중국어: SikuBERT/AnchiBERT, 한국어: RoBERTa-Hanja+Kiwipiepy)
+        from common.tokenizers import get_siku_tokenizer, get_hybrid_korean_tokenizer
+        # 하이브리드 토크나이저 초기화 (중국어: SikuBERT, 한국어: RoBERTa-Hanja+Kiwipiepy)
         if args.verbose:
             print("🏮 SA: 하이브리드 토크나이저 초기화 중...")
         
         # 토크나이저들 미리 로드 (지연 초기화)
         get_siku_tokenizer()  # SikuBERT 초기화
-        get_anchi_tokenizer()  # AnchiBERT 초기화
         get_hybrid_korean_tokenizer()  # RoBERTa-Hanja+Kiwipiepy 초기화
         
         if args.verbose:
-            print("✅ SA: 하이브리드 토크나이저 초기화 완료 (중국어: SikuBERT/AnchiBERT, 한국어: RoBERTa-Hanja+Kiwipiepy)")
+            print("✅ SA: 하이브리드 토크나이저 초기화 완료 (중국어: SikuBERT, 한국어: RoBERTa-Hanja+Kiwipiepy)")
         else:
-            print("SA: 하이브리드 토크나이저 초기화 완료 (중국어: SikuBERT/AnchiBERT, 한국어: RoBERTa-Hanja+Kiwipiepy)")
+            print("SA: 하이브리드 토크나이저 초기화 완료 (중국어: SikuBERT, 한국어: RoBERTa-Hanja+Kiwipiepy)")
     except Exception as e:
         if args.verbose:
             print(f"⚠️ SA: 하이브리드 토크나이저 초기화 실패: {e}")

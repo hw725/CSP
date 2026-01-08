@@ -153,9 +153,9 @@ def safe_text_split(text: str, max_length: int = 150, method: str = "punctuation
     
     try:
         # 기존 분할 방식 적용
-        if method == "spacy_tokenizer":
-            # spaCy + 토크나이저 방식
-            sentences = split_target_sentences_spacy_tokenizer(text, max_length)
+        if method == "new_parsers":
+            # 새 파서들 방식 (SuPar-Kanbun/Trankit)
+            sentences = split_target_sentences_new_parsers(text, max_length)
         else:
             # 기존 방식
             sentences = split_target_sentences_advanced(text, max_length, splitter=method)
@@ -196,9 +196,9 @@ def safe_source_split(tgt_sentences: List[str], src_text: str, tokenizer_func=No
     integrity_manager.store_original(src_text, src_id)
     
     try:
-        # spaCy + 토크나이저 방식 또는 기본 방식
-        if nlp and tokenizer_func:
-            src_chunks = split_src_by_tgt_units_spacy_tokenizer(tgt_sentences, src_text, tokenizer_func, nlp)
+        # 새 파서들 방식 또는 기본 방식
+        if tokenizer_func:
+            src_chunks = split_src_by_tgt_units_new_parsers(tgt_sentences, src_text, tokenizer_func)
         else:
             src_chunks = split_src_by_tgt_units_vice_versa(tgt_sentences, src_text, None, tokenizer_func)
         
@@ -341,55 +341,67 @@ def restore_paragraph_integrity(src_paragraph: str, tgt_paragraph: str, alignmen
 
 # ===== 기존 함수들에 무결성 보장 적용 =====
 
-def get_spacy_nlp():
-    """spaCy 모델 안전하게 로드"""
+def get_new_parsers():
+    """새로운 파서들(SuPar-Kanbun/Stanza) 로드"""
     try:
-        import spacy
-        try:
-            nlp = spacy.load("ko_core_news_sm")
-            print("✅ spaCy 한국어 모델 로드 성공")
-            return nlp
-        except OSError:
-            try:
-                nlp = spacy.load("en_core_web_sm")
-                print("⚠️ 한국어 모델 없음, 영어 모델 사용")
-                return nlp
-            except OSError:
-                print("❌ spaCy 모델 없음")
-                return None
+        import sys
+        import os
+        current_dir = os.path.dirname(__file__)
+        project_root = os.path.dirname(current_dir)  # CSP 디렉토리
+        sys.path.insert(0, project_root)
+        
+        from common.new_parsers import SUPAR_AVAILABLE, STANZA_AVAILABLE
+        if SUPAR_AVAILABLE and STANZA_AVAILABLE:
+            print("✅ SuPar-Kanbun & Stanza 파서 로드 성공")
+            return True
+        elif SUPAR_AVAILABLE:
+            print("⚠️ SuPar-Kanbun만 사용 가능, Stanza 없음")
+            return True
+        elif STANZA_AVAILABLE:
+            print("⚠️ Stanza만 사용 가능, SuPar-Kanbun 없음")
+            return True
+        else:
+            print("❌ 새 파서들 없음, 폴백 모드")
+            return False
     except ImportError:
-        print("❌ spaCy 설치되지 않음")
-        return None
+        print("❌ 새 파서 모듈 로드 실패")
+        return False
 
-def split_target_sentences_spacy_tokenizer(
+def split_target_sentences_new_parsers(
     text: str, 
     max_length: int = 150,
     tokenizer_func=None,
-    nlp=None
+    use_new_parsers: bool = True
 ) -> List[str]:
-    """spaCy + 토크나이저 융합 문장 분할 (무결성 보장)"""
+    """새 파서들 + 토크나이저 융합 문장 분할 (무결성 보장)"""
     if not text.strip():
         return []
     
     # 무결성 관리 적용
-    text_id = f"spacy_tok_{id(text)}"
+    text_id = f"new_parsers_{id(text)}"
     integrity_manager.store_original(text, text_id)
     
     sentences = []
     
-    # 1단계: spaCy로 문장 경계 감지
-    if nlp:
+    # 1단계: 새 파서들로 문장 경계 감지
+    if use_new_parsers:
         try:
-            doc = nlp(text)
-            spacy_sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+            import sys
+            import os
+            current_dir = os.path.dirname(__file__)
+            project_root = os.path.dirname(current_dir)  # CSP 디렉토리
+            sys.path.insert(0, project_root)
             
-            if spacy_sentences:
-                print(f"🔍 spaCy 분할: {len(spacy_sentences)}개 문장")
-                sentences = spacy_sentences
+            from common.new_parsers import smart_sentence_split
+            new_parser_sentences = smart_sentence_split(text, is_source=False)  # 번역문이므로 is_source=False
+            
+            if new_parser_sentences:
+                print(f"🔍 새 파서 분할: {len(new_parser_sentences)}개 문장")
+                sentences = new_parser_sentences
             else:
                 sentences = [text]
         except Exception as e:
-            print(f"⚠️ spaCy 분할 실패: {e}")
+            print(f"⚠️ 새 파서 분할 실패: {e}")
             sentences = [text]
     else:
         sentences = split_target_sentences_advanced(text, max_length, splitter="punctuation")
@@ -472,11 +484,6 @@ def get_tokenizer_function(tokenizer_name: str = "siku"):
             tokenizer = get_siku_tokenizer()
             print("✅ SikuBERT 토크나이저 로드 성공")
             return tokenizer.tokenize
-        elif tokenizer_name == "anchi":
-            from common.tokenizers import get_anchi_tokenizer
-            tokenizer = get_anchi_tokenizer()
-            print("✅ AnchiBERT 토크나이저 로드 성공")
-            return tokenizer.tokenize
         elif tokenizer_name == "korean_hybrid":
             from common.tokenizers import get_hybrid_korean_tokenizer
             tokenizer = get_hybrid_korean_tokenizer()
@@ -505,8 +512,13 @@ def get_embedder_function(embedder_name: str, device: str = "cpu", openai_model:
             if embed_func is None:
                 print("❌ BGE 임베더 초기화 실패")
                 return None
+            
+            # Multi-vector 지원을 위한 래퍼 함수
+            def enhanced_embed_func(texts, use_multi_vector=True, **kwargs):
+                return embed_func(texts, use_multi_vector=use_multi_vector, **kwargs)
+            
             # 조용히 성공 (verbose 모드에서만 출력)
-            return embed_func
+            return enhanced_embed_func
         except ImportError as e:
             print(f"❌ BGE 임베더 로드 실패: {e}")
             return None
@@ -533,14 +545,22 @@ def get_embedder_function(embedder_name: str, device: str = "cpu", openai_model:
         print(f"❌ 지원하지 않는 임베더: {embedder_name}")
         return None
 
+def split_src_by_tgt_units_new_parsers(
+    tgt_sentences: List[str], 
+    src_text: str, 
+    tokenizer_func=None
+) -> List[str]:
+    """새 파서들을 활용한 Vice Versa 원문 분할 (무결성 보장)"""
+    return safe_source_split(tgt_sentences, src_text, tokenizer_func, None)
+
 def split_src_by_tgt_units_spacy_tokenizer(
     tgt_sentences: List[str], 
     src_text: str, 
     tokenizer_func=None,
     nlp=None
 ) -> List[str]:
-    """spaCy + 토크나이저를 활용한 Vice Versa 원문 분할 (무결성 보장)"""
-    return safe_source_split(tgt_sentences, src_text, tokenizer_func, nlp)
+    """spaCy + 토크나이저를 활용한 Vice Versa 원문 분할 (무결성 보장) - 레거시"""
+    return safe_source_split(tgt_sentences, src_text, tokenizer_func, None)
 
 def split_src_by_tgt_units_vice_versa(
     tgt_sentences: List[str], 
@@ -625,6 +645,89 @@ def improved_align_paragraphs(
     
     return alignments
 
+def improved_align_paragraphs_new_parsers(
+    tgt_sentences: List[str], 
+    src_text: str, 
+    embed_func=None,
+    tokenizer_func=None,
+    similarity_threshold: float = 0.3
+) -> List[Dict]:
+    """새 파서들 + 토크나이저 융합 정렬 (무결성 보장)"""
+    if not tgt_sentences:
+        return []
+    
+    # 새 파서들 + 토크나이저를 활용한 원문 분할
+    aligned_src_chunks = safe_source_split(tgt_sentences, src_text, tokenizer_func, None)
+    
+    alignments = []
+    for i in range(len(tgt_sentences)):
+        src_chunk = aligned_src_chunks[i] if i < len(aligned_src_chunks) else ''
+        tgt_sentence = tgt_sentences[i]
+        
+        similarity = compute_similarity_simple(src_chunk, tgt_sentence)
+        
+        alignments.append({
+            '원문': src_chunk,
+            '번역문': tgt_sentence,
+            'similarity': similarity,
+            'split_method': 'new_parsers_fusion',
+            'align_method': 'new_parsers_based_split'
+        })
+    
+    # 남은 원문 청크가 있으면 추가
+    for j in range(len(tgt_sentences), len(aligned_src_chunks)):
+        src_chunk = aligned_src_chunks[j]
+        alignments.append({
+            '원문': src_chunk,
+            '번역문': '',
+            'similarity': 0.0,
+            'split_method': 'new_parsers_fusion',
+            'align_method': 'new_parsers_unmatched_src'
+        })
+    
+    return alignments
+
+def improved_align_paragraphs_new_parsers(
+    tgt_sentences: List[str], 
+    src_text: str, 
+    embed_func=None,
+    tokenizer_func=None,
+    similarity_threshold: float = 0.3
+) -> List[Dict]:
+    """새 파서들 + 토크나이저 융합 정렬 (무결성 보장)"""
+    if not tgt_sentences:
+        return []
+    
+    # 새 파서들을 활용한 원문 분할
+    aligned_src_chunks = safe_source_split(tgt_sentences, src_text, tokenizer_func, None)
+    
+    alignments = []
+    for i in range(len(tgt_sentences)):
+        src_chunk = aligned_src_chunks[i] if i < len(aligned_src_chunks) else ""
+        tgt_sentence = tgt_sentences[i]
+        
+        similarity = compute_similarity_simple(src_chunk, tgt_sentence)
+        
+        alignments.append({
+            '원문': src_chunk,
+            '번역문': tgt_sentence,
+            'similarity': similarity,
+            'split_method': 'new_parsers_fusion',
+            'align_method': 'new_parsers_based_split'
+        })
+    
+    # 남은 원문 청크가 있으면 추가
+    for j in range(len(tgt_sentences), len(aligned_src_chunks)):
+        alignments.append({
+            '원문': aligned_src_chunks[j],
+            '번역문': '',
+            'similarity': 0.0,
+            'split_method': 'new_parsers_fusion',
+            'align_method': 'new_parsers_unmatched_src'
+        })
+    
+    return alignments
+
 def improved_align_paragraphs_spacy_tokenizer(
     tgt_sentences: List[str], 
     src_text: str, 
@@ -633,7 +736,7 @@ def improved_align_paragraphs_spacy_tokenizer(
     nlp=None,
     similarity_threshold: float = 0.3
 ) -> List[Dict]:
-    """spaCy + 토크나이저 융합 정렬 (무결성 보장)"""
+    """spaCy + 토크나이저 융합 정렬 (무결성 보장) - 레거시"""
     if not tgt_sentences:
         return []
     
@@ -713,17 +816,16 @@ def process_paragraph_alignment(
                 'align_method': 'tgt_based_src_split'
             })
         
-        # 4. 새로운 spaCy + 토크나이저 융합 정렬
-        alignments_spacy_tok = []
-        if use_spacy_tokenizer:
-            nlp = get_spacy_nlp()
-            tgt_sentences_spacy_tok = safe_text_split(tgt_paragraph, max_length, "spacy_tokenizer")
-            alignments_spacy_tok = improved_align_paragraphs_spacy_tokenizer(
-                tgt_sentences_spacy_tok, src_paragraph, embed_func, tokenizer_func, nlp, similarity_threshold
+        # 4. 새로운 파서들 + 토크나이저 융합 정렬
+        alignments_new_parsers = []
+        if use_spacy_tokenizer:  # 파라미터명은 그대로 유지하되 새 파서 사용
+            tgt_sentences_new_parsers = safe_text_split(tgt_paragraph, max_length, "new_parsers")
+            alignments_new_parsers = improved_align_paragraphs_new_parsers(
+                tgt_sentences_new_parsers, src_paragraph, embed_func, tokenizer_func, similarity_threshold
             )
         
         # 최적 방식 선택 및 결과 생성
-        all_alignments = [alignments_seq, alignments_sem, alignments_tok, alignments_spacy_tok]
+        all_alignments = [alignments_seq, alignments_sem, alignments_tok, alignments_new_parsers]
         max_len = max(len(alignments) for alignments in all_alignments if alignments)
         
         results = []
@@ -731,22 +833,22 @@ def process_paragraph_alignment(
             seq = alignments_seq[i] if i < len(alignments_seq) else {'원문':'','번역문':'','similarity':0.0,'split_method':'punctuation','align_method':'sequential'}
             sem = alignments_sem[i] if i < len(alignments_sem) else {'원문':'','번역문':'','similarity':0.0,'split_method':'spacy','align_method':'semantic'}
             tok = alignments_tok[i] if i < len(alignments_tok) else {'원문':'','번역문':'','similarity':0.0,'split_method':'vice_versa_tokenized','align_method':'tgt_based_src_split'}
-            spacy_tok = alignments_spacy_tok[i] if i < len(alignments_spacy_tok) else {'원문':'','번역문':'','similarity':0.0,'split_method':'spacy_tokenizer_fusion','align_method':'spacy_tokenizer_based_split'}
+            new_parser = alignments_new_parsers[i] if i < len(alignments_new_parsers) else {'원문':'','번역문':'','similarity':0.0,'split_method':'new_parsers_fusion','align_method':'new_parsers_based_split'}
             
-            if use_spacy_tokenizer and alignments_spacy_tok:
-                weighted_sim = seq['similarity']*0.2 + sem['similarity']*0.3 + tok['similarity']*0.2 + spacy_tok['similarity']*0.3
+            if use_spacy_tokenizer and alignments_new_parsers:
+                weighted_sim = seq['similarity']*0.2 + sem['similarity']*0.3 + tok['similarity']*0.2 + new_parser['similarity']*0.3
                 
                 if weighted_sim >= quality_threshold:
                     result = {
-                        '원문': spacy_tok['원문'] if spacy_tok['원문'] else (tok['원문'] if tok['원문'] else (sem['원문'] if sem['원문'] else seq['원문'])),
-                        '번역문': spacy_tok['번역문'] if spacy_tok['번역문'] else (tok['번역문'] if tok['번역문'] else (sem['번역문'] if sem['번역문'] else seq['번역문'])),
+                        '원문': new_parser['원문'] if new_parser['원문'] else (tok['원문'] if tok['원문'] else (sem['원문'] if sem['원문'] else seq['원문'])),
+                        '번역문': new_parser['번역문'] if new_parser['번역문'] else (tok['번역문'] if tok['번역문'] else (sem['번역문'] if sem['번역문'] else seq['번역문'])),
                         'similarity': weighted_sim,
-                        'split_method': f"seq+sem+tok+spacy_tok",
-                        'align_method': 'hybrid_with_spacy_tokenizer'
+                        'split_method': f"seq+sem+tok+new_parsers",
+                        'align_method': 'hybrid_with_new_parsers'
                     }
                 else:
-                    result = spacy_tok.copy()
-                    result['align_method'] = 'spacy_tokenizer_fusion_only'
+                    result = new_parser.copy()
+                    result['align_method'] = 'new_parsers_fusion_only'
             else:
                 weighted_sim = seq['similarity']*0.3 + sem['similarity']*0.4 + tok['similarity']*0.3
                 

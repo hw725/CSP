@@ -1,6 +1,6 @@
 # PA 디렉토리 상세 플로우차트
 
-## PA (Paragraph Aligner) 모듈 구조 및 워크플로우
+## PA (Paragraph Aligner) 모듈 구조 및 워크플로우 - 구문분석 기반 (2025-08-21 최신)
 
 ---
 
@@ -13,10 +13,11 @@ flowchart TB
     classDef mainFile fill:#e3f2fd,stroke:#1976d2,stroke-width:3px,color:#000,font-weight:bold
     classDef processor fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000,font-weight:bold
     classDef module fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000,font-weight:bold
+    classDef parser fill:#f1f8e9,stroke:#558b2f,stroke-width:2px,color:#000,font-weight:bold
     classDef data fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000,font-weight:bold
     classDef config fill:#fff8e1,stroke:#f9a825,stroke-width:2px,color:#000,font-weight:bold
     
-    A[🚀 PA 디렉토리 시작]:::startEnd
+    A[🚀 PA 디렉토리 시작<br/>구문분석 기반 문단→문장 정렬]:::startEnd
     
     %% 메인 실행기
     B[📋 main.py<br/>CLI 인터페이스<br/>및 인수 파싱]:::mainFile
@@ -24,20 +25,21 @@ flowchart TB
     %% 핵심 처리기
     C[🔧 processor.py<br/>메인 처리 로직<br/>전체 플로우 제어]:::processor
     
-    %% 개별 모듈들
-    D[✂️ sentence_splitter.py<br/>spaCy 기반<br/>문장 분할]:::module
-    E[🎯 aligner.py<br/>임베딩 및<br/>정렬 알고리즘]:::module
+    %% 🆕 구문분석 모듈들
+    D[🏮 sentence_splitter.py<br/>구문분석 기반 문장 분할<br/>SuPar-Kanbun + Stanza + BGE-M3]:::parser
+    E[🎯 aligner.py<br/>BGE-M3 FlagModel<br/>정렬 알고리즘]:::module
     
     %% 데이터 파일들
     F[📊 input.xlsx<br/>입력 문단 데이터<br/>원문과 번역문]:::data
-    G[📊 output_bge.xlsx<br/>BGE 처리 결과<br/>문단ID와 문장ID와 정렬]:::data
+    G[📊 output.xlsx<br/>구문분석 처리 결과<br/>문단ID와 문장ID와 정렬]:::data
     
     %% 설정 파일
     H[⚙️ config_example.json<br/>설정 예시<br/>임계값, 모델 등]:::config
     
     %% 공통 모듈 (상위 디렉토리)
-    I[🧠 ../common/embedders/<br/>BGE-M3와 OpenAI<br/>임베딩 모듈]:::module
+    I[🧠 ../common/embedders/bge.py<br/>BGE-M3 FlagModel<br/>안정화된 임베딩]:::module
     J[🔧 ../common/io_utils.py<br/>Excel 입출력<br/>유틸리티]:::module
+    K[🏮 ../common/new_parsers.py<br/>🆕 SuPar-Kanbun + Stanza<br/>구문분석기 통합]:::parser
     
     A --> B
     B --> C
@@ -50,6 +52,7 @@ flowchart TB
     B -.-> H
     C -.-> I
     C -.-> J
+    D -.-> K
     E -.-> I
 ```
 
@@ -79,10 +82,10 @@ flowchart TD
     G{인수 검증<br/>성공?}:::decision
     H[❌ 인수 오류<br/>도움말 출력]:::error
     
-    %% 🆕 하이브리드 토크나이저 초기화
-    HT[🏮 하이브리드 토크나이저 초기화<br/>SikuBERT+AnchiBERT+RoBERTa-Hanja+Kiwipiepy]:::process
-    HT2{토크나이저<br/>초기화 성공?}:::decision
-    HT3[⚠️ 토크나이저 초기화 실패<br/>경고 메시지 출력]:::error
+    %% 🆕 구문분석기 초기화
+    HT[🏮 구문분석기 초기화<br/>SuPar-Kanbun 원문 + Stanza 번역문<br/>+ BGE-M3 FlagModel 임베딩]:::process
+    HT2{구문분석기<br/>초기화 성공?}:::decision
+    HT3[⚠️ 구문분석기 초기화 실패<br/>경고 메시지 출력]:::error
     
     %% 처리 시작
     I[🔧 processor.py import<br/>process_paragraph_file]:::process
@@ -145,18 +148,18 @@ flowchart TD
     E[📊 데이터 구조 확인<br/>문단 개수 로그]:::process
     F[🔍 컬럼 검증<br/>원문/번역문 확인]:::process
     
-    %% 문장 분할 단계
-    G[✂️ sentence_splitter 호출<br/>문단 → 문장 분할]:::splitter
-    H[📋 분할 결과 검증<br/>문장 개수 확인]:::process
+    %% 구문분석 기반 분할
+    G[🏮 sentence_splitter 호출<br/>구문분석 기반 문단 → 문장 분할<br/>SuPar-Kanbun + Stanza + BGE-M3]:::splitter
+    H[📋 분할 결과 검증<br/>구문 구조 기반 문장 개수 확인]:::process
     
-    %% 임베딩 및 정렬
-    I[🎯 aligner 모듈 호출<br/>get_embedder_function]:::aligner
-    J{임베더 초기화<br/>성공?}:::decision
-    K[❌ 임베더 오류<br/>기능 비활성화]:::error
+    %% BGE-M3 FlagModel 임베딩 및 정렬
+    I[🎯 aligner 모듈 호출<br/>BGE-M3 FlagModel 초기화]:::aligner
+    J{BGE-M3 FlagModel<br/>초기화 성공?}:::decision
+    K[❌ BGE-M3 오류<br/>기능 비활성화]:::error
     
-    L[🧠 문장 임베딩<br/>벡터 변환]:::aligner
-    M[📐 유사도 계산<br/>매트릭스 생성]:::aligner
-    N[🎯 정렬 수행<br/>improved_align_paragraphs]:::aligner
+    L[🧠 문장 임베딩<br/>FlagModel 벡터 변환]:::aligner
+    M[📐 유사도 계산<br/>코사인 유사도 매트릭스]:::aligner
+    N[🎯 정렬 수행<br/>구문+의미 하이브리드 정렬]:::aligner
     
     %% 결과 처리
     O[📊 결과 DataFrame 생성<br/>문단ID와 문장ID와 정렬]:::data
@@ -195,29 +198,29 @@ flowchart TD
     classDef startEnd fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px,color:#000,font-weight:bold
     classDef process fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000,font-weight:bold
     classDef decision fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000,font-weight:bold
-    classDef spacy fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000,font-weight:bold
-    classDef hybrid fill:#fff8e1,stroke:#f9a825,stroke-width:2px,color:#000,font-weight:bold
+    classDef parser fill:#f1f8e9,stroke:#558b2f,stroke-width:2px,color:#000,font-weight:bold
+    classDef embedder fill:#fff8e1,stroke:#f9a825,stroke-width:2px,color:#000,font-weight:bold
     classDef validation fill:#f1f8e9,stroke:#558b2f,stroke-width:2px,color:#000,font-weight:bold
     classDef output fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000,font-weight:bold
     
-    A[🚀 split_target_sentences_advanced]:::startEnd
+    A[🚀 split_target_sentences_advanced<br/>구문분석 기반 고급 분할]:::startEnd
     
-    %% 하이브리드 토크나이저 초기화
-    HT[🏮 하이브리드 토크나이저 초기화<br/>SikuBERT+AnchiBERT+RoBERTa-Hanja+Kiwipiepy]:::hybrid
-    B[🤖 spaCy 모델 로드<br/>한국어 ko_core_news_lg<br/>중국어 zh_core_web_lg (폴백용)]:::spacy
-    C{모델 로드<br/>성공?}:::decision
-    D[❌ 모델 없음<br/>설치 안내 출력]:::process
+    %% 🆕 구문분석기 초기화
+    PA[🏮 구문분석기 초기화<br/>SuPar-Kanbun 원문 + Stanza 번역문]:::parser
+    B[🤖 BGE-M3 FlagModel 로드<br/>의미적 매칭용 임베더]:::embedder
+    C{구문분석기 로드<br/>성공?}:::decision
+    D[❌ 구문분석기 없음<br/>설치 안내 출력]:::process
     
     %% 문단별 처리
     E[📋 문단 데이터 순회<br/>tqdm 진행률 표시]:::process
-    F[📝 원문 문단 분할<br/>🆕 SikuBERT/AnchiBERT 우선<br/>폴백: spaCy 중국어]:::hybrid
-    G[📝 번역문 문단 분할<br/>🆕 RoBERTa-Hanja+Kiwipiepy 우선<br/>폴백: spaCy 한국어]:::hybrid
+    F[📝 원문 문단 구문분석<br/>🆕 SuPar-Kanbun 한문 구문분석<br/>구문 구조 기반 정확 분할]:::parser
+    G[📝 번역문 문단 구문분석<br/>🆕 Stanza 한국어 구문분석<br/>구문 구조 기반 정확 분할]:::parser
     
-    %% 임베딩 기반 의미적 정렬
-    H[🧠 임베딩 기반 의미적 정렬<br/>SikuBERT/AnchiBERT 임베딩]:::hybrid
-    I[🔍 분할 품질 검증<br/>임계값 0.7 기준]:::validation
-    J{의미 매칭<br/>품질 통과?}:::decision
-    K[✂️ 보수적 재분할<br/>구조적 패턴 기반]:::validation
+    %% BGE-M3 기반 의미적 정렬
+    H[🧠 BGE-M3 FlagModel 임베딩<br/>구문 분할된 문장들의 의미 매칭]:::embedder
+    I[🔍 분할 품질 검증<br/>구문+의미 이중 검증]:::validation
+    J{구문분석+의미매칭<br/>품질 통과?}:::decision
+    K[✂️ 보수적 재분할<br/>구문 구조 우선 재분석]:::validation
     
     %% 문장 검증
     L[🔍 문장 길이 검증<br/>max_length 기준]:::validation
@@ -229,12 +232,12 @@ flowchart TD
     P[📊 빈 문장 필터링<br/>유효 문장만 유지]:::validation
     
     %% 결과 생성
-    Q[📋 문장 리스트 생성<br/>원문1과 번역문1, 원문2와 번역문2...]:::output
-    R[📊 분할 통계 출력<br/>문단별 문장 개수]:::output
-    S[✅ 하이브리드 분할 완료<br/>문장 리스트 반환]:::startEnd
+    Q[📋 문장 리스트 생성<br/>구문분석 기반 정확한 문장쌍]:::output
+    R[📊 분할 통계 출력<br/>구문 구조별 문장 개수]:::output
+    S[✅ 구문분석 기반 분할 완료<br/>고품질 문장 리스트 반환]:::startEnd
     
-    A --> HT
-    HT --> B
+    A --> PA
+    PA --> B
     B --> C
     C -->|실패| D
     C -->|성공| E
@@ -274,36 +277,36 @@ flowchart TD
     
     A[🚀 improved_align_paragraphs]:::startEnd
     
-    %% 임베더 초기화
-    B[🧠 get_embedder_function<br/>BGE-M3 또는 OpenAI]:::embedder
-    C{임베더 타입<br/>확인}:::decision
-    D[🤖 BGE-M3 로컬 모델<br/>FlagEmbedding 로드]:::embedder
-    E[🌐 OpenAI API<br/>text-embedding-3-large]:::embedder
+    %% BGE-M3 FlagModel 초기화
+    B[🧠 BGE-M3 FlagModel 로드<br/>FlagEmbedding 1.1.7 안정화<br/>transformers 4.36.0 호환]:::embedder
+    C{BGE-M3 FlagModel<br/>로드 성공?}:::decision
+    D[🤖 BGE-M3 FlagModel 준비<br/>GPU 가속 임베딩]:::embedder
+    E[🌐 OpenAI API 백업<br/>text-embedding-3-large]:::embedder
     
     %% 임베딩 처리
-    F[📊 문장 배치 처리<br/>원문/번역문 분리]:::process
-    G[🔢 벡터 임베딩<br/>문장 → 고차원 벡터]:::embedder
+    F[📊 문장 배치 처리<br/>구문분석된 원문/번역문 분리]:::process
+    G[🔢 BGE-M3 FlagModel 임베딩<br/>문장 → 1024차원 벡터]:::embedder
     H[💾 임베딩 캐시<br/>중복 계산 방지]:::process
     
     %% 유사도 계산
     I[📐 유사도 매트릭스<br/>M×N 행렬 생성]:::similarity
-    J[🎯 코사인 유사도<br/>벡터 내적 계산]:::similarity
-    K[📊 임계값 필터링<br/>threshold 이상만 유지]:::similarity
+    J[🎯 코사인 유사도<br/>FlagModel 벡터 내적 계산]:::similarity
+    K[📊 임계값 필터링<br/>고품질 매칭만 유지]:::similarity
     
-    %% 정렬 알고리즘
-    L[🎯 최적 매칭 찾기<br/>그리디 알고리즘]:::process
-    M[📋 매칭 쌍 생성<br/>원문_idx와 번역문_idx]:::process
-    N[🔍 매칭 검증<br/>중복/누락 확인]:::process
+    %% 구문+의미 하이브리드 정렬
+    L[🎯 하이브리드 매칭<br/>구문구조 + 의미유사도]:::process
+    M[📋 매칭 쌍 생성<br/>구문분석_idx와 의미매칭_idx]:::process
+    N[🔍 매칭 검증<br/>구문+의미 이중 검증]:::process
     
     %% 결과 생성
-    O[📊 정렬 결과 구성<br/>문단ID와 문장ID와 정렬쌍]:::output
-    P[📈 정렬 품질 평가<br/>매칭 비율 계산]:::output
-    Q[✅ 정렬 완료<br/>결과 리스트 반환]:::startEnd
+    O[📊 정렬 결과 구성<br/>문단ID와 문장ID와 구문+의미 정렬쌍]:::output
+    P[📈 정렬 품질 평가<br/>구문정확도 + 의미유사도]:::output
+    Q[✅ 구문+의미 하이브리드 정렬 완료<br/>고품질 결과 리스트 반환]:::startEnd
     
     A --> B
     B --> C
     C -->|BGE-M3| D
-    C -->|OpenAI| E
+    C -->|OpenAI 백업| E
     D --> F
     E --> F
     F --> G
@@ -340,16 +343,16 @@ flowchart LR
     A[📊 input.xlsx<br/>문단 원문과 문단 번역문]:::input
     
     %% 중간 처리 데이터
-    B[✂️ 분할된 문장<br/>원문1과 번역문1, 원문2와 번역문2...]:::intermediate
-    C[🔢 임베딩 벡터<br/>v1, v2... 고차원 배열]:::intermediate
-    D[📐 유사도 매트릭스<br/>M×N 2차원 배열]:::intermediate
-    E[🎯 매칭 쌍<br/>0과2, 1과0, 2와1...]:::intermediate
+    B[🏮 구문분석된 문장<br/>SuPar-Kanbun원문 + Stanza번역문]:::intermediate
+    C[🔢 BGE-M3 FlagModel 벡터<br/>v1, v2... 1024차원 배열]:::intermediate
+    D[📐 구문+의미 유사도 매트릭스<br/>M×N 하이브리드 점수]:::intermediate
+    E[🎯 하이브리드 매칭 쌍<br/>구문구조 + 의미유사도 기반]:::intermediate
     
     %% 출력 데이터
-    F[📊 output_bge.xlsx<br/>문단ID와 문장ID와 원문분할과 번역문분할]:::output
+    F[📊 output.xlsx<br/>문단ID와 문장ID와 구문분석결과와 의미정렬]:::output
     
     %% 설정 파일
-    G[⚙️ config_example.json<br/>임계값, 모델 설정]:::config
+    G[⚙️ config_example.json<br/>구문분석 + 의미매칭 임계값<br/>BGE-M3 FlagModel 설정]:::config
     
     %% 데이터 플로우
     A --> B
@@ -365,7 +368,7 @@ flowchart LR
     
     %% 데이터 형태 예시
     H[📝 입력 예시<br/>원문: 子曰 學而時習之 不亦說乎<br/>번역: 공자가 말씀하셨다...]:::input
-    I[📝 출력 예시<br/>1_1_子曰_공자가 말씀하셨다<br/>1_2_學而時習之_배우고 때때로 익히면...]:::output
+    I[📝 출력 예시<br/>1_1_子曰_공자가 말씀하셨다<br/>구문분석+의미매칭 0.87<br/>1_2_學而時習之_배우고 때때로 익히면<br/>구문분석+의미매칭 0.92...]:::output
     
     A -.-> H
     F -.-> I

@@ -1,0 +1,101 @@
+[project]dependencies = [
+    # 🔥 핵심 필수 패키지만 유지
+    "pandas",               # Excel 파일 처리 필수
+    "numpy (<2)",          # 수치 계산 필수
+    "openpyxl",            # Excel 읽기/쓰기 필수
+    
+    # 📝 실제 사용되는 NLP 도구들만
+    "regex",               # 텍스트 전처리 필수
+    "tqdm",                # 진행률 표시 필수  
+    "kiwipiepy (>=0.21.0,<0.22.0)",  # 한국어 토크나이저 (실제 사용됨)
+    
+    "stanza (>=1.8.0,<2.0.0)",  # 한국어 번역문 분석 (실제 사용됨)
+    "supar (>=1.1.4,<2.0.0)",   # 한문 구문 분석 (실제 사용됨)ion = "0.1.0"
+description = "Multilingual NLP project with Korean/Chinese support"
+authors = [
+    {name = "hw725", email = "hw725@g.skku.edu"}
+]
+readme = "README.md"
+requires-python = ">=3.10.11,<3.14"
+dependencies = [
+    # 🔥 핵심 필수 패키지만 유지
+    "pandas",               # Excel 파일 처리 필수
+    "numpy (<2)",          # 수치 계산 필수
+    "openpyxl",            # Excel 읽기/쓰기 필수
+    
+    # � 실제 사용되는 NLP 도구들만
+    "regex",               # 텍스트 전처리 필수
+    "tqdm",                # 진행률 표시 필수  
+    "kiwipiepy (>=0.21.0,<0.22.0)",  # 한국어 토크나이저 (실제 사용됨)
+    
+    # 🔒 PyTorch는 Poetry 관리 제외 (pip 전용)
+    # ⚠️  중요: PyTorch CUDA 버전은 반드시 pip로 별도 설치!
+    # 설치 명령어: poetry run pip install torch==2.0.1+cu118 torchvision==0.15.2+cu118 torchaudio==2.0.2+cu118 --index-url https://download.pytorch.org/whl/cu118
+    "torch",  # Poetry가 자동 설치하지 않도록 명시적 선언
+    "torchvision",  # Poetry가 자동 설치하지 않도록 명시적 선언  
+    "torchaudio",  # Poetry가 자동 설치하지 않도록 명시적 선언
+    
+    "stanza (>=1.8.0,<2.0.0)",  # 한국어 번역문 분석 (실제 사용됨)
+    "supar (>=1.1.4,<2.0.0)",   # 한문 구문 분석 (실제 사용됨)
+    
+    # 🔄 BGE-M3, transformers, openai는 pip 수동 설치
+    # pip install FlagEmbedding>=1.2.11 --no-deps
+    # pip install transformers>=4.34.0 --no-deps  
+    # pip install openai>=1.0.0 --no-deps
+]
+
+[project.optional-dependencies]
+hf-optimization = ["hf_xet"]
+dev = [
+    "jupyter",
+    "ipykernel",
+    "matplotlib",
+    "seaborn", 
+    "black",
+    "isort",
+    "pytest",
+    "pytest-cov",
+]
+
+[project.scripts]
+install-models = "scripts.install_models:main"
+setup-mecab = "scripts.setup_mecab:main"
+
+[tool.poetry]
+package-mode = false
+
+# PyTorch 수동 설치 가이드 (필수!)
+# ====================================
+# Poetry는 CUDA 버전 PyTorch를 올바르게 관리할 수 없으므로 pip로 수동 설치 필요
+# 
+# 1단계: PyTorch CUDA 설치
+# RTX 3070 Ti + CUDA 11.8 환경 (권장):
+# poetry run pip install torch==2.0.1+cu118 torchvision==0.15.2+cu118 torchaudio==2.0.2+cu118 --index-url https://download.pytorch.org/whl/cu118
+#
+# 2단계: PyTorch 의존 패키지들 설치
+# poetry run pip install FlagEmbedding>=1.2.8
+# poetry run pip install transformers>=4.34.0,<4.40.0
+#
+# 설치 확인:
+# poetry run python -c "import torch; print(f'PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}')"
+#
+# 다른 CUDA 버전 사용 시:
+# CUDA 12.1: poetry run pip install torch==2.0.1+cu121 torchvision==0.15.2+cu121 torchaudio==2.0.2+cu121 --index-url https://download.pytorch.org/whl/cu121
+# CPU only: poetry run pip install torch==2.0.1+cpu torchvision==0.15.2+cpu torchaudio==2.0.2+cpu --index-url https://download.pytorch.org/whl/cpu
+
+[tool.poetry.dependencies]
+# PyTorch 패키지들을 Poetry 관리에서 제외
+torch = {markers = "extra == 'never'"}
+torchvision = {markers = "extra == 'never'"}
+torchaudio = {markers = "extra == 'never'"}
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"

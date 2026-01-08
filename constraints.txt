@@ -1,0 +1,14 @@
+# PyTorch GPU 버전 강제 고정 - CPU 버전 설치 절대 금지!
+# 이 파일은 poetry나 pip가 CPU 버전으로 바꾸는 것을 방지합니다.
+
+torch==2.0.1+cu118
+torchvision==0.15.2+cu118
+torchaudio==2.0.2+cu118
+
+# transformers 버전 고정 (huggingface_hub 호환성)
+transformers>=4.20.0,<4.35.0
+huggingface_hub>=0.17.0,<0.25.0
+
+# 사용법:
+# pip install -c constraints.txt [패키지명]
+# poetry install --constraint constraints.txt (지원되면)

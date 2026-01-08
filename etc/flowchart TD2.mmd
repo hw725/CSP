@@ -1,0 +1,76 @@
+flowchart TD
+    %% 스타일 정의
+    classDef startEnd fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px,color:#000,font-weight:bold
+    classDef process fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000,font-weight:bold
+    classDef decision fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000,font-weight:bold
+    classDef embedder fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000,font-weight:bold
+    classDef tokenizer fill:#fff8e1,stroke:#f9a825,stroke-width:2px,color:#000,font-weight:bold
+    classDef alignment fill:#f1f8e9,stroke:#558b2f,stroke-width:2px,color:#000,font-weight:bold
+    classDef integrity fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000,font-weight:bold
+    classDef output fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000,font-weight:bold
+    
+    A[🚀 align_sentences_sequential<br/>순차적 의미 기반 문장→구 정렬]:::startEnd
+    
+    %% BGE-M3 FlagModel 초기화
+    B[🧠 BGE-M3 FlagModel 로드<br/>안정화된 임베딩 엔진]:::embedder
+    C{BGE-M3 초기화<br/>성공?}:::decision
+    D[❌ 임베딩 엔진 오류<br/>경고 메시지 출력]:::process
+    
+    %% 하이브리드 토크나이저 초기화
+    E[🏮 하이브리드 토크나이저 설정<br/>SikuBERT+AnchiBERT+RoBERTa-Hanja+Kiwipiepy]:::tokenizer
+    F[🔧 토크나이저 유효성 검증<br/>각 언어별 모델 준비]:::tokenizer
+    
+    %% 문장별 순차 처리
+    G[📋 문장 데이터 순차 순회<br/>원문과 번역문 쌍 처리]:::process
+    H[🎭 구두점 마스킹<br/>punctuation.py 무결성 보장]:::integrity
+    
+    %% 토크나이징 단계
+    I[✂️ 원문 토크나이징<br/>SikuBERT 우선, AnchiBERT 백업]:::tokenizer
+    J[✂️ 번역문 토크나이징<br/>RoBERTa-Hanja + Kiwipiepy 하이브리드]:::tokenizer
+    K[🔍 토큰 길이 검증<br/>min-tokens ~ max-tokens 범위]:::tokenizer
+    
+    %% BGE-M3 임베딩
+    L[🧠 BGE-M3 문장 임베딩<br/>1024차원 벡터 생성]:::embedder
+    M[💾 임베딩 캐시 확인<br/>중복 계산 방지]:::embedder
+    
+    %% 순차적 의미 정렬
+    N[📐 코사인 유사도 계산<br/>원문구와 번역구 매칭]:::alignment
+    O[🎯 순차적 정렬 수행<br/>문장 내 구별 순서 보장]:::alignment
+    P[🔍 정렬 품질 검증<br/>임계값 기준 필터링]:::alignment
+    
+    %% 무결성 검증
+    Q[🎭 구두점 복원<br/>원본 텍스트 무결성 복구]:::integrity
+    R[🔍 순차 무결성 검증<br/>원본 순서 보장 확인]:::integrity
+    S{무결성 검증<br/>통과?}:::decision
+    T[⚠️ 무결성 경고<br/>순서 변화 감지 로그]:::integrity
+    
+    %% 결과 생성
+    U[📊 구별 정렬 결과 생성<br/>문장식별자와 구식별자와 정렬쌍]:::output
+    V[📈 정렬 통계 계산<br/>매칭률과 품질 점수]:::output
+    W[✅ 순차적 의미 정렬 완료<br/>무결성 보장 결과 반환]:::startEnd
+    
+    A --> B
+    B --> C
+    C -->|실패| D
+    C -->|성공| E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+    I --> J
+    J --> K
+    K --> L
+    L --> M
+    M --> N
+    N --> O
+    O --> P
+    P --> Q
+    Q --> R
+    R --> S
+    S -->|실패| T
+    S -->|성공| U
+    T --> U
+    U --> V
+    V --> W
+    
+    D -.-> W

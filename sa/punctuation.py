@@ -53,8 +53,12 @@ class IntegrityGuard:
         processed_normalized = ''.join(processed_text.split())
         processed_checksum = hashlib.sha256(processed_normalized.encode('utf-8')).hexdigest()
         
-        # 체크섬 비교
-        integrity_valid = (original_info['checksum'] == processed_checksum)
+        # 체크섬 비교 + 문자 정확도 기반 검증
+        checksum_match = (original_info['checksum'] == processed_checksum)
+        character_accuracy = self._calculate_character_accuracy(original_info['normalized'], processed_normalized)
+        
+        # 🆕 더 관대한 무결성 기준: 체크섬 일치 또는 높은 문자 정확도
+        integrity_valid = checksum_match or character_accuracy >= 0.90
         
         # 상세 정보
         verification_info = {

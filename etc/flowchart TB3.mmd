@@ -1,0 +1,65 @@
+flowchart TB
+    %% 스타일 정의
+    classDef startEnd fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px,color:#000,font-weight:bold
+    classDef core fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000,font-weight:bold
+    classDef evaluator fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000,font-weight:bold
+    classDef analyzer fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000,font-weight:bold
+    classDef data fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000,font-weight:bold
+    classDef report fill:#fff8e1,stroke:#f9a825,stroke-width:2px,color:#000,font-weight:bold
+    classDef guide fill:#f1f8e9,stroke:#558b2f,stroke-width:2px,color:#000,font-weight:bold
+    
+    A[🚀 Accuracy 디렉토리 시작<br/>정확도 평가 시스템]:::startEnd
+    
+    %% 핵심 평가기들
+    B[🔧 accuracy_evaluator.py<br/>전체 정확도 평가 엔진<br/>Precision, Recall, F1]:::core
+    C[🔧 row_pair_evaluator.py<br/>행별 쌍 매칭 평가<br/>1:1, 1:N, N:1 분석]:::evaluator
+    
+    %% 텍스트 손실 분석기들
+    D[🔍 analyze_text_loss.py<br/>일반 텍스트 손실 분석<br/>누락 텍스트 검출]:::analyzer
+    E[🔍 analyze_sa_text_loss.py<br/>SA 전용 텍스트 손실 분석<br/>구별 매칭 손실 추적]:::analyzer
+    
+    %% 평가 데이터 파일들
+    F[📊 관자1_구병렬.xlsx<br/>관자 1권 구 단위 병렬 데이터<br/>정답 라벨링]:::data
+    G[📊 관자3_문장병렬.xlsx<br/>관자 3권 문장 단위 병렬 데이터<br/>정답 라벨링]:::data
+    
+    %% 시스템 출력 데이터
+    H[📊 output_pa.xlsx<br/>PA 모듈 처리 결과<br/>문단→문장 정렬]:::data
+    I[📊 output.xlsx<br/>SA 모듈 처리 결과<br/>문장→구 정렬]:::data
+    
+    %% 평가 결과 보고서들
+    J[📄 accuracy_results_improved.xlsx<br/>종합 정확도 평가 결과<br/>상세 메트릭 포함]:::report
+    K[📄 row_pair_results.xlsx<br/>행별 매칭 평가 결과<br/>쌍별 분석 상세]:::report
+    
+    %% 문서화 및 가이드
+    L[📋 COMPREHENSIVE_GUIDE.md<br/>정확도 평가 종합 가이드<br/>메트릭 설명 및 해석]:::guide
+    M[📋 evaluation_guide.md<br/>평가 방법론 가이드<br/>평가 절차 및 기준]:::guide
+    N[📋 README_accuracy.md<br/>Accuracy 모듈 사용법<br/>빠른 시작 가이드]:::guide
+    
+    A --> B
+    A --> C
+    A --> D
+    A --> E
+    
+    %% 데이터 입력 관계
+    B --> F
+    B --> G
+    B --> H
+    B --> I
+    
+    C --> F
+    C --> G
+    
+    D --> H
+    D --> I
+    E --> I
+    
+    %% 결과 출력 관계
+    B --> J
+    C --> K
+    D --> J
+    E --> J
+    
+    %% 문서화 관계
+    A -.-> L
+    A -.-> M
+    A -.-> N

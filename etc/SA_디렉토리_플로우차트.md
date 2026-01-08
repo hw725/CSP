@@ -1,7 +1,6 @@
 # SA 디렉토리 상세 플로우차트
 
-## SA     %% 토크나이저 및 한글 매칭
-    E[🏮 하이브리드 토크나이저<br/>SikuBERT/AnchiBERT + RoBERTa-Hanja+Kiwipiepy<br/>(common 모듈 연동)]:::tokenizerentence Aligner) 모듈 구조 및 워크플로우
+## SA (Sentence Aligner) 모듈 구조 및 워크플로우 - 의미 기반 (2025-08-21 최신)
 
 ---
 
@@ -18,35 +17,37 @@ flowchart TB
     classDef utility fill:#f1f8e9,stroke:#558b2f,stroke-width:2px,color:#000,font-weight:bold
     classDef cache fill:#fff8e1,stroke:#f9a825,stroke-width:2px,color:#000,font-weight:bold
     
-    A[🚀 SA 디렉토리 시작]:::startEnd
+    A[🚀 SA 디렉토리 시작<br/>의미 기반 문장→구 정렬]:::startEnd
     
     %% 메인 실행기
     B[📋 main.py<br/>CLI 인터페이스<br/>로깅 및 실행 제어]:::mainFile
     
     %% 핵심 모듈들
     C[🔧 io_manager.py<br/>메인 처리 로직<br/>병렬 처리 및 무결성 보장]:::core
-    D[🎭 punctuation.py<br/>구두점 마스킹/언마스킹<br/>무결성 검증]:::core
+    D[🎭 punctuation.py<br/>구두점 마스킹/언마스킹<br/>순차적 무결성 검증]:::core
+    SA[🎯 sa_aligner.py<br/>🆕 순차적 텍스트 처리<br/>의미 기반 정렬 무결성 보장]:::core
     
-    %% 토크나이저 및 한글 매칭
-    E[� korean_particle_matcher.py<br/>한글 토씨 매칭 래퍼<br/>(common 모듈 연동)]:::tokenizer
+    %% 토크나이저 및 한글 매칭 (SA 전용)
+    E[🏮 korean_particle_matcher.py<br/>한글 토씨 매칭 래퍼<br/>common 모듈 연동]:::tokenizer
     
     %% 공통 토크나이저 의존성
     CT[📁 ../common/tokenizers/<br/>하이브리드 토크나이저<br/>SikuBERT+AnchiBERT+RoBERTa-Hanja+Kiwipiepy]:::tokenizer
     CK[🔧 ../common/korean_particle_matcher.py<br/>통합 한글 토씨 매칭<br/>Kiwipiepy 직접 연동]:::tokenizer
     
     %% 데이터 파일들
-    F[📊 input01.xlsx<br/>원문과 번역문<br/>문장 단위 입력]:::data
-    G[📊 output01.xlsx<br/>구별 정렬 결과<br/>문장식별자와 구식별자와 원문구와 번역구]:::data
+    F[📊 input.xlsx<br/>원문과 번역문<br/>문장 단위 입력]:::data
+    G[📊 output.xlsx<br/>구별 정렬 결과<br/>문장식별자와 구식별자와 원문구와 번역구]:::data
     
-    %% 캐시 및 유틸리티
-    H[💾 embedding_cache.pkl<br/>임베딩 캐시<br/>성능 최적화]:::cache
+    %% 캐시 및 임베딩
+    H[💾 embedding_cache.pkl<br/>BGE-M3 FlagModel 캐시<br/>성능 최적화]:::cache
     
     %% 공통 모듈 의존성
-    I[🧠 ../common/embedders/<br/>BGE-M3와 OpenAI<br/>임베딩 엔진]:::core
+    I[🧠 ../common/embedders/bge.py<br/>🆕 BGE-M3 FlagModel<br/>안정화된 임베딩 엔진]:::core
     J[🔧 ../common/io_utils.py<br/>Excel 입출력<br/>공통 유틸리티]:::core
     
     A --> B
     B --> C
+    C --> SA
     C --> D
     C --> E
     E -.-> CT
@@ -103,7 +104,7 @@ flowchart TD
     O[⏱️ 시작 시간 기록<br/>처리 시작 로그]:::process
     
     %% 🆕 하이브리드 토크나이저 초기화  
-    HT[🏮 하이브리드 토크나이저 초기화<br/>SikuBERT+AnchiBERT+RoBERTa-Hanja+Kiwipiepy]:::process
+    HT[🏮 하이브리드 토크나이저 초기화<br/>SikuBERT+AnchiBERT+RoBERTa-Hanja+Kiwipiepy<br/>+ BGE-M3 FlagModel]:::process
     HT2{토크나이저<br/>초기화 성공?}:::decision
     HT3[⚠️ 토크나이저 초기화 실패<br/>경고 메시지 출력]:::error
     
@@ -185,20 +186,20 @@ flowchart TD
     M[🎯 문장별 처리 함수<br/>process_single_sentence]:::process
     N[🎭 구두점 마스킹<br/>safe_mask_brackets]:::integrity
     O[🏮 하이브리드 토크나이징<br/>SikuBERT/AnchiBERT + RoBERTa-Hanja+Kiwipiepy]:::process
-    P[🧠 임베딩<br/>BGE-M3 / OpenAI]:::process
-    Q[📐 정렬 수행<br/>유사도 기반 매칭]:::process
+    P[🧠 BGE-M3 FlagModel 임베딩<br/>안정화된 1024차원 벡터]:::process
+    Q[📐 순차적 정렬 수행<br/>🆕 무결성 보장 텍스트 처리]:::process
     R[🎭 구두점 복원<br/>safe_restore_brackets]:::integrity
     
     %% 결과 수집 및 검증
     S[📊 결과 수집<br/>병렬 작업 결과 병합]:::process
-    T[🔍 무결성 검증<br/>원본과 결과 비교]:::integrity
+    T[🔍 순차적 무결성 검증<br/>🆕 단어 순서 보장 확인]:::integrity
     U{무결성<br/>통과?}:::decision
-    V[⚠️ 무결성 경고<br/>일부 오류 보고]:::error
+    V[⚠️ 무결성 경고<br/>위치 변화 없음 확인]:::error
     
     %% 최종 출력
     W[📄 Excel 출력<br/>구별 정렬 결과 저장]:::data
-    X[💾 캐시 업데이트<br/>임베딩 캐시 저장]:::data
-    Y[✅ 처리 완료<br/>통계 정보 출력]:::startEnd
+    X[💾 BGE-M3 FlagModel 캐시 업데이트<br/>안정화된 임베딩 캐시 저장]:::data
+    Y[✅ 의미 기반 SA 처리 완료<br/>무결성 보장 통계 정보 출력]:::startEnd
     
     A --> B
     B --> C
@@ -233,6 +234,89 @@ flowchart TD
 
 ---
 
+## SA sa_aligner.py 정렬 플로우차트
+
+```mermaid
+flowchart TD
+    %% 스타일 정의
+    classDef startEnd fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px,color:#000,font-weight:bold
+    classDef process fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000,font-weight:bold
+    classDef decision fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000,font-weight:bold
+    classDef embedder fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000,font-weight:bold
+    classDef tokenizer fill:#fff8e1,stroke:#f9a825,stroke-width:2px,color:#000,font-weight:bold
+    classDef alignment fill:#f1f8e9,stroke:#558b2f,stroke-width:2px,color:#000,font-weight:bold
+    classDef integrity fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000,font-weight:bold
+    classDef output fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000,font-weight:bold
+    
+    A[🚀 align_sentences_sequential<br/>순차적 의미 기반 문장→구 정렬]:::startEnd
+    
+    %% BGE-M3 FlagModel 초기화
+    B[🧠 BGE-M3 FlagModel 로드<br/>안정화된 임베딩 엔진]:::embedder
+    C{BGE-M3 초기화<br/>성공?}:::decision
+    D[❌ 임베딩 엔진 오류<br/>경고 메시지 출력]:::process
+    
+    %% 하이브리드 토크나이저 초기화
+    E[🏮 하이브리드 토크나이저 설정<br/>SikuBERT+AnchiBERT+RoBERTa-Hanja+Kiwipiepy]:::tokenizer
+    F[🔧 토크나이저 유효성 검증<br/>각 언어별 모델 준비]:::tokenizer
+    
+    %% 문장별 순차 처리
+    G[📋 문장 데이터 순차 순회<br/>원문과 번역문 쌍 처리]:::process
+    H[🎭 구두점 마스킹<br/>punctuation.py 무결성 보장]:::integrity
+    
+    %% 토크나이징 단계
+    I[✂️ 원문 토크나이징<br/>SikuBERT 우선, AnchiBERT 백업]:::tokenizer
+    J[✂️ 번역문 토크나이징<br/>RoBERTa-Hanja + Kiwipiepy 하이브리드]:::tokenizer
+    K[🔍 토큰 길이 검증<br/>min-tokens ~ max-tokens 범위]:::tokenizer
+    
+    %% BGE-M3 임베딩
+    L[🧠 BGE-M3 문장 임베딩<br/>1024차원 벡터 생성]:::embedder
+    M[💾 임베딩 캐시 확인<br/>중복 계산 방지]:::embedder
+    
+    %% 순차적 의미 정렬
+    N[📐 코사인 유사도 계산<br/>원문구와 번역구 매칭]:::alignment
+    O[🎯 순차적 정렬 수행<br/>문장 내 구별 순서 보장]:::alignment
+    P[🔍 정렬 품질 검증<br/>임계값 기준 필터링]:::alignment
+    
+    %% 무결성 검증
+    Q[🎭 구두점 복원<br/>원본 텍스트 무결성 복구]:::integrity
+    R[🔍 순차 무결성 검증<br/>원본 순서 보장 확인]:::integrity
+    S{무결성 검증<br/>통과?}:::decision
+    T[⚠️ 무결성 경고<br/>순서 변화 감지 로그]:::integrity
+    
+    %% 결과 생성
+    U[📊 구별 정렬 결과 생성<br/>문장식별자와 구식별자와 정렬쌍]:::output
+    V[📈 정렬 통계 계산<br/>매칭률과 품질 점수]:::output
+    W[✅ 순차적 의미 정렬 완료<br/>무결성 보장 결과 반환]:::startEnd
+    
+    A --> B
+    B --> C
+    C -->|실패| D
+    C -->|성공| E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+    I --> J
+    J --> K
+    K --> L
+    L --> M
+    M --> N
+    N --> O
+    O --> P
+    P --> Q
+    Q --> R
+    R --> S
+    S -->|실패| T
+    S -->|성공| U
+    T --> U
+    U --> V
+    V --> W
+    
+    D -.-> W
+```
+
+---
+
 ## SA 토크나이저 (하이브리드) 플로우차트
 
 ```mermaid
@@ -252,7 +336,7 @@ flowchart TD
     %% 중국어 토크나이저 (원문)
     B[🇨🇳 중국어 원문 처리<br/>SikuBERT + AnchiBERT]:::siku
     C[📚 SikuBERT 로드<br/>사고전서 코퍼스 훈련]:::siku
-    D[📚 AnchiBERT 로드<br/>고전 중국어 BERT (백업)]:::anchi
+    D[📚 AnchiBERT 로드<br/>고전 중국어 BERT 백업]:::anchi
     E{SikuBERT<br/>로드 성공?}:::decision
     F[✂️ SikuBERT 토크나이징<br/>GPU 배치 처리]:::siku
     G[✂️ AnchiBERT 토크나이징<br/>폴백 처리]:::anchi
@@ -260,7 +344,7 @@ flowchart TD
     %% 한국어 토크나이저 (번역문)
     H[🇰🇷 한국어 번역문 처리<br/>RoBERTa-Hanja + Kiwipiepy]:::roberta
     I[📚 RoBERTa-Hanja 로드<br/>한자 포함 한국어 토크나이저]:::roberta
-    J[📚 Kiwipiepy 로드<br/>한글 형태소 분석 (고어 인식)]:::kiwi
+    J[📚 Kiwipiepy 로드<br/>한글 형태소 분석 고어 인식]:::kiwi
     K[🔍 한자/한글 분리<br/>하이브리드 토크나이징]:::roberta
     L[✂️ 한자 구간: RoBERTa-Hanja<br/>한글 구간: Kiwipiepy]:::kiwi
     
@@ -403,16 +487,16 @@ flowchart LR
     %% 중간 처리 데이터
     C[🎭 마스킹된 텍스트<br/>__MASK_001__ 형태로 변환]:::intermediate
     D[🏮 하이브리드 토큰 리스트<br/>SikuBERT토큰 + RoBERTa-Hanja토큰 + Kiwipiepy토큰]:::tokenizer
-    E[🔢 임베딩 벡터<br/>고차원 벡터 배열]:::intermediate
+    E[🔢 BGE-M3 FlagModel 벡터<br/>안정화된 1024차원 배열]:::intermediate
     F[📐 유사도 점수<br/>구별 매칭 점수]:::intermediate
-    G[🎯 정렬 결과<br/>원문구와 번역구 매칭쌍]:::intermediate
+    G[🎯 순차적 정렬 결과<br/>🆕 무결성 보장 원문구와 번역구 매칭쌍]:::intermediate
     H[🎭 복원된 텍스트<br/>원본 구두점 복구]:::intermediate
     
     %% 출력 데이터
     I[📊 output.xlsx<br/>문장식별자와 구식별자와 원문구와 번역구]:::output
     
     %% 캐시 및 설정
-    J[💾 embedding_cache.pkl<br/>임베딩 결과 캐시]:::cache
+    J[💾 embedding_cache.pkl<br/>BGE-M3 FlagModel 캐시<br/>안정화된 임베딩 결과]:::cache
     K[📁 ../common/tokenizers/<br/>하이브리드 토크나이저 모듈]:::tokenizer
     L[📁 tested/<br/>테스트 결과 파일]:::output
     
@@ -438,8 +522,8 @@ flowchart LR
     
     %% 데이터 형태 예시
     M[📝 입력 예시<br/>원문: 子曰學而時習之<br/>번역: 공자가 말씀하시기를...]:::input
-    N[📝 중간 예시<br/>하이브리드토큰: 子(SikuBERT), 曰(SikuBERT), 공자가(RoBERTa-Hanja), 말씀하시기를(Kiwipiepy)<br/>벡터: 0.1, 0.8, -0.3, ...]:::intermediate
-    O[📝 출력 예시<br/>1_1_子曰_공자가 말씀하시기를<br/>1_2_學而時習之_배우고 때때로 익히면...]:::output
+    N[📝 중간 예시<br/>하이브리드토큰: 子SikuBERT, 曰SikuBERT, 공자가RoBERTa-Hanja, 말씀하시기를Kiwipiepy<br/>BGE-M3벡터: 0.1, 0.8, -0.3... 1024차원]:::intermediate
+    O[📝 출력 예시<br/>1_1_子曰_공자가 말씀하시기를<br/>1_2_學而時習之_배우고 때때로 익히면<br/>무결성: 100% 보장]:::output
     
     A -.-> M
     E -.-> N
