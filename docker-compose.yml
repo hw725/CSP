@@ -6,6 +6,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: csp-workspace
+    env_file:
+      - .env
 
     volumes:
       # 워크스페이스 마운트 (성능 최적화)
@@ -33,8 +35,26 @@ services:
       - TRANSFORMERS_CACHE=/root/.cache/huggingface/transformers
       - TORCH_HOME=/root/.cache/torch
 
+      # OpenAI API Key
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+      # Google Gemini API Key
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+
+      # SQL Server 연결 환경 변수 (호스트의 SQLEXPRESS - 포트 59461)
+      - MSSQL_SERVER=${MSSQL_SERVER:-host.docker.internal,59461}
+      - MSSQL_DATABASE=${MSSQL_DATABASE:-사전통합}
+      - MSSQL_TRUSTED_CONNECTION=${MSSQL_TRUSTED_CONNECTION:-no}
+
     stdin_open: true
     tty: true
+
+    # 네트워크 설정: csp_network에 연결하여 mssql 서비스에 접근 가능하게 함
+    networks:
+      - csp_network
+
+    # 호스트 네트워크 모드는 SQL Server 컨테이너 사용 시 불필요 (주석 처리)
+    # network_mode: host
 
     # GPU 리소스 할당 (GPU 있을 때만)
     deploy:
@@ -54,6 +74,86 @@ services:
     shm_size: 2gb
     restart: unless-stopped
 
+  # SQL Server 2022 (한자 사전 데이터베이스용)
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: csp-mssql
+    user: root
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=CSPSql2024!@#
+      - MSSQL_PID=Express
+      - MSSQL_TCP_PORT=1433
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql/data
+      - mssql_log:/var/opt/mssql/log
+      - mssql_backup:/var/opt/mssql/backup
+      - ./sql_init:/sql_init:ro
+    networks:
+      - csp_network
+    restart: unless-stopped
+
+  # w(단어) 단위 병렬 추출 전용 런너 (원할 때만 수동 실행)
+  w-extract:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: csp-w-extract
+    volumes:
+      - .:/workspace:delegated
+      - pip_cache:/root/.cache/pip:rw
+      - huggingface_cache:/root/.cache/huggingface:rw
+      - torch_cache:/root/.cache/torch:rw
+    working_dir: /workspace
+    environment:
+      - PYTHONPATH=/workspace
+      - LANG=ko_KR.UTF-8
+      - LC_ALL=ko_KR.UTF-8
+      - LANGUAGE=ko_KR:ko
+      - PYTHONIOENCODING=utf-8
+    networks:
+      - csp_network
+    # 기본 인자: sources -> xml_pipeline_results/w_pairs (필요시 override)
+    command:
+      [
+        "bash",
+        "-lc",
+        "mkdir -p xml_pipeline_results/w_pairs && python xml_pipeline/extract_w_only.py sources xml_pipeline_results/w_pairs --log-unpaired",
+      ]
+    shm_size: 2gb
+    restart: "no"
+
+  # 2017 XML 스키마/ID 분석 런너 (원할 때만 수동 실행)
+  w-analyze-2017:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: csp-w-analyze-2017
+    volumes:
+      - .:/workspace:delegated
+      - pip_cache:/root/.cache/pip:rw
+      - huggingface_cache:/root/.cache/huggingface:rw
+      - torch_cache:/root/.cache/torch:rw
+    working_dir: /workspace
+    environment:
+      - PYTHONPATH=/workspace
+      - LANG=ko_KR.UTF-8
+      - LC_ALL=ko_KR.UTF-8
+      - LANGUAGE=ko_KR:ko
+      - PYTHONIOENCODING=utf-8
+    networks:
+      - csp_network
+    command:
+      [
+        "bash",
+        "-lc",
+        "mkdir -p xml_pipeline_results/schema && python xml_pipeline/w_schema_analyzer.py sources xml_pipeline_results/schema",
+      ]
+    shm_size: 2gb
+    restart: "no"
+
 # 캐시 볼륨들
 volumes:
   pip_cache:
@@ -62,3 +162,14 @@ volumes:
     driver: local
   torch_cache:
     driver: local
+  mssql_data:
+    driver: local
+  mssql_log:
+    driver: local
+  mssql_backup:
+    driver: local
+
+# 네트워크
+networks:
+  csp_network:
+    driver: bridge

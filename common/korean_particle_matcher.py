@@ -3,6 +3,7 @@
 """
 import re
 import logging
+import os
 from typing import List, Dict, Tuple, Optional, Any
 
 # Kiwipiepy import
@@ -93,6 +94,20 @@ class KoreanParticleMatcher:
             'medium': ['하여', '하되', '하나', '하리', '이요', '이여'],
             'weak': ['함이', '함에', '인가', '하는가', '할지어다']
         }
+
+        # 🆕 민감도/가중치 환경 변수로 조정 가능
+        # - KPM_WEIGHT_SCALE: 토씨 카테고리 가중치 전반 스케일 (기본 1.0)
+        # - KPM_BOOST_PAIR: PA 보정 부스트 (기본 0.1)
+        # - KPM_BOOST_SA: SA 보정 부스트 (기본 0.15)
+        def _get_env_float(name: str, default: float) -> float:
+            try:
+                v = os.getenv(name, None)
+                return float(v) if v is not None and v != "" else default
+            except Exception:
+                return default
+        self._weight_scale = _get_env_float("KPM_WEIGHT_SCALE", 1.0)
+        self._boost_pair = _get_env_float("KPM_BOOST_PAIR", 0.1)
+        self._boost_sa = _get_env_float("KPM_BOOST_SA", 0.15)
     
     def _get_kiwi_tokenizer(self):
         """Kiwi 토크나이저 지연 초기화 (전역 싱글톤)"""
@@ -245,12 +260,12 @@ class KoreanParticleMatcher:
         total_weight = 0.0
         
         for category in matched_categories:
-            weight = self.particle_weights.get(category, 0.1)
+            weight = self.particle_weights.get(category, 0.1) * self._weight_scale
             weighted_score += weight
             total_weight += weight
         
         for category in total_categories - matched_categories:
-            weight = self.particle_weights.get(category, 0.1)
+            weight = self.particle_weights.get(category, 0.1) * self._weight_scale
             total_weight += weight
         
         if total_weight > 0:
@@ -362,7 +377,7 @@ class KoreanParticleMatcher:
             
             # 토씨 유사도가 높으면 기존 유사도를 약간 향상시킴 (최대 +0.1)
             # 🆕 고어 패턴 보너스도 추가 (최대 +0.3)
-            enhanced_similarity = original_similarity + (particle_similarity * 0.1) + archaic_bonus
+            enhanced_similarity = original_similarity + (particle_similarity * self._boost_pair) + archaic_bonus
             enhanced_similarity = min(1.0, enhanced_similarity)
             
             # 토씨 정보 추가
@@ -374,7 +389,7 @@ class KoreanParticleMatcher:
                 'archaic_bonus': archaic_bonus,  # 🆕 고어 보너스 정보 추가
                 'src_particles': src_particles,
                 'tgt_particles': tgt_particles,
-                'particle_boost': particle_similarity * 0.1,
+                'particle_boost': particle_similarity * self._boost_pair,
                 'archaic_boost': archaic_bonus  # 🆕 고어 부스트 정보 추가
             })
             
@@ -451,14 +466,14 @@ class KoreanParticleMatcher:
             embedding_similarity = self._calculate_embedding_similarity(src_unit, tgt_unit)
             
             # 최종 유사도: 임베딩 + 토씨 보정
-            final_similarity = embedding_similarity + (particle_similarity * 0.15)
+            final_similarity = embedding_similarity + (particle_similarity * self._boost_sa)
             final_similarity = min(1.0, final_similarity)
             
             return {
                 'embedding_similarity': embedding_similarity,
                 'particle_similarity': particle_similarity,
                 'final_similarity': final_similarity,
-                'particle_boost': particle_similarity * 0.15,
+                'particle_boost': particle_similarity * self._boost_sa,
                 'src_particles': [p[0] for p in src_particles],  # 토씨만 저장
                 'tgt_particles': [p[0] for p in tgt_particles], 
                 'src_particle_categories': [p[1] for p in src_particles],
@@ -720,6 +735,115 @@ def detect_archaic_patterns(text: str, mode: str = 'SA') -> Dict[str, Any]:
     matcher = get_korean_particle_matcher()
     return matcher.detect_archaic_patterns(text, mode)
 
+
+def find_sentence_boundaries_with_particles(text: str, target_count: int) -> List[str]:
+    """
+    고어 토씨를 활용한 문장 경계 감지 (PA 번역문 분할용)
+    
+    Args:
+        text: 번역문 텍스트
+        target_count: 목표 문장 개수 (원문 문장 수)
+    
+    Returns:
+        분할된 문장 리스트
+    """
+    if not text or target_count <= 0:
+        return []
+    
+    if target_count == 1:
+        return [text]
+    
+    matcher = get_korean_particle_matcher()
+    
+    try:
+        # Kiwipiepy로 형태소 분석
+        kiwi = matcher._get_kiwi_tokenizer()
+        if not kiwi:
+            # Kiwi 없으면 단순 분할
+            tokens = text.split()
+            avg = len(tokens) // target_count
+            result = []
+            start = 0
+            for i in range(target_count):
+                end = start + avg + (1 if i < len(tokens) % target_count else 0)
+                result.append(' '.join(tokens[start:end]))
+                start = end
+            return result
+        
+        # 문장 종결 어미 위치 찾기
+        analyzed = kiwi.analyze(text)
+        sentence_end_positions = []
+        
+        for token_list in analyzed:
+            for i, (form, tag, start, end) in enumerate(token_list[0]):
+                # 종결어미 (EF, SF) 또는 고어 종결 패턴
+                if tag in ['EF', 'SF'] or form in matcher.premium_archaic_endings:
+                    sentence_end_positions.append(end)
+        
+        if not sentence_end_positions:
+            # 종결어미 없으면 균등 분배
+            tokens = text.split()
+            avg = len(tokens) // target_count
+            result = []
+            start = 0
+            for i in range(target_count):
+                end = start + avg + (1 if i < len(tokens) % target_count else 0)
+                result.append(' '.join(tokens[start:end]))
+                start = end
+            return result
+        
+        # 종결어미 위치를 기준으로 target_count개 문장으로 그룹화
+        if len(sentence_end_positions) < target_count:
+            # 종결어미가 부족하면 균등 분배로 폴백
+            tokens = text.split()
+            avg = len(tokens) // target_count
+            result = []
+            start = 0
+            for i in range(target_count):
+                end = start + avg + (1 if i < len(tokens) % target_count else 0)
+                result.append(' '.join(tokens[start:end]))
+                start = end
+            return result
+        
+        # 종결어미가 충분하면 그룹화
+        step = len(sentence_end_positions) // target_count
+        selected_positions = [sentence_end_positions[i * step] for i in range(target_count)]
+        
+        sentences = []
+        start = 0
+        for pos in selected_positions:
+            sentence = text[start:pos].strip()
+            if sentence:
+                sentences.append(sentence)
+            start = pos
+        
+        # 마지막 문장 추가
+        if start < len(text):
+            last = text[start:].strip()
+            if last:
+                if sentences:
+                    sentences[-1] += ' ' + last
+                else:
+                    sentences.append(last)
+        
+        # 개수 맞춤
+        while len(sentences) < target_count:
+            sentences.append('')
+        
+        return sentences[:target_count]
+        
+    except Exception as e:
+        logger.warning(f"토씨 기반 문장 경계 감지 실패: {e}")
+        # 폴백: 균등 분배
+        tokens = text.split()
+        avg = len(tokens) // target_count
+        result = []
+        start = 0
+        for i in range(target_count):
+            end = start + avg + (1 if i < len(tokens) % target_count else 0)
+            result.append(' '.join(tokens[start:end]))
+            start = end
+        return result
 
 # 싱글톤 인스턴스 생성 (재사용)
 korean_particle_matcher = get_korean_particle_matcher()

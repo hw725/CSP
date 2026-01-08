@@ -9,6 +9,8 @@ SA (Semantic Alignment) 모듈
 """
 
 import logging
+# Use the third-party 'regex' module to support Unicode properties like \p{Han}
+import regex as re
 from typing import List, Dict, Optional, Any
 import sys
 import os
@@ -16,6 +18,15 @@ import pandas as pd
 import numpy as np
 import json
 import hashlib
+
+# 전역 구식별자 (파일 처리마다 리셋)
+_global_segment_id = 0
+
+
+def reset_segment_counter(start: int = 0):
+    """구식별자를 리셋하고 시작값을 설정한다."""
+    global _global_segment_id
+    _global_segment_id = start
 
 # OpenAI wrapper for direct access with parallel processing
 class OpenAIWrapper:
@@ -57,6 +68,9 @@ class OpenAIWrapper:
             raise
 
 logger = logging.getLogger(__name__)
+
+# 공용 한자 토큰 패턴 (SikuBERT 기준: \p{Han}+)
+_han_token_pattern = re.compile(r"\p{Han}+")
 
 # 공통 토크나이저 모듈 import - 전근대 고전 전용 모델 우선
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -147,17 +161,69 @@ def split_src_meaning_units(text: str, **kwargs) -> List[str]:
     # 🎯 SA 핵심 원칙: 무조건 공백 단위로만 분할
     # 사용자가 입력한 공백 구조를 그대로 보존
     words = text.split()
-    
-    # 📊 내부 분석 (분할에는 절대 영향 없음, 로깅/메타데이터용만)
+
+    # 🧭 원문 토크나이징(분석용): 한자(SikuBERT), 한글 토씨(Kiwipiepy)
+    # - 결과는 반환하지 않고 필요 시 kwargs['token_capture']에 담아 전달
+    siku_tokens: List[str] = []
+    kiwi_tokens: List[str] = []
+    kiwi_particles: List[Any] = []
+
     try:
-        if logger.isEnabledFor(logging.DEBUG):
-            # 전근대 고전 텍스트로 가정 (시대 감지 불필요)
-            logger.debug(f"전근대 고전 텍스트 처리 중 (분할에 영향 없음)")
-            logger.debug(f"실제 분할: 공백 기준 {len(words)}개 - {words}")
+        siku_tokens = _han_token_pattern.findall(text)
     except Exception as e:
-        logger.warning(f"내부 분석 실패 (분할에는 영향 없음): {e}")
+        logger.debug(f"SA: SikuBERT 한자 토큰 추출 실패: {e}")
+
+    try:
+        from common.tokenizers import get_kiwi_tokenizer
+
+        kiwi = get_kiwi_tokenizer()
+        kiwi_tokens = kiwi.morphs(text)
+        try:
+            kiwi_particles = kiwi.extract_particles(text)
+        except Exception as e:
+            logger.debug(f"SA: Kiwipiepy 토씨 추출 실패: {e}")
+    except Exception as e:
+        logger.debug(f"SA: Kiwipiepy 초기화 실패: {e}")
+
+    token_capture = kwargs.get('token_capture')
+    if isinstance(token_capture, dict):
+        token_capture['siku_tokens'] = siku_tokens
+        token_capture['kiwi_tokens'] = kiwi_tokens
+        token_capture['kiwi_particles'] = kiwi_particles
     
     return words
+
+
+def _mask_unaligned_segments(text: str):
+    """비대응 표시 구간([- (... )])에서 [, -, ] 부호만 토큰으로 마스킹"""
+    pattern = re.compile(r"\[-\(([^)]*)\)\]")
+    mapping = []  # (token, symbol)
+
+    def repl(match):
+        seq = len(mapping) // 3
+        token_l = f"__UNALIGNED_L_{seq}__"
+        token_h = f"__UNALIGNED_H_{seq}__"
+        token_r = f"__UNALIGNED_R_{seq}__"
+        mapping.extend([
+            (token_l, "["),
+            (token_h, "-"),
+            (token_r, "]"),
+        ])
+        inner = match.group(1)
+        return f"{token_l}{token_h}({inner}){token_r}"
+
+    masked = pattern.sub(repl, text)
+    return masked, mapping
+
+
+def _unmask_text(text: str, mapping):
+    for token, original in mapping:
+        text = text.replace(token, original)
+    return text
+
+
+def _unmask_list(chunks: List[str], mapping):
+    return [_unmask_text(chunk, mapping) for chunk in chunks]
 
 def split_tgt_meaning_units(text: str, src_units_count: int, src_units: List[str] = None, use_semantic: bool = True, **kwargs) -> List[str]:
     """
@@ -176,6 +242,9 @@ def split_tgt_meaning_units(text: str, src_units_count: int, src_units: List[str
     if not text or not text.strip() or src_units_count <= 0:
         return [''] * max(1, src_units_count)
     
+    tgt_tokens = text.split()
+    N, T = src_units_count, len(tgt_tokens)
+
     # 의미 기반 분할 시도
     if use_semantic and src_units and len(src_units) == src_units_count:
         try:
@@ -190,9 +259,14 @@ def split_tgt_meaning_units(text: str, src_units_count: int, src_units: List[str
 
 def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_tokens: int = 1, **kwargs) -> List[str]:
     """원문 단위에 따른 번역문 분할 (고어 패턴 감지 개선)"""
+    # 🎯 원본 토큰 보존 (최종 출력용)
+    tgt_tokens_original = tgt_text.split()
     
-    tgt_tokens = tgt_text.split()
-    N, T = len(src_units), len(tgt_tokens)
+    # 🚨 augmentation 비활성화: 토큰 개수 불일치 문제 해결
+    # (한자 괄호 처리가 토큰 개수를 바꾸는 문제 발생)
+    tgt_tokens_aug = tgt_tokens_original[:]
+    
+    N, T = len(src_units), len(tgt_tokens_aug)
     
     if N == 0 or T == 0:
         return [''] * N if N > 0 else []
@@ -201,20 +275,25 @@ def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_to
     if N == 1:
         return [tgt_text]
     
-    # 🎯 빠른 처리: 토큰이 단위보다 적으면 1:1 매칭
+    # 🎯 빠른 처리: 토큰이 단위보다 적으면 1:1 매칭 (원본 사용)
     if T <= N:
         result = []
         for i in range(N):
-            if i < T:
-                result.append(tgt_tokens[i])
+            if i < len(tgt_tokens_original):
+                result.append(tgt_tokens_original[i])
             else:
                 result.append("")
         return result
     
     # 🧠 동적 임베더 기반 분할 (순서 보장 모드)
     try:
-        # 설정된 임베더 가져오기 (CLI --embedder 옵션 반영)
+        # 설정된 임베더/디바이스 가져오기 (환경변수/CLI 옵션 반영)
         embedder_name = kwargs.get('embedder_name', kwargs.get('embedder', 'bge'))
+        embedder_device = kwargs.get('embedder_device', kwargs.get('device', os.getenv('CSP_DEVICE', 'cuda')))
+        embedder_device_id = kwargs.get('embedder_device_id', None)
+        if embedder_device_id is None and embedder_device and embedder_device.lower() == 'cuda':
+            embedder_device_id = 0  # 기본 GPU:0
+
         max_workers = kwargs.get('max_workers', 4)
         # CLI에서는 chunk_size 이름을 사용하므로 호환 처리
         batch_size = kwargs.get('batch_size', kwargs.get('chunk_size', 100))
@@ -231,10 +310,10 @@ def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_to
             logger.debug(f"✅ OpenAI 임베더로 순서 보장 의미 매칭 시작 (max_workers={max_workers})")
             compute_embeddings_func = embedder.compute_embeddings_with_cache
         else:
-            # BGE 등 다른 임베더 사용 - 함수 직접 가져오기
+            # BGE 등 다른 임베더 사용 - 함수 직접 가져오기 (GPU 디바이스 반영)
             from common.embedders import get_embedder
-            compute_embeddings_func = get_embedder(embedder_name)
-            logger.debug(f"✅ {embedder_name.upper()} 임베더로 순서 보장 의미 매칭 시작")
+            compute_embeddings_func = get_embedder(embedder_name, device_id=embedder_device_id)
+            logger.debug(f"✅ {embedder_name.upper()} 임베더로 순서 보장 의미 매칭 시작 (device_id={embedder_device_id})")
         
         # 원문 단위별 임베딩
         src_embeddings = compute_embeddings_func(
@@ -242,9 +321,9 @@ def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_to
             batch_size=batch_size
         )
         
-        # 번역문 토큰들의 임베딩
+        # 번역문 토큰들의 임베딩 (augmented 사용)
         tgt_embeddings = compute_embeddings_func(
-            tgt_tokens, 
+            tgt_tokens_aug, 
             batch_size=batch_size
         )
         
@@ -253,13 +332,20 @@ def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_to
         dp_kwargs = dict(kwargs)
         dp_kwargs.setdefault('src_units', src_units)
         dp_kwargs.setdefault('source_text', ' '.join(src_units))
+        dp_kwargs['tgt_tokens_original'] = tgt_tokens_original  # 원본 토큰 전달
         optimal_split = _find_optimal_split_dp_sequential(
-            src_embeddings, tgt_embeddings, tgt_tokens, N, T, **dp_kwargs
+            src_embeddings, tgt_embeddings, tgt_tokens_aug, N, T, **dp_kwargs
         )
         
         if optimal_split and len(optimal_split) == N:
             logger.debug(f"✅ {embedder_name.upper()} 순서 보장 분할 성공: {len(optimal_split)}개 단위")
             return optimal_split
+        else:
+            # DP 실패 - 길이 불일치 경고
+            if optimal_split:
+                logger.error(f"❌ DP 분할 실패: 기대 {N}개, 실제 {len(optimal_split)}개 → 폴백")
+            else:
+                logger.warning(f"⚠️ DP 분할 실패 (None 반환) → 폴백")
     
     except Exception as e:
         if embedder_name and embedder_name.lower() != 'none':
@@ -287,7 +373,18 @@ def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_to
             end_idx = min(start_idx + tokens_for_this_unit, T)
             
             if start_idx < T:
-                unit_text = " ".join(tgt_tokens[start_idx:end_idx])
+                # 🎯 반드시 원본 토큰 사용 (인덱스 범위는 tgt_tokens_aug 기준, 값은 tgt_tokens_original)
+                # 주의: T = len(tgt_tokens_aug)이므로, 범위가 tgt_tokens_original을 초과할 수 있음
+                # → tgt_tokens_aug와 tgt_tokens_original 개수가 같다고 가정해야 함
+                if start_idx >= len(tgt_tokens_original):
+                    logger.error(f"🚨 인덱스 오류: start_idx={start_idx}, len(tgt_tokens_original)={len(tgt_tokens_original)}")
+                    unit_text = ""
+                elif end_idx > len(tgt_tokens_original):
+                    # 경계를 초과한 경우 (이론적으로 발생 불가, 하지만 안전성 위해)
+                    logger.warning(f"⚠️ 경계 초과: end_idx={end_idx}, len(tgt_tokens_original)={len(tgt_tokens_original)}")
+                    unit_text = " ".join(tgt_tokens_original[start_idx:])
+                else:
+                    unit_text = " ".join(tgt_tokens_original[start_idx:end_idx])
                 
                 # 🆕 고어 패턴 보정 적용
                 try:
@@ -303,33 +400,21 @@ def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_to
             
             start_idx = end_idx
         
+        # 🔥 필수 검증: 반드시 N개 반환 보장
+        if len(result) != N:
+            logger.error(f"❌ 폴백 분할 실패: 기대 {N}개, 실제 {len(result)}개")
+            # 강제 패딩
+            if len(result) < N:
+                result.extend([''] * (N - len(result)))
+            else:
+                result = result[:N]
+        
         return result
         
     except Exception as e:
-        logger.warning(f"고어 패턴 보정 실패, 기본 분할 사용: {e}")
-        # 최종 폴백: 기본 균등 분할
-        avg_len = T // N
-        remainder = T % N
-        
-        result = []
-        start_idx = 0
-        
-        for i in range(N):
-            tokens_for_this_unit = avg_len
-            if i < remainder:
-                tokens_for_this_unit += 1
-            
-            end_idx = min(start_idx + tokens_for_this_unit, T)
-            
-            if start_idx < T:
-                unit_text = " ".join(tgt_tokens[start_idx:end_idx])
-                result.append(unit_text)
-            else:
-                result.append("")
-            
-            start_idx = end_idx
-        
-        return result
+        logger.error(f"❌ 고어 패턴 보정 실패: {e}, 긴급 균등 분할 사용")
+        # 최후의 폴백: 균등 분할
+        return _split_tgt_by_src_units_simple(tgt_text, N)
 
 def _find_optimal_split_dp_sequential(
     src_embeddings,
@@ -341,22 +426,26 @@ def _find_optimal_split_dp_sequential(
 ) -> List[str]:
     """
     순서 보장 Dynamic Programming 분할 (의미 기반 경계 조정만)
-    - 가중치 파라미터(옵션, 기본은 기존 동작 유지):
-      dp_window: 예상 위치 대비 허용 창(정수, 기본 1)
-      distance_decay: 거리 감쇠 알파(실수, 기본 0.0 → 비활성)
-      boundary_bonus: 경계 보너스(실수, 기본 0.0)
-      particle_bonus: 토씨 경계 보너스(실수, 기본 0.0)
-      length_penalty: 기대 길이 대비 차이에 대한 패널티 알파(실수, 기본 0.0)
-      sim_gamma: 유사도 샤프닝 지수(실수, 기본 1.0)
+    - 가중치 파라미터(옵션, 기본은 config에서 로드):
+      dp_window: 예상 위치 대비 허용 창(정수, 기본 2)
+      distance_decay: 거리 감쇠 알파(실수, 기본 0.05)
+      boundary_bonus: 경계 보너스(실수, 기본 0.15)
+      particle_bonus: 토씨 경계 보너스(실수, 기본 0.2)
+      length_penalty: 기대 길이 대비 차이에 대한 패널티 알파(실수, 기본 0.1)
+      sim_gamma: 유사도 샤프닝 지수(실수, 기본 1.2)
     """
 
-    # ===== 파라미터 로드 (기본값은 기존 동작 유지) =====
-    dp_window: int = int(kwargs.get('dp_window', 1))
-    distance_decay_alpha: float = float(kwargs.get('distance_decay', 0.0))
-    boundary_bonus: float = float(kwargs.get('boundary_bonus', 0.0))
-    particle_bonus: float = float(kwargs.get('particle_bonus', 0.0))
-    length_penalty_alpha: float = float(kwargs.get('length_penalty', 0.0))
-    sim_gamma: float = float(kwargs.get('sim_gamma', 1.0))
+    # ===== 파라미터 로드 (config 우선, kwargs override, 최종 기본값) =====
+    from common.config import get_alignment_params
+    cfg_params = get_alignment_params()
+    
+    dp_window: int = int(kwargs.get('dp_window', cfg_params.get('dp_window', 2)))
+    distance_decay_alpha: float = float(kwargs.get('distance_decay', cfg_params.get('distance_decay', 0.05)))
+    boundary_bonus: float = float(kwargs.get('boundary_bonus', cfg_params.get('boundary_bonus', 0.15)))
+    particle_bonus: float = float(kwargs.get('particle_bonus', cfg_params.get('particle_bonus', 0.2)))
+    length_penalty_alpha: float = float(kwargs.get('length_penalty', cfg_params.get('length_penalty', 0.1)))
+    sim_gamma: float = float(kwargs.get('sim_gamma', cfg_params.get('sim_gamma', 1.2)))
+    similarity_threshold: float = float(kwargs.get('similarity_threshold', cfg_params.get('similarity_threshold', 0.5)))
 
     # ===== 경계 힌트 준비 =====
     def _is_boundary_token(tok: str) -> bool:
@@ -380,9 +469,51 @@ def _find_optimal_split_dp_sequential(
 
     boundary_flags = [_is_boundary_token(t) for t in tgt_tokens]
     particle_flags = [_is_particle_ending(t) for t in tgt_tokens]
+    
+    # 🎯 원본 토큰으로도 플래그 생성 (경계 감지는 원본 패턴 사용)
+    tgt_tokens_orig = kwargs.get('tgt_tokens_original', tgt_tokens)
+    boundary_flags_orig = [_is_boundary_token(t) for t in tgt_tokens_orig]
+    particle_flags_orig = [_is_particle_ending(t) for t in tgt_tokens_orig]
+    
+    # tgt_tokens와 tgt_tokens_orig 크기 같다고 가정 (같아야 함)
+    # 원본 기반 플래그 우선 사용, 없으면 augmented 사용
+    boundary_flags = boundary_flags_orig if len(boundary_flags_orig) == len(boundary_flags) else boundary_flags
+    particle_flags = particle_flags_orig if len(particle_flags_orig) == len(particle_flags) else particle_flags
+
+    # ===== 한글 토씨 기반 경계 강도(가중) 계산: common.korean_particle_matcher 사용 시 더 정교하게 =====
+    particle_strengths = [1.0 if f else 0.0 for f in particle_flags]
+    try:
+        # 토큰별로 토씨를 추출하여 카테고리 가중치를 반영한 강도 계산
+        from common.korean_particle_matcher import get_korean_particle_matcher
+        _matcher = get_korean_particle_matcher()
+        weights = getattr(_matcher, 'particle_weights', {})
+        strengths = []
+        # 원본 토큰 기준으로 분석(무결성 보존: 읽기만 함)
+        tokens_for_analysis = tgt_tokens_orig if len(tgt_tokens_orig) == len(tgt_tokens) else tgt_tokens
+        for tok in tokens_for_analysis:
+            parts = []
+            try:
+                parts = _matcher.extract_particles_from_text(tok)
+            except Exception:
+                parts = []
+            if not parts:
+                strengths.append(0.0)
+                continue
+            # 동일 토큰 내 다수 조사 → 가중치 합을 [0,1]로 정규화(최대 1.0)
+            s = 0.0
+            for (_form, cat, _pos) in parts:
+                s += float(weights.get(cat, 0.1))
+            # 간단 정규화: 1.0로 클램프
+            s = max(0.0, min(1.0, s))
+            strengths.append(s)
+        if len(strengths) == len(particle_strengths):
+            particle_strengths = strengths
+    except Exception:
+        # 매처 불가 시 기존 휴리스틱 강도 유지(0/1)
+        pass
 
     # ===== 한국어/중국어 구문 힌트 기반 경계 (옵션) - 파싱 게이팅 준비 =====
-    comma_bonus = float(kwargs.get('comma_bonus', 0.0) or 0.0)
+    comma_bonus = float(kwargs.get('comma_bonus', cfg_params.get('comma_bonus', 0.1)))
     comma_mode = kwargs.get('comma_mode', 'soft')
     syntax_hints = kwargs.get('syntax_hints', 'none')
     syntax_when = kwargs.get('syntax_when', 'ambiguous')
@@ -443,11 +574,12 @@ def _find_optimal_split_dp_sequential(
                 get_korean_clause_offsets_with_strength,
                 get_korean_clause_boundary_commas,
             )
-            # 토큰을 공백 없이 이어 붙여 문자 오프셋 공간으로 매핑
+            # 🎯 원본 토큰으로 문자 오프셋 계산 (augmented 아님!)
+            tgt_tokens_for_parsing = kwargs.get('tgt_tokens_original', tgt_tokens)
             token_spans = []
             offset = 0
-            joined = "".join(tgt_tokens)
-            for tok in tgt_tokens:
+            joined = "".join(tgt_tokens_for_parsing)
+            for tok in tgt_tokens_for_parsing:
                 token_spans.append((offset, offset + len(tok)))
                 offset += len(tok)
             # 강도 사전 조회 (실패/미가용 시 콤마 1.0 강도)
@@ -486,10 +618,20 @@ def _find_optimal_split_dp_sequential(
                     continue
                 unit_score = 0.0
                 token_count = i - k
+                valid_similarities = []
                 for t in range(k, i):
-                    unit_score += enhanced_similarity[t, j - 1]
-                if token_count > 0:
-                    unit_score /= token_count
+                    sim = enhanced_similarity[t, j - 1]
+                    # similarity threshold 적용: 낮은 매칭 제외
+                    if sim >= similarity_threshold:
+                        valid_similarities.append(sim)
+                
+                if valid_similarities:
+                    unit_score = sum(valid_similarities) / len(valid_similarities)
+                elif token_count > 0:
+                    # threshold 미달이지만 일부라도 반영 (페널티)
+                    for t in range(k, i):
+                        unit_score += enhanced_similarity[t, j - 1]
+                    unit_score = unit_score / token_count * 0.5  # 페널티 적용
                 if length_penalty_alpha > 0 and N > 0:
                     expected_len = max(1, int(round(T / N)))
                     diff = abs(token_count - expected_len)
@@ -498,8 +640,11 @@ def _find_optimal_split_dp_sequential(
                 if 0 <= end_tok_idx < T:
                     if boundary_bonus != 0.0 and boundary_flags[end_tok_idx]:
                         unit_score += boundary_bonus
-                    if particle_bonus != 0.0 and particle_flags[end_tok_idx]:
-                        unit_score += particle_bonus
+                    # 토씨 보너스: 강도 가중치 적용(매처가 없으면 0/1로 동작)
+                    if particle_bonus != 0.0:
+                        strength = particle_strengths[end_tok_idx]
+                        if strength > 0.0:
+                            unit_score += particle_bonus * strength
                     # 한국어 경계 보너스: 강도 가중치 적용
                     if comma_bonus != 0.0:
                         strength = ko_boundary_token_strengths[end_tok_idx]
@@ -517,14 +662,26 @@ def _find_optimal_split_dp_sequential(
     if dp[T][N] == -np.inf:
         return None
 
+    # 🎯 원본 토큰으로 재구성 (augmented는 임베딩 계산용만)
+    tgt_tokens_orig = kwargs.get('tgt_tokens_original', None)
+    if tgt_tokens_orig is None:
+        logger.error("🚨 CRITICAL: tgt_tokens_original이 DP에 전달되지 않았습니다! 원본 텍스트가 손상될 수 있습니다.")
+        # 무조건 None 반환 (원본 손상 방지)
+        return None
+    
     splits = []
     i, j = T, N
     while j > 0:
         start = parent[i][j]
         end = i
         if start >= 0:
-            unit_tokens = tgt_tokens[start:end]
-            splits.append(" ".join(unit_tokens))
+            # 반드시 원본 토큰만 사용 (인덱스 범위 확인)
+            if start < 0 or end > len(tgt_tokens_orig) or start > end:
+                logger.error(f"🚨 인덱스 오류: start={start}, end={end}, len(original)={len(tgt_tokens_orig)}")
+                return None
+            
+            unit_tokens_orig = tgt_tokens_orig[start:end]
+            splits.append(" ".join(unit_tokens_orig))
             i = start
             j -= 1
         else:
@@ -579,56 +736,96 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
     
     # 각 단위별로 개별 행 생성
     result_rows = []
-    for i, (src_unit, trans_unit) in enumerate(zip(src_units, trans_units)):
+    
+    # 문장식별자: PA 결과의 문장식별자 사용
+    sentence_id = row_data.get('문장식별자', 1)
+    
+    # 원문-번역문 쌍별 유사도 계산
+    segment_similarities = []
+    try:
+        from common.embedders import get_embedder
+        embedder_name = kwargs.get('embedder_name', kwargs.get('embedder', 'bge'))
+        embedder_device_id = kwargs.get('embedder_device_id', 0)
+        
+        if embedder_name.lower() != 'none':
+            if embedder_name.lower() == 'openai':
+                embedder = OpenAIWrapper(max_workers=kwargs.get('max_workers', 4))
+                compute_embeddings = embedder.compute_embeddings_with_cache
+            else:
+                compute_embeddings = get_embedder(embedder_name, device_id=embedder_device_id)
+            
+            # 모든 단위의 임베딩 계산
+            all_texts = src_units + trans_units
+            embeddings = compute_embeddings(all_texts, batch_size=kwargs.get('batch_size', 100))
+            
+            src_embeddings = embeddings[:len(src_units)]
+            tgt_embeddings = embeddings[len(src_units):]
+            
+            # 각 쌍의 코사인 유사도 계산
+            from sklearn.metrics.pairwise import cosine_similarity
+            for src_emb, tgt_emb in zip(src_embeddings, tgt_embeddings):
+                sim = float(cosine_similarity([src_emb], [tgt_emb])[0][0])
+                segment_similarities.append(sim)
+    except Exception as e:
+        logger.warning(f"세그먼트 유사도 계산 실패: {e}")
+        # 폴백: PA 유사도 사용
+        segment_similarities = [row_data.get('similarity', 1.0)] * len(src_units)
+    
+    # 각 분할된 구(segment)에 대해
+    global _global_segment_id
+
+    for _, (src_unit, trans_unit, sim) in enumerate(zip(src_units, trans_units, segment_similarities), start=1):
+        _global_segment_id += 1
         row = {
-            '문장식별자': base_id if base_id else f"row_{i+1}",
+            '문장식별자': sentence_id,
+            '구식별자': _global_segment_id,
             '원문': src_unit,
             '번역문': trans_unit,
-            # 원본 데이터의 다른 컬럼들 유지
-            **{k: v for k, v in row_data.items() 
-               if k not in ['문장식별자', '원문', '번역문']}
+            '유사도': sim
         }
         result_rows.append(row)
     
-    # 🆕 한글 토씨 매칭으로 SA 결과 보완
-    try:
-        from common.korean_particle_matcher import enhance_sa_results_with_particles
-        result_rows = enhance_sa_results_with_particles(result_rows)
-        logger.debug(f"SA 토씨 매칭 보완 완료: {len(result_rows)}개 행")
-    except Exception as e:
-        logger.warning(f"SA 토씨 매칭 보완 실패 (기존 결과 유지): {e}")
-        # 실패해도 기존 result_rows 그대로 사용
+    # 🔥 한글 토씨 매칭 비활성화: 행 수 초과 문제 해결
+    # try:
+    #     from common.korean_particle_matcher import enhance_sa_results_with_particles
+    #     result_rows = enhance_sa_results_with_particles(result_rows)
+    #     logger.debug(f"SA 토씨 매칭 보완 완료: {len(result_rows)}개 행")
+    # except Exception as e:
+    #     logger.warning(f"SA 토씨 매칭 보완 실패 (기존 결과 유지): {e}")
+    #     # 실패해도 기존 result_rows 그대로 사용
 
     # 🔒 SA 무결성 검증: 번역문 텍스트 보존 확인
+    # 주의: 마스킹된 상태에서 검증하면 마스크 토큰 길이 차이로 오류가 발생할 수 있으므로
+    # 원본 입력과 비교하는 것이 정확함
     try:
-        # 원본 번역문 (공백 제거)
-        original_trans = translation_text.replace(' ', '')
-        
-        # 처리된 번역문 재결합 (공백 제거)
-        processed_trans = ''.join([row['번역문'].replace(' ', '') for row in result_rows])
+        # 입력/출력 모두 공백·개행을 제거해 순수 텍스트만 비교 (개행 손실로 인한 오탐 방지)
+        input_trans_for_check = ''.join(translation_text.split())
+
+        processed_joined = ''.join(row['번역문'] for row in result_rows)
+        processed_trans = ''.join(processed_joined.split())
         
         # 무결성 검증
-        if original_trans != processed_trans:
+        if input_trans_for_check != processed_trans:
             logger.error(f"SA 무결성 실패: {base_id}")
-            logger.error(f"  원본 길이: {len(original_trans)}자")
+            logger.error(f"  입력 길이: {len(input_trans_for_check)}자")
             logger.error(f"  처리 후 길이: {len(processed_trans)}자")
-            logger.error(f"  길이 차이: {len(processed_trans) - len(original_trans)}자")
+            logger.error(f"  길이 차이: {len(processed_trans) - len(input_trans_for_check)}자")
             
             # 문자 정확도 계산
-            correct_chars = sum(1 for a, b in zip(original_trans, processed_trans) if a == b)
-            accuracy = correct_chars / max(len(original_trans), len(processed_trans))
+            correct_chars = sum(1 for a, b in zip(input_trans_for_check, processed_trans) if a == b)
+            accuracy = correct_chars / max(len(input_trans_for_check), len(processed_trans))
             logger.error(f"  문자 정확도: {accuracy:.3f}")
             
             # 차이점 상세 분석 (처음 100자만)
-            if len(original_trans) > 0 and len(processed_trans) > 0:
+            if len(input_trans_for_check) > 0 and len(processed_trans) > 0:
                 import difflib
                 diff = list(difflib.unified_diff(
-                    original_trans[:100], processed_trans[:100], 
-                    fromfile='원본', tofile='처리후', lineterm=''
+                    input_trans_for_check[:100], processed_trans[:100], 
+                    fromfile='입력', tofile='처리후', lineterm=''
                 ))
                 if diff:
                     logger.error(f"SA 텍스트 차이점 분석: {base_id}")
-                    logger.error(f"  원본 샘플: '{original_trans[:50]}{'...' if len(original_trans) > 50 else ''}'")
+                    logger.error(f"  입력 샘플: '{input_trans_for_check[:50]}{'...' if len(input_trans_for_check) > 50 else ''}'")
                     logger.error(f"  처리 샘플: '{processed_trans[:50]}{'...' if len(processed_trans) > 50 else ''}'")
             
             # 무결성 실패시에도 결과는 반환 (분석용)
@@ -708,11 +905,19 @@ def process_sa_alignment(src_text: str, translation: str, **kwargs) -> Dict[str,
             'metadata': {...}         # 메타데이터
         }
     """
+    # 비대응 구간 마스킹 ([-(...)]) 후 처리
+    masked_src, src_map = _mask_unaligned_segments(src_text)
+    masked_trans, trans_map = _mask_unaligned_segments(translation)
+
     # 원문 분할 (공백 단위)
-    src_units = split_src_meaning_units(src_text, **kwargs)
+    src_units = split_src_meaning_units(masked_src, **kwargs)
     
     # 번역문 정렬
-    trans_units = align_translation_to_source(src_units, translation, **kwargs)
+    trans_units = align_translation_to_source(src_units, masked_trans, **kwargs)
+
+    # 마스크 복원
+    src_units = _unmask_list(src_units, src_map)
+    trans_units = _unmask_list(trans_units, trans_map)
     
     # 메타데이터
     metadata = {
@@ -729,12 +934,93 @@ def process_sa_alignment(src_text: str, translation: str, **kwargs) -> Dict[str,
         logger.warning(f"시대 감지 실패: {e}")
         metadata['detected_period'] = 'unknown'
     
+    # 🎯 유사도 계산 추가 (PA와 동일하게)
+    similarities = []
+    try:
+        embedder_name = kwargs.get('embedder_name', kwargs.get('embedder', 'bge'))
+        if embedder_name and embedder_name.lower() != 'none':
+            from common.embedders import get_embedder
+            embedder_device_id = kwargs.get('embedder_device_id', 0)
+            compute_embeddings_func = get_embedder(embedder_name, device_id=embedder_device_id)
+            batch_size = kwargs.get('batch_size', 100)
+            
+            for src_unit, tgt_unit in zip(src_units, trans_units):
+                if src_unit.strip() and tgt_unit.strip():
+                    try:
+                        src_emb = compute_embeddings_func([src_unit], batch_size=batch_size)[0]
+                        tgt_emb = compute_embeddings_func([tgt_unit], batch_size=batch_size)[0]
+                        sim = float(np.dot(src_emb, tgt_emb) / (np.linalg.norm(src_emb) * np.linalg.norm(tgt_emb) + 1e-8))
+                        similarities.append(sim)
+                    except:
+                        similarities.append(0.0)
+                else:
+                    similarities.append(0.0)
+        else:
+            similarities = [0.0] * len(src_units)
+    except Exception as e:
+        logger.warning(f"유사도 계산 실패: {e}, 0.0으로 채움")
+        similarities = [0.0] * len(src_units)
+    
     result = {
         'source_units': src_units,
         'translation_units': trans_units,
+        'similarities': similarities,  # 유사도 추가
         'metadata': metadata
     }
     
     logger.debug(f"SA 처리 완료: {metadata['source_count']}개 단위, 시대: {metadata['detected_period']}")
     
     return result
+
+
+# === 번역문 괄호 한자 적극 반영 ===
+# Python's re doesn't support Unicode property escapes like \p{Han}.
+# Use explicit CJK ranges (Unified Ideographs + Extension A + Compatibility). 
+# This covers common Han characters used in texts.
+_han_regex = re.compile(r"\p{Han}")
+
+def _augment_translation_with_hanja_parentheses(text: str) -> str:
+    """번역문에서 괄호 속 한자를 의미 매칭에 반영 (토큰 개수 유지).
+    예: '태사공(太史公)은' → '太史公태사공은' (하나의 토큰 유지)
+    """
+    # 🎯 토큰 단위로 처리하여 원본과 augmented의 토큰 개수 일치 보장
+    tokens = text.split()
+    augmented_tokens = []
+    
+    for token in tokens:
+        # 소괄호와 대괄호에서 한자 추출
+        hanja_parts = []
+        # 소괄호
+        for m in re.finditer(r"\(([^)]*)\)", token):
+            inner = m.group(1)
+            hanja = ''.join(ch for ch in inner if _han_regex.match(ch))
+            if hanja:
+                hanja_parts.append(hanja)
+        # 대괄호
+        for m in re.finditer(r"\[([^\]]*)\]", token):
+            inner = m.group(1)
+            hanja = ''.join(ch for ch in inner if _han_regex.match(ch))
+            if hanja:
+                hanja_parts.append(hanja)
+        
+        # 괄호 제거하고 한자를 토큰 앞에 붙임
+        token_clean = re.sub(r"\([^)]*\)", "", token)
+        token_clean = re.sub(r"\[[^\]]*\]", "", token_clean)
+        
+        if hanja_parts:
+            # 한자를 앞에 배치 (임베딩 시 더 강조됨)
+            augmented_token = ''.join(hanja_parts) + token_clean
+        else:
+            augmented_token = token_clean
+        
+        augmented_tokens.append(augmented_token)
+    
+    return ' '.join(augmented_tokens)
+
+
+def _try_split_by_korean_particles(tgt_text: str, N: int) -> Optional[List[str]]:
+    """
+    한글 번역문을 조사/어미 경계에서 분할 (현재 비활성화 - 실행 단계에서 더 개선 필요)
+    """
+    # 현재는 비활성화 - 추후 개선 예정
+    return None

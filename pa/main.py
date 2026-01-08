@@ -89,6 +89,8 @@ def main():
                        help='OpenAI API 병렬 워커 수 (기본: 4, OpenAI 전용)')
     parser.add_argument('--batch-size', type=int, default=50,
                        help='OpenAI API 배치 크기 (기본: 50, OpenAI 전용)')
+    parser.add_argument('--device', default='cuda', choices=['cuda', 'cpu'],
+                       help='디바이스 (기본: cuda, GPU 미지원시 자동 cpu)')
     
     parser.add_argument('--verbose', action='store_true',
                        help='상세 로그 출력')
@@ -118,25 +120,23 @@ def main():
     try:
         from common.tokenizers import get_siku_tokenizer, get_hybrid_korean_tokenizer
         
-        # SikuBERT 초기화 (실패해도 계속 진행)
-        try:
-            get_siku_tokenizer()   # SikuBERT 초기화
-            siku_ok = True
-        except Exception as siku_error:
-            print(f"⚠️ SikuBERT 로딩 실패 (torch.load 보안 문제): {str(siku_error)[:100]}...")
-            print("   → SikuBERT 없이 계속 진행 (BGE-M3로 대체)")
-            siku_ok = False
+        if args.verbose:
+            print("🏮 PA: 하이브리드 토크나이저 초기화 중...")
         
+        # SikuBERT 초기화
+        get_siku_tokenizer()
         # 한국어 토크나이저 초기화
-        get_hybrid_korean_tokenizer()  # RoBERTa-Hanja+Kiwipiepy 초기화
+        get_hybrid_korean_tokenizer()
         
-        if siku_ok:
-            print("✅ PA: 하이브리드 토크나이저 초기화 완료 (중국어: SikuBERT, 한국어: RoBERTa-Hanja+Kiwipiepy)")
+        if args.verbose:
+            print("✅ PA: 하이브리드 토크나이저 초기화 완료 (원문: SikuBERT+Kiwipiepy, 번역문: RoBERTa-Hanja+Kiwipiepy)")
         else:
-            print("✅ PA: 부분 토크나이저 초기화 완료 (중국어: BGE-M3 대체, 한국어: RoBERTa-Hanja+Kiwipiepy)")
+            print("PA: 하이브리드 토크나이저 초기화 완료 (원문: SikuBERT+Kiwipiepy, 번역문: RoBERTa-Hanja+Kiwipiepy)")
     except Exception as e:
-        print(f"⚠️ PA: 토크나이저 초기화 실패: {e}")
-        print("   → 기본 임베딩으로 대체하여 계속 진행")
+        if args.verbose:
+            print(f"⚠️ PA: 하이브리드 토크나이저 초기화 실패: {e}")
+        else:
+            print(f"⚠️ PA: 하이브리드 토크나이저 초기화 실패: {e}")
     
     try:
         # 현재 디렉토리에서 processor 직접 import
@@ -155,7 +155,8 @@ def main():
             openai_api_key=args.openai_api_key,
             max_workers=args.max_workers,  # 🚀 병렬 워커 수 전달
             batch_size=args.batch_size,    # 🚀 배치 크기 전달
-            verbose=args.verbose
+            verbose=args.verbose,
+            device=args.device             # 🚀 device 전달
         )
         
         end_time = time.time()

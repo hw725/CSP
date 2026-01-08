@@ -6,6 +6,16 @@ import json
 import hashlib
 import numpy as np
 from pathlib import Path
+import re
+import sys
+
+# BGE Embedder import (의미 기반 경계 감지용)
+try:
+    sys.path.insert(0, str(Path(__file__).parent.parent / "common"))
+    from embedders import get_embedding_manager
+    BGE_AVAILABLE = True
+except ImportError:
+    BGE_AVAILABLE = False
 
 # OpenAI wrapper 클래스 (SA와 동일)
 class OpenAIWrapper:
@@ -320,19 +330,117 @@ def preprocess_with_siku_tokenization(text: str) -> str:
 
 def split_target_sentences_advanced(text: str, max_length: int = 150, splitter: str = "punctuation", use_siku_preprocessing: bool = True) -> List[str]:
     """
-    번역문 분할 - SikuBERT 전처리 + 문장 종결부호 기준 분할
+    번역문 분할 - 종결 구두점 우선, 구두점 없으면 의미 기반 경계 감지
+    
+    ⭐️ 개선: 의미 기반 경계 감지로 구두점 없는 텍스트도 분할 가능
     """
-    # SikuBERT 전처리 적용 (한자 부분만)
+    # 1) 구두점 기반 분할 시도
+    strong_end_pattern = r'(?<=[。！？.!?])\s+'
+    sentences = re.split(strong_end_pattern, text.strip())
+    sentences = [s.strip() for s in sentences if s.strip()]
+    
+    # 구두점이 없어서 분할 실패한 경우 의미 기반 경계 감지 (PA: 문장 단위)
+    if len(sentences) == 1 and len(text) > 100 and BGE_AVAILABLE:
+        try:
+            offsets = detect_semantic_boundaries(text, window_size=80, threshold=0.75, min_segment_length=30)
+            if len(offsets) > 1:
+                sentences = [text[start:end].strip() for start, end in offsets if start < end]
+                sentences = [s for s in sentences if s]
+                print(f"✅ 의미 기반 경계 감지: {len(sentences)}개 문장")
+        except Exception as e:
+            print(f"⚠️ 의미 기반 경계 감지 실패: {e}")
+    
+    # 2) SikuBERT 전처리 (필요 시)
     if use_siku_preprocessing and contains_chinese(text):
         text = preprocess_with_siku_tokenization(text)
-    
-    # 종결부호(한글/한자/영문) + 공백 또는 텍스트 끝 기준 분할
-    # 종결부호: . ? ! 。" ？ ！ ○ 등
-    pattern = r'(?<=[.!?。？！○])\s+'  # 종결부호 뒤 공백 기준
-    sentences = re.split(pattern, text.strip())
-    # 빈 문장 제거하고 앞뒤 공백 제거
+
+    # 3) 종결 구두점 기준 1차 분할 (강한 종결만)
+    strong_end_pattern = r'(?<=[。！？.!?])\s+'  # 중국어/영문 종결부호
+    sentences = re.split(strong_end_pattern, text.strip())
     sentences = [s.strip() for s in sentences if s.strip()]
-    return sentences
+
+    # 4) 너무 긴 문장만 예외적으로 콤마에서 1회 분할 (괄호/브래킷 내부 제외)
+    def split_long_by_comma_outside_brackets(s: str, limit: int) -> List[str]:
+        if len(s) <= limit:
+            return [s]
+        # 괄호/브래킷 내부 콤마는 무시
+        level = 0
+        split_pos = -1
+        for i, ch in enumerate(s):
+            if ch in '([':
+                level += 1
+            elif ch in ')]' and level > 0:
+                level -= 1
+            elif ch == ',' and level == 0:
+                split_pos = i
+                break
+        if split_pos > 0:
+            left = s[:split_pos].strip()
+            right = s[split_pos+1:].strip()
+            # 비병렬 콤마 추정: 좌/우 구간이 모두 충분히 길고, 좌측이 종결구두점으로 끝나지 않는 경우
+            if len(left) > limit*0.4 and len(right) > limit*0.4 and (not re.search(r'[。！？.!?]$', left)):
+                return [left, right]
+        return [s]
+
+    adjusted = []
+    for s in sentences:
+        parts = split_long_by_comma_outside_brackets(s, max_length)
+        adjusted.extend(parts)
+
+    # 5) 닫는 따옴표 단독 문장 방지: ", ', ”, ’, 」, 』, 〉, 》 등 단독 토큰을 앞 문장에 붙인다
+    def merge_lonely_closers(segs: List[str]) -> List[str]:
+        if not segs:
+            return segs
+        closers_chars = set([
+            ")", "]", "}", "\"", "'",  # ASCII closers including quote/double-quote
+            "\u201D", "\u2019",            # ” ’
+            "\u3009", "\u300B", "\u300D", "\u300F",  # 〉 》 」 』
+            "\u3011", "\u3015",              # 】 〕
+            "\uFF07", "\uFF3D", "\uFF5D"   # FULLWIDTH ' ] }
+        ])
+        # 닫는 따옴표 세트 (문장 시작 검사용)
+        closing_quotes = set([
+            "\"", "'",
+            "\u201D", "\u2019",
+            "\u300D", "\u300F",
+        ])
+        
+        merged: List[str] = []
+        for seg in segs:
+            s = seg.strip()
+            if not s:
+                continue
+            
+            # Case 1: 전체가 닫는 기호로만 구성된 경우
+            if all(ch in closers_chars for ch in s):
+                if merged:
+                    merged[-1] = merged[-1].rstrip() + s
+                else:
+                    merged.append(s)
+                continue
+            
+            # Case 2: 문장이 닫는 따옴표로 시작하는 경우
+            if s[0] in closing_quotes and merged:
+                # 앞부분의 연속된 닫는 따옴표들 추출
+                i = 0
+                while i < len(s) and s[i] in closing_quotes:
+                    i += 1
+                leading = s[:i]
+                remaining = s[i:].lstrip()
+                
+                # 이전 문장에 닫는 따옴표 붙이기
+                merged[-1] = merged[-1].rstrip() + leading
+                
+                # 남은 텍스트가 있으면 현재 문장으로
+                if remaining:
+                    merged.append(remaining)
+            else:
+                merged.append(s)
+        
+        return merged
+
+    adjusted = merge_lonely_closers(adjusted)
+    return adjusted
 
 def split_with_new_parsers(text: str, is_target: bool = True, use_siku_preprocessing: bool = True) -> List[str]:
     """새로운 파서들(SuPar-Kanbun/Stanza)을 사용한 문장 분할"""
@@ -349,7 +457,36 @@ def split_with_new_parsers(text: str, is_target: bool = True, use_siku_preproces
         return split_with_smart_punctuation_rules(text)
 
 def split_with_smart_punctuation_rules(text: str) -> List[str]:
-    """중국고전 문장 분할 패턴 강화"""
+    """중국고전 문장 분할 패턴 강화 + 의미 기반 경계 감지"""
+    
+    # 1) 구두점 패턴 시도
+    classical_chinese_patterns = [
+        r'(?<=[。？！])',  # 기본 문장 부호
+        r'(?<=하고)\s*',   # '하고' 뒤 분할
+        r'(?<=하여)\s*',   # '하여' 뒤 분할  
+        r'(?<=하니)\s*',   # '하니' 뒤 분할
+    ]
+    
+    for pattern in classical_chinese_patterns:
+        if re.search(pattern, text):
+            segments = re.split(pattern, text)
+            segments = [seg.strip() for seg in segments if seg.strip()]
+            if len(segments) > 1:
+                return segments
+    
+    # 2) 구두점이 없으면 의미 기반 경계 감지 (PA: 문장 단위)
+    if len(text) > 100 and BGE_AVAILABLE:
+        try:
+            offsets = detect_semantic_boundaries(text, window_size=80, threshold=0.75, min_segment_length=30)
+            if len(offsets) > 1:
+                sentences = [text[start:end].strip() for start, end in offsets if start < end]
+                sentences = [s for s in sentences if s]
+                if sentences:
+                    print(f"✅ 의미 기반 경계 감지: {len(sentences)}개 문장")
+                    return sentences
+        except Exception as e:
+            print(f"⚠️ 의미 기반 경계 감지 실패: {e}")
+    
     # 🆕 중국고전 특화 분할 패턴 (문단식별자 2 문제 해결)
     classical_chinese_patterns = [
         r'(?<=[。？！])',  # 기본 문장 부호
@@ -422,6 +559,113 @@ def find_semantic_split_near_position(text: str, target_pos: int) -> int:
             return start + matches[0].end()
     return target_pos
 
+def detect_semantic_boundaries(text: str, window_size: int = 50, threshold: float = 0.75, min_segment_length: int = 20) -> List[Tuple[int, int]]:
+    """
+    의미 기반 경계 감지 (BGE 임베딩 + 코사인 유사도)
+    
+    슬라이딩 윈도우로 텍스트를 스캔하면서 의미 변화가 큰 지점을 경계로 판단
+    
+    Args:
+        text: 분할할 텍스트
+        window_size: 슬라이딩 윈도우 크기 (문자 단위)
+                    - PA(문장 단위): 80-100 권장
+                    - SA(구 단위): 20-30 권장
+        threshold: 코사인 유사도 임계값 (낮을수록 경계로 판단)
+        min_segment_length: 최소 세그먼트 길이 (이보다 짧으면 병합)
+    
+    Returns:
+        [(0, 45), (45, 92), ...] 형태의 오프셋 쌍
+    """
+    if not BGE_AVAILABLE or len(text) < window_size * 2:
+        return [(0, len(text))]
+    
+    try:
+        embedder = get_embedding_manager()
+        
+        # 1. 슬라이딩 윈도우로 텍스트 세그먼트 추출
+        segments = []
+        segment_offsets = []
+        step_size = window_size // 2  # 50% 오버랩
+        
+        for start in range(0, len(text) - window_size + 1, step_size):
+            end = start + window_size
+            segment = text[start:end].strip()
+            if segment:
+                segments.append(segment)
+                segment_offsets.append((start, end))
+        
+        # 마지막 부분 처리
+        if segment_offsets and segment_offsets[-1][1] < len(text):
+            last_segment = text[segment_offsets[-1][1]:].strip()
+            if last_segment:
+                segments.append(last_segment)
+                segment_offsets.append((segment_offsets[-1][1], len(text)))
+        
+        if len(segments) < 2:
+            return [(0, len(text))]
+        
+        # 2. BGE 임베딩 계산
+        embeddings = embedder.compute_embeddings_with_cache(
+            segments, 
+            batch_size=32,
+            use_multi_vector=False  # Dense vector만 사용 (1024차원)
+        )
+        
+        if embeddings is None or len(embeddings) == 0:
+            return [(0, len(text))]
+        
+        # 3. 인접 세그먼트 간 코사인 유사도 계산
+        similarities = []
+        for i in range(len(embeddings) - 1):
+            emb1 = embeddings[i]
+            emb2 = embeddings[i + 1]
+            
+            norm1 = np.linalg.norm(emb1)
+            norm2 = np.linalg.norm(emb2)
+            
+            if norm1 > 0 and norm2 > 0:
+                cosine_sim = np.dot(emb1, emb2) / (norm1 * norm2)
+            else:
+                cosine_sim = 1.0
+            
+            similarities.append(cosine_sim)
+        
+        # 4. 유사도가 threshold 이하인 지점을 경계로 판단
+        boundary_candidates = []
+        for i, sim in enumerate(similarities):
+            if sim < threshold:
+                boundary_pos = (segment_offsets[i][1] + segment_offsets[i + 1][0]) // 2
+                boundary_candidates.append(boundary_pos)
+        
+        if not boundary_candidates:
+            return [(0, len(text))]
+        
+        # 5. 경계로 문장 분할
+        boundaries = []
+        start = 0
+        for pos in sorted(set(boundary_candidates)):
+            if pos > start:
+                boundaries.append((start, pos))
+                start = pos
+        
+        if start < len(text):
+            boundaries.append((start, len(text)))
+        
+        # 너무 짧은 세그먼트 병합
+        merged_boundaries = []
+        for start, end in boundaries:
+            if len(merged_boundaries) > 0 and end - start < min_segment_length:
+                prev_start, _ = merged_boundaries[-1]
+                merged_boundaries[-1] = (prev_start, end)
+            else:
+                merged_boundaries.append((start, end))
+        
+        return merged_boundaries if merged_boundaries else [(0, len(text))]
+        
+    except Exception as e:
+        print(f"⚠️ 의미 기반 경계 감지 실패: {e}")
+        return [(0, len(text))]
+
 def merge_low_chinese_segments(sentences: List[str]) -> List[str]:
     if not sentences:
         return []
@@ -457,6 +701,7 @@ def split_source_by_whitespace_and_align(
 ) -> List[str]:
     """
     원문(한문) 분할: 어절 경계에서만 분할, 어절 내부 절대 분할 금지!
+    🎯 원본 텍스트 형태 절대 보존: augmentation은 임베딩 계산용만 사용
     
     Args:
         source: 원문 텍스트
@@ -465,23 +710,143 @@ def split_source_by_whitespace_and_align(
         embedder_name: 사용할 임베더 이름 ("bge" 또는 "openai")
         embedder_func: 외부에서 전달된 임베더 함수 (선택적)
     """
+    def augment_source_hanja(text: str) -> str:
+        """원문 괄호 속 한자 노출 (임베딩용만)"""
+        import regex as re
+        han_regex = re.compile(r"\p{Han}")
+        def repl(m: re.Match) -> str:
+            inner = m.group(1)
+            hanja = ''.join(ch for ch in inner if han_regex.match(ch))
+            return f" {hanja} " if hanja else " "
+        text_aug = re.sub(r"\(([^)]*)\)", repl, text)
+        text_aug = re.sub(r"\[([^\]]*)\]", repl, text_aug)
+        return ' '.join(text_aug.split())
+    
+    def mask_unaligned_segments(text: str):
+        """비대응 표시 구간([- (...)])에서 [, -, ]만 토큰으로 마스킹"""
+        pattern = re.compile(r"\[-\(([^)]*)\)\]")
+        mapping = []  # (token, symbol)
+
+        def repl(match):
+            seq = len(mapping) // 3
+            token_l = f"__UNALIGNED_L_{seq}__"
+            token_h = f"__UNALIGNED_H_{seq}__"
+            token_r = f"__UNALIGNED_R_{seq}__"
+            # 순서대로 복원할 수 있도록 매핑 저장
+            mapping.extend([
+                (token_l, "["),
+                (token_h, "-"),
+                (token_r, "]"),
+            ])
+            inner = match.group(1)
+            return f"{token_l}{token_h}({inner}){token_r}"
+
+        masked = pattern.sub(repl, text)
+        return masked, mapping
+
+    def unmask_text(text: str, mapping):
+        for token, original in mapping:
+            text = text.replace(token, original)
+        return text
+
+    def unmask_list(chunks: List[str], mapping):
+        return [unmask_text(chunk, mapping) for chunk in chunks]
     if not source.strip():
         return [''] * target_count
+
+    # 0. 비대응 구간 마스킹 후 분할 처리
+    masked_source, mask_map = mask_unaligned_segments(source)
+
+    # 🎯 원본 어절 보존 (최종 출력용) - 어절 경계의 원문 오프셋을 수집하여 슬라이스로 재조립
+    # 공백을 기준으로 어절(span)들을 추출하되, 최종 결과 조립은 원문 슬라이스로 수행
+    word_spans = []  # List[Tuple[start, end]] for each non-whitespace token
+    for m in re.finditer(r"\S+", masked_source):
+        word_spans.append((m.start(), m.end()))
+    words_original = [masked_source[s:e] for (s, e) in word_spans]
+
+    def slice_segment_by_word_index(i_start: int, i_end: int) -> str:
+        """어절 인덱스 구간 [i_start, i_end) 에 해당하는 원문 슬라이스를 그대로 반환
+        - 경계 사이의 공백/개행 포함 원문을 보존
+        - 인덱스가 유효하지 않으면 빈 문자열 반환
+        """
+        if i_start >= i_end or i_start < 0 or i_end > len(word_spans):
+            return ''
+        start_char = word_spans[i_start][0]
+        end_char = word_spans[i_end - 1][1]
+        return masked_source[start_char:end_char]
+    
+    # 🎯 Augmented 어절 생성 (임베딩 계산용만)
+    source_augmented = augment_source_hanja(masked_source)
+    words_aug = source_augmented.split()
     
     # 1. 어절 단위로 분할 (공백 기준, 어절 내부 절대 분할 금지!)
-    words = source.split()  # 어절 단위로 분할
-    if not words:
+    if not words_original:
         return [''] * target_count
 
-    # 어절이 target_count보다 적으면 균등 분배
-    if len(words) <= target_count:
+    # 어절이 target_count보다 적으면 균등 분배 (원본 사용!)
+    if len(words_original) <= target_count:
         result = []
         for i in range(target_count):
-            if i < len(words):
-                result.append(words[i])
+            if i < len(words_original):
+                # 단일 어절 슬라이스 (원문 보존)
+                result.append(slice_segment_by_word_index(i, i+1))
             else:
                 result.append('')
-        return result
+        return unmask_list(result, mask_map)
+    
+    # 1-1. PA 원문에 의미 기반 경계 감지 적용 (어절 경계만 지키면서 문장 단위로)
+    # 구두점이 명확하지 않으면 BGE 임베딩으로 의미 변화 지점 감지
+    if len(words_original) > 10 and BGE_AVAILABLE:  # 어절 10개 이상이면 의미 분석
+        try:
+            # 어절을 공백으로 재조합
+            reconstructed_text = ' '.join(words_original)
+            
+            # 의미 기반 경계 감지 (PA: 문장 단위, window_size=80)
+            offsets = detect_semantic_boundaries(
+                reconstructed_text, 
+                window_size=80, 
+                threshold=0.75, 
+                min_segment_length=30
+            )
+            
+            if len(offsets) > 1 and len(offsets) <= target_count:
+                # 오프셋을 어절 경계로 변환
+                result = []
+                for start, end in offsets:
+                    # 재구성 텍스트의 오프셋 → 어절 인덱스 매핑
+                    # reconstructed_text = ' '.join(words_original)
+                    # 각 어절의 시작 오프셋을 누적하여 인덱스를 찾는다
+                    recon_starts = []
+                    pos = 0
+                    for w in words_original:
+                        recon_starts.append(pos)
+                        pos += len(w) + 1  # 공백 포함 누적
+                    recon_ends = [s + len(w) for s, w in zip(recon_starts, words_original)]
+
+                    # 시작/끝 인덱스 추정
+                    word_start = 0
+                    for idx, s in enumerate(recon_starts):
+                        if s >= start:
+                            word_start = idx
+                            break
+                    else:
+                        word_start = len(words_original)
+
+                    word_end = len(words_original)
+                    for idx, e in enumerate(recon_ends):
+                        if e >= end:
+                            word_end = idx + 1
+                            break
+
+                    if word_start < word_end:
+                        segment = slice_segment_by_word_index(word_start, word_end)
+                        result.append(segment)
+                
+                if len(result) > 0:
+                    print(f"✅ PA 원문 의미 기반 분할: {len(result)}개 어절 그룹")
+                    return unmask_list(result, mask_map)
+        except Exception as e:
+            print(f"⚠️ PA 원문 의미 기반 분할 실패: {e}")
     
     # 2. 임베딩 기반 의미적 분할 (어절 경계에서만!)
     if target_sentences and len(target_sentences) > 0:
@@ -508,7 +873,8 @@ def split_source_by_whitespace_and_align(
                 from common.embedders.bge import get_embedding_manager
                 
                 embedder = get_embedding_manager()
-                print("✅ BGE-M3 Multi-Vector 임베딩 사용 (SA 방식, 작은 배치)")
+                # PA에서도 SA와 동일한 안정적 멀티벡터 설정을 공유하므로, 용도를 명확히 표기
+                print("✅ BGE-M3 Multi-Vector 임베딩 사용 (PA 분할용, 작은 배치)")
                 
                 # SA 방식: 작은 배치 크기 + Multi-vector로 안전하게 처리
                 target_embeddings = embedder.compute_embeddings_with_cache(
@@ -518,7 +884,7 @@ def split_source_by_whitespace_and_align(
                 )
                 
                 def bge_embed_source(texts):
-                    # SA처럼 작은 배치 + Multi-vector로 처리
+                    # PA에서도 SA처럼 작은 배치 + Multi-vector로 처리
                     return embedder.compute_embeddings_with_cache(
                         texts, 
                         batch_size=4, 
@@ -552,15 +918,15 @@ def split_source_by_whitespace_and_align(
             
             embed_func = hybrid_embed_source
             
-            # 어절 경계 기반 스팬 임베딩 계산
-            N, W = target_count, len(words)
+            # 어절 경계 기반 스팬 임베딩 계산 (augmented 사용!)
+            N, W = target_count, len(words_aug)
             span_cache = {}
             
             # 어절 단위로 스팬 생성 (어절 내부 분할 금지!)
             for i in range(W):
                 for j in range(i + 1, W + 1):
-                    span_words = words[i:j]
-                    span_text = ' '.join(span_words).strip()
+                    span_words_aug = words_aug[i:j]
+                    span_text = ' '.join(span_words_aug).strip()
                     if span_text:
                         try:
                             span_emb = embed_func([span_text])[0]
@@ -599,19 +965,19 @@ def split_source_by_whitespace_and_align(
                             # 🎯 BGE-M3 유사도 기준 (현실적인 범위로 조정)
                             if base_cosine > 0.15:  # 0.15 이상 = 강한 매칭
                                 embedding_sim = base_cosine * 5.0 + 0.5  # 강한 가중치
-                                print(f"🎯 강신뢰 매칭: {' '.join(words[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 5.0")
+                                print(f"🎯 강신뢰 매칭: {' '.join(words_original[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 5.0")
                             elif base_cosine > 0.10:  # 0.10-0.15 = 좋은 매칭  
                                 embedding_sim = base_cosine * 4.0 + 0.3  # 좋은 가중치
-                                print(f"🔍 중강신뢰 매칭: {' '.join(words[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 4.0")
+                                print(f"🔍 중강신뢰 매칭: {' '.join(words_original[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 4.0")
                             elif base_cosine > 0.05:  # 0.05-0.10 = 보통 매칭
                                 embedding_sim = base_cosine * 3.0 + 0.2  # 보통 가중치
-                                print(f"🔍 중신뢰 매칭: {' '.join(words[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 3.0")
+                                print(f"🔍 중신뢰 매칭: {' '.join(words_original[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 3.0")
                             elif base_cosine > 0.01:  # 0.01-0.05 = 약한 매칭
                                 embedding_sim = base_cosine * 2.0 + 0.1  # 약한 가중치
-                                print(f"⚠️ 저신뢰 매칭: {' '.join(words[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 2.0")
+                                print(f"⚠️ 저신뢰 매칭: {' '.join(words_original[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 2.0")
                             elif base_cosine > -0.05:  # -0.05-0.01 = 매우 약한 매칭
                                 embedding_sim = base_cosine + 0.05  # 최소 보상
-                                print(f"❌ 부정매칭: {' '.join(words[k:j])[:15]}... -> 유사도 {base_cosine:.3f} + 0.05")
+                                print(f"❌ 부정매칭: {' '.join(words_original[k:j])[:15]}... -> 유사도 {base_cosine:.3f} + 0.05")
                             else:
                                 embedding_sim = base_cosine * 0.2  # 임계값 이하는 페널티
                                 print(f"❌ 부정매칭: {span_text[:15]}... -> 유사도 {base_cosine:.3f} * 0.2")
@@ -619,7 +985,7 @@ def split_source_by_whitespace_and_align(
                             embedding_sim = 0.0
                         
                         # 🔥 구조적 가중치 대폭 강화 (의미+구조 균형)
-                        span_words = words[k:j]
+                        span_words = words_original[k:j]
                         span_text = ' '.join(span_words).strip()
                         structural_bonus = 0.0
                         
@@ -725,8 +1091,7 @@ def split_source_by_whitespace_and_align(
             
             current_result = []
             for i in range(N):
-                chunk_words = words[cuts[i]:cuts[i+1]]
-                chunk = ' '.join(chunk_words)
+                chunk = slice_segment_by_word_index(cuts[i], cuts[i+1])
                 current_result.append(chunk)
             
             # 추가 후보들 시도 (다중 스케일 분할점 조정)
@@ -744,8 +1109,7 @@ def split_source_by_whitespace_and_align(
                     adjusted_result = []
                     for i in range(N):
                         if i < len(adjusted_cuts)-1:
-                            chunk_words = words[adjusted_cuts[i]:adjusted_cuts[i+1]]
-                            chunk = ' '.join(chunk_words)
+                            chunk = slice_segment_by_word_index(adjusted_cuts[i], adjusted_cuts[i+1])
                             adjusted_result.append(chunk)
                     
                     if len(adjusted_result) == N:
@@ -765,8 +1129,7 @@ def split_source_by_whitespace_and_align(
                     adjusted_result = []
                     for i in range(N):
                         if i < len(adjusted_cuts)-1:
-                            chunk_words = words[adjusted_cuts[i]:adjusted_cuts[i+1]]
-                            chunk = ' '.join(chunk_words)
+                            chunk = slice_segment_by_word_index(adjusted_cuts[i], adjusted_cuts[i+1])
                             adjusted_result.append(chunk)
                     
                     if len(adjusted_result) == N:
@@ -785,36 +1148,34 @@ def split_source_by_whitespace_and_align(
                     start = 0
                     for i, ratio in enumerate(length_ratios):
                         # 비율에 따라 어절 수 할당 (최소 1개)
-                        allocated_words = max(1, int(len(words) * ratio))
-                        end = min(start + allocated_words, len(words))
+                        allocated_words = max(1, int(len(words_original) * ratio))
+                        end = min(start + allocated_words, len(words_original))
                         
                         # 마지막 구간은 남은 모든 어절 포함
                         if i == len(length_ratios) - 1:
-                            end = len(words)
+                            end = len(words_original)
                         
-                        chunk_words = words[start:end]
-                        if chunk_words:  # 빈 청크 방지
-                            length_result.append(' '.join(chunk_words))
+                        if start < end:
+                            length_result.append(slice_segment_by_word_index(start, end))
                         else:
                             length_result.append('')
                         start = end
                     
-                    if len(length_result) == N and start >= len(words):
+                    if len(length_result) == N and start >= len(words_original):
                         candidate_results.append(length_result)
             except Exception:
                 pass
             
             # 균등 분할도 후보에 추가
             try:
-                chunk_size = len(words) // target_count
-                remainder = len(words) % target_count
+                chunk_size = len(words_original) // target_count
+                remainder = len(words_original) % target_count
                 uniform_result = []
                 start = 0
                 for i in range(target_count):
                     current_size = chunk_size + (1 if i < remainder else 0)
                     end = start + current_size
-                    chunk_words = words[start:end]
-                    uniform_result.append(' '.join(chunk_words))
+                    uniform_result.append(slice_segment_by_word_index(start, end))
                     start = end
                 candidate_results.append(uniform_result)
             except Exception:
@@ -853,7 +1214,7 @@ def split_source_by_whitespace_and_align(
             if best_similarity >= 0:
                 logger.info(f"최적 분할 완료 (평균 유사도: {best_similarity:.3f})")
             
-            return result
+            return unmask_list(result, mask_map)
             
         except Exception as e:
             # 로깅으로 변경하여 진행바 간섭 방지
@@ -861,17 +1222,17 @@ def split_source_by_whitespace_and_align(
             logger = logging.getLogger(__name__)
             logger.warning(f"임베딩 기반 분할 실패, 균등 분배로 폴백: {e}")
 
-    # 3. 폴백: 어절 기준 균등 분배
-    chunk_size = len(words) // target_count
-    remainder = len(words) % target_count
+    # 3. 폴백: 어절 기준 균등 분배 (🎯 원본 어절 사용!)
+    chunk_size = len(words_original) // target_count
+    remainder = len(words_original) % target_count
     
     result = []
     start = 0
     for i in range(target_count):
         current_size = chunk_size + (1 if i < remainder else 0)
         end = start + current_size
-        chunk_words = words[start:end]
-        result.append(' '.join(chunk_words))
+        chunk_words_orig = words_original[start:end]
+        result.append(' '.join(chunk_words_orig))
         start = end
     
-    return result
+    return unmask_list(result, mask_map)

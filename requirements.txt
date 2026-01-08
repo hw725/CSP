@@ -1,0 +1,38 @@
+# 한자 모델 커스터마이징 + SQL 통합 의존성
+# ML Framework
+torch==2.6.0
+transformers==4.55.3
+datasets==3.2.0
+accelerate==1.10.0
+huggingface-hub==0.34.4
+
+# SQL & Data Processing
+pandas==2.2.2
+pyodbc==5.1.0
+sqlalchemy==2.0.35
+openpyxl==3.1.2
+lxml==5.1.0
+
+# Utilities
+tqdm==4.67.1
+numpy==1.26.4
+scikit-learn==1.5.1
+
+# Optional: Fine-tuning & Inference
+peft==0.15.0
+bitsandbytes==0.43.3
+
+# Korean Morphological Analysis
+kiwipiepy==0.22.1
+
+# Development (선택사항)
+jupyter==1.0.0
+ipython==8.30.0
+black==24.10.0
+flake8==7.1.1
+pytest==8.3.4
+regex
+
+# AI APIs
+openai==2.11.0
+google-generativeai==0.7.2

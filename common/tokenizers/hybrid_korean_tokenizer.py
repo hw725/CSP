@@ -44,19 +44,25 @@ class HybridKoreanTokenizer:
             
         try:
             # RoBERTa 한자 토크나이저
-            from .roberta_hanja_tokenizer import get_roberta_hanja_tokenizer
+            import sys
+            import os
+            current_dir = os.path.dirname(__file__)
+            if current_dir not in sys.path:
+                sys.path.insert(0, current_dir)
+            
+            from roberta_hanja_tokenizer import get_roberta_hanja_tokenizer
             self.roberta_tokenizer = get_roberta_hanja_tokenizer(
                 model_name=self.roberta_model, 
                 device=self.device
             )
             
             # Kiwi 한글 토크나이저
-            from .kiwi_tokenizer import get_kiwi_tokenizer
+            from kiwi_tokenizer import get_kiwi_tokenizer
             self.kiwi_tokenizer = get_kiwi_tokenizer(model_type=self.kiwi_model)
             
             # SikuBERT 폴백 토크나이저
             if self.fallback_to_siku:
-                from . import get_siku_tokenizer
+                from siku_tokenizer import get_siku_tokenizer
                 self.siku_tokenizer = get_siku_tokenizer()
             
             logger.info("하이브리드 한국어 토크나이저 초기화 완료")

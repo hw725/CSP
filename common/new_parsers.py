@@ -1,3 +1,97 @@
+# 구문분석기 통합 로더 (Kanbun 무조건 우선 → Stanza 폴백)
+# Kanbun(SuPar-Kanbun / suparkanbun + esupar)를 최우선으로 사용하도록 강화합니다.
+# Stanza는 보조/폴백 용도로만 사용됩니다.
+import logging
+import os
+logger = logging.getLogger(__name__)
+
+# 환경 변수로 강제 설정 가능: CSP_KANBUN_FORCE=1 이면 Kanbun 강제 우선
+KANBUN_FORCE = os.environ.get("CSP_KANBUN_FORCE", "1") not in ["0", "false", "False"]
+
+# 로드 상태
+KANBUN_AVAILABLE = False
+STANZA_AVAILABLE = False
+
+# Kanbun (suparkanbun / esupar) 우선 로드
+try:
+    import suparkanbun as skb  # PyPI: suparkanbun
+    import esupar as es
+    KANBUN_AVAILABLE = True
+    logger.info("✅ Kanbun 파서 로드됨 (suparkanbun/esupar)")
+except Exception as e:
+    logger.warning(f"⚠️ Kanbun 파서 로드 실패: {e}")
+
+# Stanza 로드 (폴백)
+try:
+    import stanza
+    STANZA_AVAILABLE = True
+    logger.info("✅ Stanza 로드됨 (폴백용)")
+except Exception as e:
+    logger.warning(f"⚠️ Stanza 로드 실패: {e}")
+
+def get_kanbun_parser():
+    """Kanbun 파서 인스턴스를 반환 (필요 시 초기화)"""
+    if not KANBUN_AVAILABLE:
+        raise RuntimeError("Kanbun 파서가 설치되어 있지 않습니다 (suparkanbun/esupar 필요)")
+    # suparkanbun은 문장 분할/의존 구문분석을 래핑 제공합니다.
+    # 여기서는 모듈 로드 성공만으로 OK, 실제 사용은 호출부에서 수행.
+    return {"module": "suparkanbun", "version": getattr(skb, "__version__", "unknown")}
+
+def load_kanbun_pipeline(BERT: str | None = None, Danku: bool | None = None):
+    """
+    suparkanbun.load()을 사용해 고전 중국어 파이프라인 생성
+    - BERT 옵션: roberta-classical-chinese-base-char | roberta-classical-chinese-large-char | guwenbert-base | guwenbert-large | sikubert | sikuroberta
+    - Danku: True 시 자동 문장 경계(段句) 시도
+    기본값:
+      BERT = 환경변수 CSP_KANBUN_BERT 또는 'sikubert'
+      Danku = 환경변수 CSP_KANBUN_DANKU ("1"/"true") 또는 False
+    """
+    if not KANBUN_AVAILABLE:
+        raise RuntimeError("Kanbun 파서가 설치되어 있지 않습니다")
+    # 환경변수로 기본값 제공
+    if BERT is None:
+        BERT = os.environ.get("CSP_KANBUN_BERT", "sikubert")
+    if Danku is None:
+        ev = os.environ.get("CSP_KANBUN_DANKU", "0")
+        Danku = ev.lower() in ("1", "true", "yes")
+    try:
+        nlp = skb.load(BERT=BERT, Danku=Danku)
+        logger.info(f"✅ suparkanbun.load() 성공 (BERT={BERT}, Danku={Danku})")
+        return nlp
+    except Exception as e:
+        logger.error(f"❌ suparkanbun.load() 실패: {e}")
+        raise
+
+def get_stanza_pipeline(lang: str = "zh"):
+    """Stanza 파이프라인 반환 (폴백)"""
+    if not STANZA_AVAILABLE:
+        raise RuntimeError("Stanza가 설치되지 않았습니다")
+    try:
+        stanza.download(lang)
+    except Exception:
+        pass
+    return stanza.Pipeline(lang=lang)
+
+def select_parsers(prefer_kanbun: bool = True):
+    """사용할 파서를 선택 (Kanbun 우선, Stanza 폴백)"""
+    use_kanbun = KANBUN_FORCE or prefer_kanbun
+    if use_kanbun and KANBUN_AVAILABLE:
+        logger.info("🔀 파서 선택: Kanbun 우선 사용")
+        return {"kanbun": True, "stanza": STANZA_AVAILABLE}
+    # Kanbun 불가 또는 비우선인 경우
+    if STANZA_AVAILABLE:
+        logger.info("🔀 파서 선택: Stanza 폴백 사용")
+        return {"kanbun": False, "stanza": True}
+    # 둘 다 없으면 에러
+    raise RuntimeError("사용 가능한 파서를 찾을 수 없습니다 (Kanbun/Stanza 모두 없음)")
+
+def log_current_configuration():
+    logger.info(f"⚙️ KANBUN_FORCE={KANBUN_FORCE}, KANBUN_AVAILABLE={KANBUN_AVAILABLE}, STANZA_AVAILABLE={STANZA_AVAILABLE}")
+    if KANBUN_AVAILABLE:
+        logger.info("🧠 Kanbun: suparkanbun/esupar 활성")
+    if STANZA_AVAILABLE:
+        logger.info("🧠 Stanza: zh 파이프라인 폴백 활성")
+
 """새로운 파서 모듈 - SuPar-Kanbun & Stanza 통합"""
 
 import re
@@ -35,69 +129,54 @@ def fallback_split_by_punctuation(text: str, is_source: bool = True) -> List[str
     """구두점 기반 폴백 분할"""
     return smart_sentence_split(text, is_source)
 
-# SuPar-Kanbun 로드 시도
-try:
-    import supar
-    # SuPar-Kanbun 모델 로드 시도
+"""SuPar-Kanbun 대신 suparkanbun(esupar) 직접 사용
+환경에 supar 패키지가 없어도 Kanbun을 최우선으로 쓰기 위해,
+suparkanbun 제공 파이프라인으로 한문 원문 문장 분할을 수행합니다.
+"""
+if KANBUN_AVAILABLE:
     try:
-        # torch 2.6 호환: weights_only=False로 명시적 설정
-        import torch
-        original_load = torch.load
-        def safe_supar_load(f, map_location=None, pickle_module=None, **kwargs):
-            # SuPar 체크포인트는 신뢰할 수 있으므로 weights_only=False 강제
-            kwargs['weights_only'] = False
-            return original_load(f, map_location=map_location, pickle_module=pickle_module, **kwargs)
-        
-        # 임시로 torch.load를 패치
-        torch.load = safe_supar_load
-        
-        # 올바른 모델명으로 시도
-        try:
-            supar_parser = supar.Parser.load('crf-dep-zh')
-        except:
-            # 다른 중국어 모델 시도
-            supar_parser = supar.Parser.load('biaffine-dep-zh')
-        
-        # 원래 torch.load 복원
-        torch.load = original_load
-        
+        # 환경값 기반으로 Kanbun 파이프라인 로드
+        supar_parser = load_kanbun_pipeline()
         SUPAR_AVAILABLE = True
-        print("✅ SuPar-Kanbun 모델 로드 완료")
-        
+        print("✅ Kanbun(suparkanbun) 파이프라인 로드 완료")
+
         def split_source_with_supar(text: str) -> List[str]:
-            """실제 SuPar-Kanbun 파서"""
-            global supar_parser
+            """suparkanbun 파이프라인을 사용한 한문 문장 분할
+            - Danku 옵션이 켜져 있으면 파이프라인 내부 분할 사용
+            - 그렇지 않으면 간단한 구두점 기반 분할로 폴백
+            """
             try:
-                # SuPar로 구문 분석 - 실제 구문분석 결과 사용
-                parsed = supar_parser.predict(text, prob=True, verbose=False)
-                
-                sentences = []
-                if hasattr(parsed, 'sentences') and parsed.sentences:
-                    # 파싱 결과에서 문장 추출
-                    for sentence in parsed.sentences:
-                        if hasattr(sentence, 'values') and sentence.values:
-                            # 토큰들을 다시 결합하여 문장 생성
-                            sentence_text = ''.join([token.form for token in sentence.values if hasattr(token, 'form')])
-                            if sentence_text.strip():
-                                sentences.append(sentence_text.strip())
-                
-                # 결과가 없으면 폴백
-                if not sentences:
-                    return smart_sentence_split(text, is_source=True)
-                    
-                return sentences
-                
-            except Exception as e:
-                print(f"⚠️ SuPar 파싱 실패: {e}")
+                nlp = supar_parser
+                if hasattr(nlp, 'Danku') and getattr(nlp, 'Danku'):
+                    # 파이프라인 호출로 문장 분할 시도
+                    doc = nlp(text)
+                    # esupar/suparkanbun 출력 형식에 따라 안전하게 텍스트 복원
+                    sentences: List[str] = []
+                    if hasattr(doc, 'sentences') and doc.sentences:
+                        for s in doc.sentences:
+                            # values/form 형태를 최대한 안전하게 처리
+                            if hasattr(s, 'values') and s.values:
+                                sent_text = ''.join([getattr(tok, 'form', '') for tok in s.values])
+                                if sent_text.strip():
+                                    sentences.append(sent_text.strip())
+                            elif hasattr(s, 'text'):
+                                t = getattr(s, 'text')
+                                if isinstance(t, str) and t.strip():
+                                    sentences.append(t.strip())
+                    # 결과 없으면 폴백
+                    if sentences:
+                        return sentences
+                # Danku 비활성 또는 결과가 없으면 휴리스틱 분할
                 return smart_sentence_split(text, is_source=True)
-                
+            except Exception as e:
+                print(f"⚠️ suparkanbun 분할 실패: {e}")
+                return smart_sentence_split(text, is_source=True)
     except Exception as e:
-        print(f"⚠️ SuPar-Kanbun 모델 로드 실패: {e}")
+        print(f"⚠️ Kanbun 파이프라인 초기화 실패: {e}")
         SUPAR_AVAILABLE = False
         supar_parser = None
-        
-except ImportError:
-    print("⚠️ SuPar-Kanbun 미설치 (폴백 모드)")
+else:
+    # Kanbun 미가용 시 폴백
     SUPAR_AVAILABLE = False
     supar_parser = None
 

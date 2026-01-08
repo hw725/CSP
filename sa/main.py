@@ -5,7 +5,12 @@ import time
 import logging
 import traceback
 import warnings
+import sys
+import os
 from pathlib import Path
+
+# 🔧 common 모듈 경로 추가
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # torch.load 보안 경고 전역 무시 (PyTorch 2.6 호환성)
 warnings.filterwarnings("ignore", message=".*torch.load.*")
@@ -64,16 +69,19 @@ def main():
     parser.add_argument('output_file', nargs='?', default='output.xlsx', help='출력 엑셀 파일 경로 (기본: output.xlsx)')
     
     # 선택적 인수
-    parser.add_argument('--embedder', choices=['bge', 'openai', 'none'], default='bge',
-                       help='임베더 선택 (기본: bge, OpenAI: --embedder openai, 순차분할: --embedder none)')
+    parser.add_argument('--embedder', choices=['bge', 'none'], default='bge',
+                       help='임베더 선택 (기본: bge, 순차분할: --embedder none)')
     parser.add_argument('--max-workers', type=int, default=4,
-                       help='최대 워커 수 (기본: 4, OpenAI 병렬 처리 지원)')
+                       help='최대 워커 수 (기본: 4)')
     parser.add_argument('--chunk-size', type=int, default=100,
-                       help='청크 크기 (기본: 100, OpenAI 병렬 최적화)')
+                       help='청크 크기 (기본: 100)')
     parser.add_argument('--no-parallel', action='store_true',
                        help='병렬 처리 비활성화')
     parser.add_argument('--verbose', '-v', action='store_true',
                        help='상세 로그 출력')
+    # 기본 출력 디렉터리 자동 설정 옵션
+    parser.add_argument('--default-output-dir', type=str, default=None,
+                       help='출력 디렉터리를 지정하면 입력 파일명에서 서종명을 추출해 <dir>/<book>_output.xlsx로 자동 저장')
     
     # 토크나이저 옵션
     parser.add_argument('--min-src-tokens', type=int, default=1,
@@ -85,36 +93,65 @@ def main():
     parser.add_argument('--max-tgt-tokens', type=int, default=40,
                        help='번역문 최대 토큰 수 (기본: 40)')
     # 가중치/스코어링 옵션 (실험적)
-    parser.add_argument('--dp-window', type=int, default=2,
-                       help='DP 예상 위치 허용 창 크기 (기본: 2)')
-    parser.add_argument('--distance-decay', type=float, default=0.9,
-                       help='위치 거리 감쇠 알파 (기본: 0.9)')
-    parser.add_argument('--boundary-bonus', type=float, default=0.3,
-                       help='문장 경계 보너스 (기본: 0.3)')
-    parser.add_argument('--particle-bonus', type=float, default=0.1,
-                       help='토씨 경계 보너스 (기본: 0.2)')
-    parser.add_argument('--length-penalty', type=float, default=0.05,
-                       help='세그먼트 길이 패널티 알파 (기본: 0.05)')
-    parser.add_argument('--sim-gamma', type=float, default=1.5,
-                       help='유사도 샤프닝 지수 (기본: 1.5)')
+    parser.add_argument('--dp-window', type=int, default=3,
+                       help='DP 예상 위치 허용 창 크기 (기본: 3, 범위 넓어짐)')
+    parser.add_argument('--distance-decay', type=float, default=0.03,
+                       help='위치 거리 감쇠 알파 (기본: 0.03, 페널티 완화)')
+    parser.add_argument('--boundary-bonus', type=float, default=0.2,
+                       help='문장 경계 보너스 (기본: 0.2)')
+    parser.add_argument('--particle-bonus', type=float, default=0.3,
+                       help='토씨 경계 보너스 (기본: 0.3, 한글 강화)')
+    parser.add_argument('--length-penalty', type=float, default=0.08,
+                       help='세그먼트 길이 패널티 알파 (기본: 0.08, 페널티 완화)')
+    parser.add_argument('--sim-gamma', type=float, default=1.0,
+                       help='유사도 샤프닝 지수 (기본: 1.0, 선형)')
     # 문장 내부 경계 힌트(옵션)
-    parser.add_argument('--syntax-hints', choices=['none', 'ko', 'zh', 'both'], default='both',
-                       help='구문 파서 힌트 사용 (기본: both)')
-    parser.add_argument('--comma-bonus', type=float, default=0.0,
-                       help='콤마(,) 경계 보너스 (기본: 0.0, soft 모드)')
+    parser.add_argument('--syntax-hints', choices=['none', 'ko', 'zh', 'both'], default='ko',
+                       help='구문 파서 힌트 사용 (기본: ko, 한국어 강화)')
+    parser.add_argument('--comma-bonus', type=float, default=0.2,
+                       help='콤마(,) 경계 보너스 (기본: 0.2, 강화됨)')
     parser.add_argument('--comma-mode', choices=['soft', 'strict'], default='soft',
                        help='콤마 경계 모드: soft(나열 제외) | strict(전부 적용)')
     parser.add_argument('--syntax-when', choices=['ambiguous', 'always'], default='always',
                        help='구문 힌트 실행 시점: ambiguous(애매할 때만) | always(항상, 기본)')
     
+    # 하이브리드 임베딩 옵션 (기본: 활성화)
+    parser.add_argument('--no-hybrid-embed', action='store_true',
+                       help='하이브리드 임베딩 비활성화 (기본: 활성화, 한자/한글 세분화)')
+    
     args = parser.parse_args()
+
+    # 입력 파일명에서 서종명 추출 유틸리티
+    def _derive_book_name_from_input(path_str: str) -> str:
+        p = Path(path_str)
+        stem = p.stem  # 예: 당송팔대가문초한유3_문장병렬
+        # 알려진 접미사 제거
+        for suffix in ['_문장병렬', '_문단병렬', '_구병렬', '_para_output', '_output']:
+            if stem.endswith(suffix):
+                stem = stem[: -len(suffix)]
+                break
+        # 파일명에 서종명이 없으면 상위 폴더명 사용
+        if not stem or stem == p.stem:
+            try:
+                parent_name = p.parent.name
+                if parent_name:
+                    return parent_name
+            except Exception:
+                pass
+        return stem
+
+    # 기본 출력 디렉터리 지정 시 출력 경로 자동 설정
+    if args.default_output_dir:
+        book_name = _derive_book_name_from_input(args.input_file)
+        auto_out = Path(args.default_output_dir) / f"{book_name}_output.xlsx"
+        args.output_file = str(auto_out)
     
     # 로깅 설정
     setup_logging(args.verbose)
 
     # SuPar 안전 로딩 준비 (torch 2.6 weights_only 대응)
     try:
-        from sa_aligner import _prepare_supar_safe_loading  # 내부 유틸
+        from sa.sa_aligner import _prepare_supar_safe_loading  # 패키지 경로로 수정
         _prepare_supar_safe_loading()
     except Exception:
         pass
@@ -125,17 +162,13 @@ def main():
     if args.verbose:
         print("🚀 SA 파일 처리 시작:", args.input_file)
         print(f"⚙️  설정: 임베더={args.embedder}, 병렬={use_parallel}, 워커={args.max_workers}")
-        if args.embedder == 'openai':
-            print("🔥 OpenAI 병렬 처리 활성화")
-        elif args.embedder == 'none':
+        if args.embedder == 'none':
             print("⚡ 순차 분할 모드 (임베더 미사용)")
         print()
     else:
         print("🚀 SA (Sentence Aligner) 시작")
         print(f"⚙️ 설정: 임베더={args.embedder}, 워커={args.max_workers}, 청크={args.chunk_size}")
-        if args.embedder == 'openai':
-            print("🔥 OpenAI 병렬 처리 활성화")
-        elif args.embedder == 'none':
+        if args.embedder == 'none':
             print("⚡ 순차 분할 모드 (임베더 미사용, 빠른 처리)")
         else:
             print("📊 BGE 임베더 사용 (기본)")
@@ -143,31 +176,21 @@ def main():
     
     start_time = time.time()
     
-    # 🚀 하이브리드 토크나이저 초기화
-    try:
-        from common.tokenizers import get_siku_tokenizer, get_hybrid_korean_tokenizer
-        # 하이브리드 토크나이저 초기화 (중국어: SikuBERT, 한국어: RoBERTa-Hanja+Kiwipiepy)
-        if args.verbose:
-            print("🏮 SA: 하이브리드 토크나이저 초기화 중...")
-        
-        # 토크나이저들 미리 로드 (지연 초기화)
-        get_siku_tokenizer()  # SikuBERT 초기화
-        get_hybrid_korean_tokenizer()  # RoBERTa-Hanja+Kiwipiepy 초기화
-        
-        if args.verbose:
-            print("✅ SA: 하이브리드 토크나이저 초기화 완료 (중국어: SikuBERT, 한국어: RoBERTa-Hanja+Kiwipiepy)")
-        else:
-            print("SA: 하이브리드 토크나이저 초기화 완료 (중국어: SikuBERT, 한국어: RoBERTa-Hanja+Kiwipiepy)")
-    except Exception as e:
-        if args.verbose:
-            print(f"⚠️ SA: 하이브리드 토크나이저 초기화 실패: {e}")
-        else:
-            print(f"⚠️ SA: 하이브리드 토크나이저 초기화 실패: {e}")
+    # 🚀 하이브리드 토크나이저는 sa_aligner에서 지연 초기화되므로 여기서는 스킵
+    # (중복 초기화 메시지 방지)
     
     try:
         # io_manager의 process_file 함수 호출
-        from io_manager import process_file
+        from sa.io_manager import process_file
         
+        # 출력 디렉터리 생성 보장
+        try:
+            out_parent = Path(args.output_file).parent
+            if str(out_parent):
+                os.makedirs(out_parent, exist_ok=True)
+        except Exception:
+            pass
+
         success = process_file(
             input_file=args.input_file,
             output_file=args.output_file,
@@ -189,6 +212,7 @@ def main():
             comma_bonus=args.comma_bonus,
             comma_mode=args.comma_mode,
             syntax_when=args.syntax_when,
+            hybrid_embed=not args.no_hybrid_embed,  # 🎯 하이브리드 임베딩 설정 (기본: True)
             verbose=args.verbose
         )
         

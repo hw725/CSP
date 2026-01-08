@@ -36,7 +36,6 @@ docker-compose up -d
 # 컨테이너 접속
 docker exec -it csp-workspace /bin/bash
 ```
-
 #### 2️⃣ 환경 확인
 ```bash
 # PyTorch CUDA 확인
@@ -53,7 +52,6 @@ python -c "import stanza; print('Stanza:', stanza.__version__)"
 
 # SikuBERT 테스트
 python -c "from transformers import BertTokenizer; print('SikuBERT 토크나이저 로드 성공')"
-```
 
 #### 3️⃣ 스크립트 실행
 
@@ -90,30 +88,66 @@ docker-compose logs csp
 # 종료
 docker-compose down
 
+### 설정 (csp_config.json)
+
+모든 프로젝트 설정은 **루트 디렉토리의 `csp_config.json` 파일 하나**에서 관리됩니다.
+
+1. `csp_config.json.example`을 복사하여 `csp_config.json`로 사용하세요.
+2. 필요한 값만 수정하면 됩니다. 생략된 값은 기본값이 적용됩니다.
+
+**주요 설정 항목:**
+- `results_dir`: XLSX 출력물 저장 경로 (기본: `xlsx_pipeline_results`)
+- `embedder`: 공통 임베더 (기본: `bge-m3`)
+- `pa_embedder`, `sa_embedder`: 분석별 임베더 (선택)
+- `device`: 장치 지정 (`cuda:0`, `cpu` 등)
+- `openai_api_key`: OpenAI 임베딩 사용 시 키
+- `thresholds`: PA/SA 임계값 (자세한 예시는 `csp_config.json.example` 참조)
+- PA 임계값 조정:
+  - `CSP_PA_MIN_PARTIAL_MATCH` (기본 0.10)
+  - `CSP_PA_MIN_TARGET_SIM` (기본 0.10)
+  - `CSP_PA_REC_PARTIAL_MATCH` (기본 0.15)
+  - `CSP_PA_REC_TARGET_SIM` (기본 0.19)
+  - `CSP_PA_TOP_PARTIAL_MATCH` (기본 0.21)
+  - `CSP_PA_TOP_TARGET_SIM` (기본 0.26)
+- SA 임계값 조정:
+  - `CSP_SA_MIN_PARTIAL_MATCH` (기본 0.885)
+  - `CSP_SA_MIN_TARGET_SIM` (기본 0.769)
+  - `CSP_SA_REC_PARTIAL_MATCH` (기본 0.952)
+  - `CSP_SA_REC_TARGET_SIM` (기본 0.905)
+  - `CSP_SA_TOP_PARTIAL_MATCH` (기본 1.0)
+  - `CSP_SA_TOP_TARGET_SIM` (기본 1.0)
+
+Windows(cmd) 예시:
+
+```bat
+set CSP_XLSX_RESULTS=C:\path\to\xlsx_pipeline_results
+set CSP_EMBEDDER=bge-m3
+set CSP_DEVICE=cuda:0
+set CSP_PA_MIN_PARTIAL_MATCH=0.12
+set CSP_SA_REC_TARGET_SIM=0.92
+```
+
+
 # 완전 정리 (볼륨까지 삭제)
 docker-compose down -v
 ```
 
 ### 🪟 Windows (cmd.exe) 빠른 실행
-
 ```bat
-REM SA 실행 (기본 임베더: bge)
-cd sa
-python main.py input.xlsx output.xlsx --max-workers 4
+REM Docker 컨테이너에서 SA 실행 (기본 임베더: bge)
+docker exec -it csp-workspace bash -c "cd /workspace && python -m sa.main xlsx/당송팔대가문초한유3/당송팔대가문초한유3_문장병렬.xlsx --default-output-dir test_results/sa"
 
-REM OpenAI 임베더 사용 (환경변수 OPENAI_API_KEY 필요)
-cd sa
-python main.py input.xlsx output.xlsx --embedder openai --max-workers 8
-
-REM PA 실행 (구문분석 기반)
-cd ..\pa
-python main.py input.xlsx output.xlsx --max-workers 4 --batch-size 100
-
-REM 정확도 평가 (행 모드 + 자동 시프트)
-cd ..\accuracy
-python accuracy_evaluator.py --mode row --row-auto-shift --input sa01.xlsx --pred sa01_eval.xlsx --project SA
+REM 평가(Accuracy): 기본 옵션 활성로 간단 실행
+pushd "C:\Users\junto\Downloads\head-repo\hw725\CSP"
+python accuracy/accuracy_evaluator.py "xlsx/당송팔대가문초한유3/당송팔대가문초한유3_구병렬.xlsx" "test_results/sa/당송팔대가문초한유3_output.xlsx"
+popd
 ```
 
+메모
+- SA는 `--embedder bge`가 기본이라 생략 가능
+- 평가 스크립트는 기본으로 `row`/`sa`/`row-auto-shift`/`ignore-space-only`/`ignore-brackets` 활성, 출력 경로와 상위 폴더 자동 생성
+
+간단 실행(권장) 예시
 ### 📊 성능 지표 (Docker 환경 + 병렬 처리)
 
 #### SA 처리 결과 (OpenAI 병렬 처리)
@@ -301,6 +335,21 @@ python sa\main.py input.xlsx output.xlsx --boundary-bonus 0.35 --particle-bonus 
 ```
 
 ## 📝 주요 업데이트
+
+### 2025-12-14: 원본 텍스트 보존 및 정렬 품질 개선
+- ✅ **토큰 단위 보존**: 한자 괄호 augmentation이 토큰 개수를 유지하도록 수정
+  - 이전: `"선희(仙姬)를"` → `"선희 仙姬 를"` (1토큰→3토큰, 인덱스 매핑 오류 발생)
+  - 개선: `"선희(仙姬)를"` → `"仙姬선희를"` (1토큰→1토큰, 정확한 매핑 유지)
+- 🔒 **출력 크기 보장**: SA의 `_split_tgt_by_src_units_semantic()` 함수가 정확히 N개 항목 반환 보장
+  - DP 실패 시 폴백 + N개 검증 로직 추가
+  - 번역문 손실/중복 방지
+- 📊 **유사도 점수 통합**: SA 결과물에도 PA처럼 코사인 유사도 열 추가
+- 🧹 **코드 정리**: IntegrityManager 레거시 시스템 완전 제거 (20+ 호출 지점)
+- 🛡️ **검증 강화**: augmentation 전후 토큰 개수 일치 검증 추가
+
+### 2025-11-04: W(단어) 단위 추출 + 2017 스키마 분석기 추가
+본 프로젝트는 XML 파이프라인을 더 이상 사용하지 않습니다. 관련 내용과 예시는 제거되었습니다.
+
 
 ### 2025-08-28: PA 병렬 인자 전달 버그 수정
 - ✅ PA에서 `split_source_by_whitespace_and_align()`로 `max_workers`/`batch_size`가 전달되지 않아 발생하던 오류를 수정했습니다.

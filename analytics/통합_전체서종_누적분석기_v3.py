@@ -31,10 +31,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class CumulativeBookAnalyzer:
-    """누적 도서 분석기"""
+    """누적 도서 분석기 (XLSX 기반 대응)"""
     
-    def __init__(self, base_dir: str = "xml_pipeline_results", preserve_manual_csv: bool = True):
+    def __init__(self, base_dir: str = None, preserve_manual_csv: bool = True):
         # analytics 디렉토리에서 실행되므로 상위 디렉토리 참조
+        env_base = os.getenv("CSP_XLSX_RESULTS", "xlsx_pipeline_results")
+        base_dir = base_dir or env_base
         self.base_dir = Path("..") / base_dir
         self.db_path = "cumulative_analysis.db"
         self.preserve_manual_csv = preserve_manual_csv
@@ -49,6 +51,17 @@ class CumulativeBookAnalyzer:
         self.metadata_extractor = BookMetadataExtractor()  # 작가/역자 정보 추출기
         self._init_database()
         logger.info(f"누적 분석기 초기화 완료 - 기본 디렉토리: {self.base_dir}")
+        # XLSX 로더 유틸 사용 준비
+        try:
+            from utils.xlsx_loader import list_books, load_pa, load_sa
+            self._xlsx_list_books = list_books
+            self._xlsx_load_pa = load_pa
+            self._xlsx_load_sa = load_sa
+            self.xlsx_mode = True
+            logger.info("XLSX 모드 활성화: xlsx_pipeline_results를 사용합니다")
+        except Exception:
+            self.xlsx_mode = False
+            logger.warning("XLSX 로더를 사용할 수 없습니다. 기존 XML 기반 스캔을 시도합니다.")
     
     def _init_database(self):
         """SQLite 데이터베이스 초기화"""
@@ -122,28 +135,87 @@ class CumulativeBookAnalyzer:
             raise
     
     def scan_for_results(self):
-        """결과 폴더들을 자동 스캔"""
-        result_folders = []
-        
+        """결과 리소스를 자동 스캔 (XLSX 우선)"""
         if not self.base_dir.exists():
             logger.warning(f"기본 디렉토리가 존재하지 않습니다: {self.base_dir}")
-            return result_folders
-        
+            return []
+        if self.xlsx_mode:
+            books = self._xlsx_list_books(self.base_dir)
+            logger.info(f"총 {len(books)}개의 XLSX 결과 도서 발견")
+            return books
+        # Fallback: 기존 XML 폴더 스캔
+        result_folders = []
         for item in self.base_dir.iterdir():
             if item.is_dir():
                 accuracy_file = item / "accuracy_report.json"
                 accuracy_file_in_folder = item / "accuracy" / "accuracy_report.json"
-                
                 if accuracy_file.exists() or accuracy_file_in_folder.exists():
                     result_folders.append(item)
                     logger.info(f"유효한 결과 폴더 발견: {item.name}")
-        
         logger.info(f"총 {len(result_folders)}개의 결과 폴더 발견")
         return sorted(result_folders)
     
-    def extract_book_data(self, result_folder: Path):
-        """개별 책의 분석 데이터 추출"""
+    def extract_book_data(self, resource):
+        """개별 책의 분석 데이터 추출 (XLSX 책 ID 또는 폴더)"""
         try:
+            # XLSX 모드: resource는 book_id 문자열
+            if self.xlsx_mode and isinstance(resource, str):
+                book_name = resource
+                # XLSX에서 메트릭 생성: 현재는 PA/SA 결과 집계 위주로 구성
+                pa_df = None
+                sa_df = None
+                try:
+                    pa_df = self._xlsx_load_pa(book_name, self.base_dir)
+                except Exception:
+                    pass
+                try:
+                    sa_df = self._xlsx_load_sa(book_name, self.base_dir)
+                except Exception:
+                    pass
+
+                # 간단한 집계 메트릭 (예: 평균 similarity, 결과 행 수 등)
+                pa_avg_similarity = float(pa_df["similarity"].mean()) if pa_df is not None and "similarity" in pa_df.columns and len(pa_df) > 0 else 0.0
+                sa_result_count = int(len(sa_df)) if sa_df is not None else 0
+                total_paragraphs = int(len(pa_df)) if pa_df is not None else 0
+
+                # 작가/역자 정보 추출
+                author, translator = self.metadata_extractor.extract_author_translator(book_name)
+
+                # 최소 스키마에 맞춰 반환 (XML 기반 필드는 비워둠)
+                return {
+                    "book_name": book_name,
+                    "author": author,
+                    "translator": translator,
+                    "analysis_date": datetime.now().isoformat(),
+                    "total_paragraphs": total_paragraphs,
+                    "pa_accuracy": None,
+                    "sa_accuracy": None,
+                    "embedding_similarity_avg": pa_avg_similarity,
+                    "processing_time_seconds": None,
+                    "quality_grade": None,
+                    "notes": None,
+                    "global_source_similarity": None,
+                    "global_target_similarity": None,
+                    "phrase_count": None,
+                    "sa_result_count": sa_result_count,
+                    "length_accuracy": None,
+                    "pa_precision": None,
+                    "pa_recall": None,
+                    "pa_f1_score": None,
+                    "pa_avg_similarity": pa_avg_similarity,
+                    "pa_combined_similarity": None,
+                    "sa_precision": None,
+                    "sa_recall": None,
+                    "sa_f1_score": None,
+                    "sa_set_similarity": None,
+                    "sa_source_similarity": None,
+                    "sa_target_similarity": None,
+                    "sibu_classification": None,
+                    "period": None,
+                }
+
+            # XML 폴더 모드: 기존 로직 유지
+            result_folder: Path = resource
             book_name = result_folder.name
             
             # accuracy_report.json 읽기 (두 위치 모두 확인)
@@ -687,21 +759,21 @@ class CumulativeBookAnalyzer:
         try:
             logger.info("=== 전체 누적 분석 시작 ===")
             
-            # 1. 결과 폴더 스캔
-            result_folders = self.scan_for_results()
+            # 1. 결과 리소스 스캔 (XLSX: book_ids, XML: 폴더)
+            resources = self.scan_for_results()
             
-            if not result_folders:
+            if not resources:
                 logger.warning("처리할 결과 폴더가 없습니다")
                 return False
             
             # 2. 각 책 데이터 추출 및 저장
             success_count = 0
-            for folder in result_folders:
-                book_data = self.extract_book_data(folder)
+            for res in resources:
+                book_data = self.extract_book_data(res)
                 if book_data and self.store_analysis_data(book_data):
                     success_count += 1
             
-            logger.info(f"총 {len(result_folders)}개 중 {success_count}개 책 처리 완료")
+            logger.info(f"총 {len(resources)}개 중 {success_count}개 책 처리 완료")
             
             # 3. 누적 보고서 생성
             report = self.generate_cumulative_report()

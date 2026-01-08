@@ -39,10 +39,12 @@ class SikuBertTokenizer:
         # GPU 감지 및 설정
         if torch.cuda.is_available():
             self.device = torch.device('cuda')
-            print(f"✅ SikuBERT: GPU 사용 가능 (device: {self.device})")
+            if not os.getenv('CSP_QUIET_INIT'):
+                print(f"✅ SikuBERT: GPU 사용 가능 (device: {self.device})")
         else:
             self.device = torch.device('cpu')
-            print(f"⚠️ SikuBERT: GPU 불가능, CPU 모드로 실행 (device: {self.device})")
+            if not os.getenv('CSP_QUIET_INIT'):
+                print(f"⚠️ SikuBERT: GPU 불가능, CPU 모드로 실행 (device: {self.device})")
         
     def load_model(self):
         """모델과 토크나이저 로딩"""

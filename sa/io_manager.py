@@ -12,11 +12,18 @@ import hashlib
 
 # 통합 진행률 관리자
 from common.progress_manager import start_unified_progress, update_unified_progress, finish_unified_progress, set_progress_description
+# 전역 무결성 검증 모듈
+from common.integrity_verifier import verify_global_integrity
 
-# 무결성 모듈 import
+# 로거를 가장 먼저 초기화하여 예외 처리에서도 사용 가능하게 함
+logger = logging.getLogger(__name__)
+
+# 무결성 모듈 import (패키지 경로)
 try:
-    from punctuation import integrity_guard, safe_mask_brackets, safe_restore_brackets, get_integrity_status
-except ImportError:
+    from sa.punctuation import integrity_guard, safe_mask_brackets, safe_restore_brackets, get_integrity_status
+except ImportError as e:
+    logger.warning(f"⚠️ 무결성 모듈 import 실패: {e}")
+    logger.warning("   무결성 검증이 비활성화되고 텍스트 손실 위험 증가")
     # 폴백 처리
     integrity_guard = None
     def safe_mask_brackets(text, text_type='source'):
@@ -25,8 +32,6 @@ except ImportError:
         return text
     def get_integrity_status():
         return {}
-
-logger = logging.getLogger(__name__)
 
 class SafeFileProcessor:
     """무결성 보장 파일 처리기"""
@@ -129,7 +134,26 @@ class SafeFileProcessor:
                 final_integrity = self._verify_final_integrity(df, result_df, file_id)
                 
                 if final_integrity['valid']:
-                    result_df.to_excel(output_file, index=False)
+                    # 멀티 시트 저장: results + integrity_losses
+                    with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+                        result_df.to_excel(writer, index=False, sheet_name='results')
+                    
+                    # 🆕 전역 무결성 검증 및 손실 시트 추가
+                    try:
+                        passed, integrity_losses_df, analysis = verify_global_integrity(
+                            df, result_df,
+                            source_col='원문', target_col='번역문',
+                            verbose=self.verbose
+                        )
+                        
+                        # 손실 정보가 있으면 시트 추가
+                        if len(integrity_losses_df) > 0:
+                            with pd.ExcelWriter(output_file, engine='openpyxl', mode='a') as writer:
+                                integrity_losses_df.to_excel(writer, index=False, sheet_name='integrity_losses')
+                    except Exception as e:
+                        if self.verbose:
+                            logger.warning(f"전역 무결성 검증 오류: {e}")
+                    
                     if self.verbose:
                         logger.info(f"결과 저장 완료: {output_file}")
                         logger.info(f"처리 통계: 성공 {self.processed_count}, 실패 {self.error_count}, 무결성실패 {self.integrity_failures}")
@@ -447,8 +471,11 @@ def process_file(
         logger.info(f"설정: 임베더={embedder_name}, 병렬={use_parallel}, 워커={max_workers}")
     
     try:
-        # SA 처리 함수 import
-        from sa_aligner import process_single_row  # 🆕 SA 얼라이너에서 import
+        # SA 처리 함수 import (패키지 경로)
+        from sa.sa_aligner import process_single_row, reset_segment_counter  # 🆕 SA 얼라이너에서 import
+
+        # 구식별자를 파일 단위로 리셋해 누적 증가하도록 설정
+        reset_segment_counter()
         
         # 무결성 보장 처리기 생성
         processor = SafeFileProcessor(
@@ -652,7 +679,7 @@ def safe_process_sa_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Di
     
     try:
         # SA 토크나이저 처리 함수 import
-        from sa_aligner import process_single_row  # 🆕 SA 얼라이너에서 import
+        from sa.sa_aligner import process_single_row  # 🆕 SA 얼라이너에서 import
         
         # 원본 데이터 추출
         src_text = str(row.get('원문', ''))
@@ -661,40 +688,9 @@ def safe_process_sa_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Di
         if not src_text.strip() or not tgt_text.strip():
             return []
         
-        # 무결성 보장 괄호 처리 (안전 버전)
-        if integrity_guard:
-            masked_src, src_masks = safe_mask_brackets(src_text, 'source')
-            masked_tgt, tgt_masks = safe_mask_brackets(tgt_text, 'target')
-            
-            # SA 처리 실행
-            masked_row = row.copy()
-            masked_row['원문'] = masked_src
-            masked_row['번역문'] = masked_tgt
-            
-            results = process_single_row(masked_row, row_id=row_id, **kwargs)
-            
-            if not results:
-                return []
-            
-            # 괄호 복원
-            restored_results = []
-            for result in results:
-                if isinstance(result, dict):
-                    restored_src = safe_restore_brackets(str(result.get('원문', '')), src_masks)
-                    restored_tgt = safe_restore_brackets(str(result.get('번역문', '')), tgt_masks)
-                    
-                    restored_result = result.copy()
-                    restored_result['원문'] = restored_src
-                    restored_result['번역문'] = restored_tgt
-                    
-                    restored_results.append(restored_result)
-                else:
-                    restored_results.append(result)
-            
-            return restored_results
-        else:
-            # 무결성 모듈 없으면 직접 처리
-            return process_single_row(row, row_id=row_id, **kwargs)
+        # 🚨 마스킹 비활성화: 괄호 마스킹 없이 직접 처리
+        # (PUA 토큰 분할 문제 해결을 위해 마스킹 로직 완전 우회)
+        return process_single_row(row, row_id=row_id, **kwargs)
         
     except Exception as e:
         logger.error(f"SA 행 처리 실패: {e}")

@@ -1,0 +1,56 @@
+{
+  "results_dir": "xlsx_pipeline_results",
+  "embedder": "bge-m3",
+  "pa_embedder": null,
+  "sa_embedder": null,
+  "device": "cuda:0",
+  "openai_api_key": null,
+  "alignment_params": {
+    "similarity_threshold": 0.5,
+    "length_penalty": 0.05,
+    "distance_decay": 0.05,
+    "boundary_bonus": 0.15,
+    "particle_bonus": 0.2,
+    "comma_bonus": 0.1,
+    "dp_window": 2,
+    "sim_gamma": 1.2
+  },
+  "thresholds": {
+    "pa": {
+      "unit": "row",
+      "metrics": ["partial_match", "target_avg_similarity"],
+      "levels": {
+        "min": {
+          "partial_match": 0.1,
+          "target_avg_similarity": 0.1
+        },
+        "recommended": {
+          "partial_match": 0.15,
+          "target_avg_similarity": 0.19
+        },
+        "top": {
+          "partial_match": 0.21,
+          "target_avg_similarity": 0.26
+        }
+      }
+    },
+    "sa": {
+      "unit": "row",
+      "metrics": ["partial_match", "target_avg_similarity"],
+      "levels": {
+        "min": {
+          "partial_match": 0.885,
+          "target_avg_similarity": 0.769
+        },
+        "recommended": {
+          "partial_match": 0.952,
+          "target_avg_similarity": 0.905
+        },
+        "top": {
+          "partial_match": 1.0,
+          "target_avg_similarity": 1.0
+        }
+      }
+    }
+  }
+}

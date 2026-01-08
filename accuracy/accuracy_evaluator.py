@@ -23,7 +23,7 @@ except Exception:
         THRESHOLDS = None
 
 class AccuracyEvaluator:
-    def __init__(self, ground_truth_file: str, prediction_file: str, project: str | None = None, *, brief: bool = False, minimal_summary: bool = False, ignore_space_punct: bool = False):
+    def __init__(self, ground_truth_file: str, prediction_file: str, project: str | None = None, *, brief: bool = False, minimal_summary: bool = False, ignore_space_punct: bool = False, ignore_space_only: bool = False, ignore_brackets: bool = False, use_ko_particle_hint: bool = False, particle_weight: float = 0.15, max_dup_per_gt: int = 1, monotonic_alignment: bool = True):
         """
         Args:
             ground_truth_file: 정답 파일 (구병렬 기준)
@@ -37,10 +37,31 @@ class AccuracyEvaluator:
         self.source_mismatch_details = []  # 원문 불일치 상세 정보
         self.brief = brief
         self.minimal_summary = minimal_summary
-        # 공백/구두점 무시한 관대한 일치 판정 옵션
-        self._lenient_source_match = bool(ignore_space_punct)
+        # 관대 일치 모드: off | space | space_punct
+        if bool(ignore_space_punct):
+            self._lenient_mode = 'space_punct'
+        elif bool(ignore_space_only):
+            self._lenient_mode = 'space'
+        else:
+            self._lenient_mode = 'off'
+        self._lenient_source_match = (self._lenient_mode != 'off')
+        # [-텍스트] 패턴 무시 옵션
+        self._ignore_brackets = bool(ignore_brackets)
     # 경고 옵션 (관대 일치이지만 엄격 불일치인 경우 경고)
         self._warn_lenient_mismatch = False
+        # 한글 토씨(조사) 기반 번역문 경계 힌트 사용 여부/가중치
+        self._use_ko_particle_hint = bool(use_ko_particle_hint)
+        try:
+            # 지연 로드: 실제 사용 시에만 초기화
+            self._kiwi = None
+        except Exception:
+            self._kiwi = None
+        # 0.0~1.0 사이의 적정 가중치 권장(기본 0.15)
+        try:
+            pw = float(particle_weight)
+            self._particle_weight = max(0.0, min(1.0, pw))
+        except Exception:
+            self._particle_weight = 0.15
         # 임계값 설정
         self.project = (project or '').lower() or None
         self.thresholds = None
@@ -59,6 +80,12 @@ class AccuracyEvaluator:
         self._row_shift_zero_eq = 0
         self._row_shift_best_eq = 0
         self._row_shift_best_avg_sim = 0.0
+        # 중복 매칭 및 순서 제약
+        try:
+            self._max_dup_per_gt = max(1, int(max_dup_per_gt))
+        except Exception:
+            self._max_dup_per_gt = 1
+        self._monotonic_alignment = bool(monotonic_alignment)
         
     def calculate_text_similarity(self, text1: str, text2: str) -> float:
         """문자열 유사도 계산 (SequenceMatcher 사용)"""
@@ -199,10 +226,13 @@ class AccuracyEvaluator:
             sys.exit(1)
     
     def normalize_text(self, text: str) -> str:
-        """텍스트 정규화 (공백, 특수문자 제거)"""
+        """그룹화용 최소 정리: 앞뒤 공백만 제거, 내부 개행을 공백으로 치환 (내부 공백 보존)"""
         if pd.isna(text):
             return ""
-        return str(text).strip().replace(" ", "").replace("\n", "")
+        text = str(text).strip()
+        # 내부 개행을 공백으로 치환 (내부 공백은 보존)
+        text = text.replace('\n', ' ').replace('\r', ' ')
+        return text
     
     def group_by_sentence_id(self, data: pd.DataFrame) -> Dict[int, List[Dict[str, str]]]:
         """문장식별자별로 원문과 번역문을 그룹화"""
@@ -450,20 +480,170 @@ class AccuracyEvaluator:
         return integrity
     
     def normalize_for_matching(self, text: str) -> str:
-        """매칭용 텍스트 정규화 (더 관대한 매칭을 위해)"""
+        """기존 호환용: 공백+구두점 제거 후 소문자 (deprecated, 내부 호환 유지)."""
         if pd.isna(text):
             return ""
-        # 공백, 탭, 개행, 구두점 제거하고 소문자 변환
         import re
         normalized = str(text).strip()
-        normalized = re.sub(r'[\s\t\n\r]+', '', normalized)  # 모든 공백류 제거
-        normalized = re.sub(r'[。，、；：！？""''「」『』（）〈〉《》【】〔〕]+', '', normalized)  # 구두점 제거
+        normalized = re.sub(r'[\s\t\n\r]+', '', normalized)
+        normalized = re.sub(r'[。，、；：！？""''「」『』（）〈〉《》【】〔〕，ㆍ·…‧‥]+', '', normalized)
         return normalized.lower()
+
+    def _normalize_by_mode(self, text: str) -> str:
+        """lenient 모드(off/space/space_punct)에 따른 비교용 정규화"""
+        if pd.isna(text):
+            return ""
+        s = str(text).strip()
+        
+        # [-텍스트] 패턴 제거 (ignore_brackets 옵션)
+        if getattr(self, '_ignore_brackets', False):
+            import re
+            s = re.sub(r'\[-[^\]]*\]', '', s)
+        
+        if self._lenient_mode == 'off':
+            return s
+        import re
+        if self._lenient_mode == 'space':
+            return re.sub(r'[\s\t\n\r]+', '', s)
+        # space_punct
+        s = re.sub(r'[\s\t\n\r]+', '', s)
+        s = re.sub(r'[。，、；：！？""''「」『』（）〈〉《》【】〔〕，ㆍ·…‧‥]+', '', s)
+        return s.lower()
 
     # normalize_by_policy: 사용처가 없어 제거함 (관대한 비교는 normalize_for_matching 사용)
     
+    def tokenize_korean(self, text: str) -> List[str]:
+        """한글 어절(어휘 단위) 토큰화"""
+        # 공백으로 분리된 어절 단위로 토큰화
+        # 한글, 한자, 영문, 숫자를 포함하여 공백/구두점으로 분리
+        import re
+        # 공백과 일부 구두점으로 분리 (숫자 포함)
+        tokens = re.findall(r'[\w가-힣一-鿿]+', text)
+        return tokens
+
+    def calculate_token_level_matching(self, gt_segments: List[Dict[str, str]], pred_segments: List[Dict[str, str]]) -> List[Tuple[int, int, float, float]]:
+        """토큰(어절) 레벨 n:m 매칭
+        
+        Returns:
+            List of (gt_start_idx, gt_end_idx, pred_start_idx, pred_end_idx, source_overlap_ratio, translation_similarity)
+            - GT 행 [gt_start_idx:gt_end_idx+1]가 Pred 행 [pred_start_idx:pred_end_idx+1]과 매칭됨
+            - source_overlap_ratio: 어절 기준 겹침 비율 (Jaccard 유사도)
+        """
+        gt_sources = [seg['source'] for seg in gt_segments]
+        gt_targets = [seg['target'] for seg in gt_segments]
+        pred_sources = [seg['source'] for seg in pred_segments]
+        pred_targets = [seg['target'] for seg in pred_segments]
+        
+        # 각 행을 어절로 토큰화
+        gt_source_tokens = [self.tokenize_korean(src) for src in gt_sources]
+        gt_target_tokens = [self.tokenize_korean(tgt) for tgt in gt_targets]
+        pred_source_tokens = [self.tokenize_korean(src) for src in pred_sources]
+        pred_target_tokens = [self.tokenize_korean(tgt) for tgt in pred_targets]
+        
+        gt_len = len(gt_segments)
+        pred_len = len(pred_segments)
+        
+        # DP 기반 최적 n:m 매칭
+        # dp[i][j] = 최대 누적 겹침 유사도 (GT [0:i] vs Pred [0:j])
+        # 추적: 각 상태의 이전 상태를 기록하여 역추적
+        dp = {}
+        traceback = {}
+        
+        def get_overlap_ratio(gt_toks, pred_toks) -> float:
+            """어절 집합 기준 Jaccard 유사도"""
+            gt_set = set(gt_toks)
+            pred_set = set(pred_toks)
+            if not gt_set and not pred_set:
+                return 1.0
+            if not gt_set or not pred_set:
+                return 0.0
+            intersection = len(gt_set & pred_set)
+            union = len(gt_set | pred_set)
+            return intersection / union if union > 0 else 0.0
+        
+        # DP 초기화
+        dp[(0, 0)] = 0.0
+        traceback[(0, 0)] = None
+        
+        # DP 계산
+        for i in range(gt_len + 1):
+            for j in range(pred_len + 1):
+                if i == 0 and j == 0:
+                    continue
+                
+                best_score = -1.0
+                best_prev = None
+                
+                # 1) 현재 상태 도달 방법
+                # - (i-1, j)에서: GT 행 i-1 skip (매칭 안 함)
+                if i > 0 and (i-1, j) in dp:
+                    score = dp[(i-1, j)] - 0.5  # 페널티: 미매칭 GT
+                    if score > best_score:
+                        best_score = score
+                        best_prev = (i-1, j)
+                
+                # - (i, j-1)에서: Pred 행 j-1 skip (매칭 안 함)
+                if j > 0 and (i, j-1) in dp:
+                    score = dp[(i, j-1)] - 0.5  # 페널티: 미생성 Pred
+                    if score > best_score:
+                        best_score = score
+                        best_prev = (i, j-1)
+                
+                # - (i', j')에서: GT [i':i] vs Pred [j':j] 매칭 (모든 i', j' 시도)
+                for i_prev in range(i):
+                    for j_prev in range(j):
+                        if (i_prev, j_prev) not in dp:
+                            continue
+                        
+                        # GT [i_prev:i], Pred [j_prev:j]의 어절 겹침
+                        gt_toks = []
+                        for idx in range(i_prev, i):
+                            gt_toks.extend(gt_source_tokens[idx])
+                        
+                        pred_toks = []
+                        for idx in range(j_prev, j):
+                            pred_toks.extend(pred_source_tokens[idx])
+                        
+                        overlap = get_overlap_ratio(gt_toks, pred_toks)
+                        score = dp[(i_prev, j_prev)] + overlap
+                        
+                        if score > best_score:
+                            best_score = score
+                            best_prev = (i_prev, j_prev)
+                
+                if best_score >= 0:
+                    dp[(i, j)] = best_score
+                    traceback[(i, j)] = best_prev
+        
+        # 역추적: 최적 매칭 경로 복원
+        matchings = []
+        current = (gt_len, pred_len)
+        
+        while current and traceback.get(current):
+            prev = traceback[current]
+            i, j = current
+            i_prev, j_prev = prev
+            
+            # 매칭 구간 추가
+            if i > i_prev and j > j_prev:
+                # GT [i_prev:i]와 Pred [j_prev:j] 매칭
+                gt_toks = []
+                for idx in range(i_prev, i):
+                    gt_toks.extend(gt_source_tokens[idx])
+                pred_toks = []
+                for idx in range(j_prev, j):
+                    pred_toks.extend(pred_source_tokens[idx])
+                
+                overlap = get_overlap_ratio(gt_toks, pred_toks)
+                matchings.append((i_prev, i - 1, j_prev, j - 1, overlap))
+            
+            current = prev
+        
+        matchings.reverse()
+        return matchings
+
     def calculate_sentence_accuracy(self, gt_segments: List[Dict[str, str]], pred_segments: List[Dict[str, str]], sentence_id: int) -> Dict[str, float]:
-        """단일 문장의 분할 정확도 계산 (원문 기준 순서대로 매칭 + 번역문 평가)"""
+        """단일 문장의 분할 정확도 계산 (토큰 레벨 n:m 매칭 + 번역문 평가)"""
         # 원문과 번역문 분리
         gt_sources = [seg['source'] for seg in gt_segments]
         gt_targets = [seg['target'] for seg in gt_segments]
@@ -486,7 +666,7 @@ class AccuracyEvaluator:
 
         # 🚨 원문 일치 여부 확인 및 불일치 로깅 (엄격/관대 병렬 계산)
         strict_source_eq = (gt_source_full == pred_source_full)
-        lenient_source_eq = (self.normalize_for_matching(gt_source_full) == self.normalize_for_matching(pred_source_full))
+        lenient_source_eq = (self._normalize_by_mode(gt_source_full) == self._normalize_by_mode(pred_source_full))
         source_text_match = (lenient_source_eq if self._lenient_source_match else strict_source_eq)
         if self._lenient_source_match and self._warn_lenient_mismatch and (lenient_source_eq and not strict_source_eq):
             self.log(f"   ⚠️ 관대 일치이나 엄격 불일치(원문): 문장 {sentence_id}")
@@ -510,7 +690,7 @@ class AccuracyEvaluator:
 
         # 번역문 일치 여부(엄격/관대)
         strict_target_eq = (gt_target_full == pred_target_full)
-        lenient_target_eq = (self.normalize_for_matching(gt_target_full) == self.normalize_for_matching(pred_target_full))
+        lenient_target_eq = (self._normalize_by_mode(gt_target_full) == self._normalize_by_mode(pred_target_full))
         target_text_match = (lenient_target_eq if self._lenient_source_match else strict_target_eq)
         # 필요 시 경고(관대=일치, 엄격=불일치)
         if self._lenient_source_match and self._warn_lenient_mismatch and (lenient_target_eq and not strict_target_eq):
@@ -524,68 +704,91 @@ class AccuracyEvaluator:
         # 완전 일치 (순서와 내용 모두 일치)
         exact_match = gt_segments == pred_segments
 
-        # 🎯 핵심: 원문 기준 순서대로 매칭 후 번역문 평가 (PA 방식)
-        self.log(f"   🔄 문장 {sentence_id}: 원문 기준 순서대로 매칭 시작...")
-
-        # 원문 기준 순서대로 정렬 찾기
-        alignments = self.find_best_alignment_by_source(gt_sources, pred_sources)
-
-        # 매칭된 원문-번역문 쌍에서 번역문 정확도 평가
+        # 🎯 핵심: 토큰(어절) 레벨 n:m 매칭 (문장 경계 무시, 어절 기준 매칭)
+        self.log(f"   🔄 문장 {sentence_id}: 토큰 레벨 n:m 매칭 시작...")
+        
+        # 토큰 레벨 매칭 수행
+        token_matchings = self.calculate_token_level_matching(gt_segments, pred_segments)
+        
+        # 토큰 매칭 결과를 행 단위 정확도로 변환
         correct_translation_pairs = 0
         translation_similarities = []
         matched_pairs = []
-
-        for gt_idx, pred_idx, source_similarity in alignments:
-            if pred_idx >= 0:  # 매칭 성공
-                gt_target = gt_targets[gt_idx]
-                pred_target = pred_targets[pred_idx]
-
-                # 번역문 비교 평가
-                gt_target_norm = self.normalize_for_matching(gt_target)
-                pred_target_norm = self.normalize_for_matching(pred_target)
-
-                # 번역문 정확도 판정
-                if gt_target == pred_target or gt_target_norm == pred_target_norm:
+        total_matched_gt_segments = 0
+        total_matched_pred_segments = 0
+        
+        for gt_start, gt_end, pred_start, pred_end, source_overlap in token_matchings:
+            # GT [gt_start:gt_end+1]과 Pred [pred_start:pred_end+1]이 매칭됨
+            gt_indices = list(range(gt_start, gt_end + 1))
+            pred_indices = list(range(pred_start, pred_end + 1))
+            
+            total_matched_gt_segments += len(gt_indices)
+            total_matched_pred_segments += len(pred_indices)
+            
+            # 매칭된 GT와 Pred 번역문을 합치기
+            gt_target_matched = "".join([gt_targets[i] for i in gt_indices])
+            pred_target_matched = "".join([pred_targets[i] for i in pred_indices])
+            
+            # 번역문 비교
+            gt_target_norm = self._normalize_by_mode(gt_target_matched)
+            pred_target_norm = self._normalize_by_mode(pred_target_matched)
+            
+            if gt_target_matched == pred_target_matched or gt_target_norm == pred_target_norm:
+                correct_translation_pairs += 1
+                translation_similarities.append(1.0)
+            else:
+                similarity = self.calculate_text_similarity(gt_target_matched, pred_target_matched)
+                translation_similarities.append(similarity)
+                if similarity >= 0.9:
                     correct_translation_pairs += 1
-                    translation_similarities.append(1.0)
-                else:
-                    # 부분 일치 유사도 계산
-                    similarity = self.calculate_text_similarity(gt_target, pred_target)
-                    translation_similarities.append(similarity)
-                    # 90% 이상 유사하면 정확한 번역으로 간주
-                    if similarity >= 0.9:
-                        correct_translation_pairs += 1
+            
+            # 매칭 정보 저장 (n:m으로 확장)
+            matched_pairs.append({
+                'gt_indices': gt_indices,
+                'pred_indices': pred_indices,
+                'gt_segs': [gt_segments[i] for i in gt_indices],
+                'pred_segs': [pred_segments[i] for i in pred_indices],
+                'source_match_type': 'token_level_nm',
+                'source_overlap': source_overlap
+            })
+            
+            self.log(f"     ✅ GT [{gt_start+1}:{gt_end+1}] → Pred [{pred_start+1}:{pred_end+1}] (어절 겹침: {source_overlap:.3f})")
 
-                # 매칭 정보 저장
-                matched_pairs.append({
-                    'gt_idx': gt_idx, 'pred_idx': pred_idx,
-                    'gt_seg': gt_segments[gt_idx], 'pred_seg': pred_segments[pred_idx],
-                    'source_match_type': 'source_based',
-                    'source_similarity': source_similarity
-                })
-            else:  # 매칭 실패
-                translation_similarities.append(0.0)
-
-        # 3) 정확도 지표 계산
+        # 3) 정확도 지표 계산 (토큰 레벨 n:m 매칭 기반)
         total_gt_segments = len(gt_segments)
         total_pred_segments = len(pred_segments)
-        matched_segments = len(matched_pairs)
-
-        # 원문 매칭 기반 정확도
-        source_precision = matched_segments / total_pred_segments if total_pred_segments > 0 else 0.0
-        source_recall = matched_segments / total_gt_segments if total_gt_segments > 0 else 0.0
+        matched_pairs_count = len(matched_pairs)
+        
+        # 토큰 레벨 매칭: 행 커버리지
+        # - Precision: 매칭된 모든 행 / 전체 GT 행
+        # - Recall: 매칭된 모든 행 / 전체 Pred 행
+        # 주의: matched_pairs가 n:m이므로, 실제 커버된 행의 비율로 계산
+        matched_gt_idxs = set()
+        matched_pred_idxs = set()
+        for pair in matched_pairs:
+            matched_gt_idxs.update(pair['gt_indices'])
+            matched_pred_idxs.update(pair['pred_indices'])
+        
+        num_matched_gt = len(matched_gt_idxs)
+        num_matched_pred = len(matched_pred_idxs)
+        
+        # Precision: 매칭된 GT 비율 (미매칭 GT 페널티)
+        source_precision = num_matched_gt / total_gt_segments if total_gt_segments > 0 else 0.0
+        # Recall: 매칭된 Pred 비율 (미생성/미사용 Pred 페널티)
+        source_recall = num_matched_pred / total_pred_segments if total_pred_segments > 0 else 0.0
+        # F1
         source_f1_score = (2 * source_precision * source_recall / (source_precision + source_recall)
                            if source_precision + source_recall > 0 else 0.0)
 
-        # 번역문 정확도 (매칭된 원문 쌍에서만 평가)
-        if matched_segments > 0:
-            target_accuracy = correct_translation_pairs / matched_segments
+        # 번역문 정확도 (매칭된 쌍에서만 평가)
+        if matched_pairs_count > 0:
+            target_accuracy = correct_translation_pairs / matched_pairs_count
             target_precision = target_accuracy  # 매칭된 쌍에서의 번역문 정확도
             target_recall = correct_translation_pairs / total_gt_segments  # 전체 대비 올바른 번역 비율
             target_f1_score = (2 * target_precision * target_recall / (target_precision + target_recall)
                                if target_precision + target_recall > 0 else 0.0)
             # 번역문 평균 유사도 계산
-            target_avg_similarity = sum(translation_similarities) / len(translation_similarities)
+            target_avg_similarity = sum(translation_similarities) / len(translation_similarities) if translation_similarities else 0.0
         else:
             target_accuracy = 0.0
             target_precision = 0.0
@@ -596,36 +799,43 @@ class AccuracyEvaluator:
         # 전체 F1 점수 (원문 매칭과 번역문 정확도의 조화평균)
         f1_score = (source_f1_score + target_f1_score) / 2
 
-        # 🆕 부분 일치 계산 (원문 기준)
-        # 1) 원문 세그먼트별 최대 유사도 평균
-        source_segment_similarities = []
-        for gt_src in gt_sources:
-            if pred_sources:
-                max_sim = max([self.calculate_text_similarity(gt_src, pred_src) for pred_src in pred_sources])
-                source_segment_similarities.append(max_sim)
-            else:
-                source_segment_similarities.append(0.0)
-        source_avg_similarity = sum(source_segment_similarities) / len(source_segment_similarities) if source_segment_similarities else 0.0
+        # 🆕 부분 일치 계산 (토큰 기준)
+        # 1) 어절 단위 유사도 (모든 토큰 매칭 고려)
+        source_overlap_scores = [pair['source_overlap'] for pair in matched_pairs]
+        source_avg_overlap = sum(source_overlap_scores) / len(source_overlap_scores) if source_overlap_scores else 0.0
 
         # 2) 전체 텍스트 유사도
         source_text_similarity = self.calculate_text_similarity(gt_source_full, pred_source_full)
         target_text_similarity = self.calculate_text_similarity(gt_target_full, pred_target_full)
 
-        # 3) 세트 기반 Jaccard 유사도 (원문)
-        gt_source_set = set(gt_sources)
-        pred_source_set = set(pred_sources)
-        source_jaccard = (len(gt_source_set.intersection(pred_source_set)) /
-                          len(gt_source_set.union(pred_source_set))
-                          if len(gt_source_set.union(pred_source_set)) > 0 else 0.0)
+        # 3) 토큰 레벨 Jaccard 유사도 (원문)
+        gt_all_tokens = set()
+        pred_all_tokens = set()
+        for gt_src in gt_sources:
+            gt_all_tokens.update(self.tokenize_korean(gt_src))
+        for pred_src in pred_sources:
+            pred_all_tokens.update(self.tokenize_korean(pred_src))
+        
+        source_jaccard = (len(gt_all_tokens.intersection(pred_all_tokens)) /
+                          len(gt_all_tokens.union(pred_all_tokens))
+                          if len(gt_all_tokens.union(pred_all_tokens)) > 0 else 0.0)
 
-        # 4) 최종 부분 일치 점수
-        source_partial_match = (source_jaccard + source_text_similarity + source_avg_similarity) / 3
+        # 4) 최종 부분 일치 점수 (토큰 겹침 우선)
+        source_partial_match = (source_jaccard + source_text_similarity + source_avg_overlap) / 3
         target_partial_match = target_avg_similarity  # 매칭된 쌍에서의 번역문 유사도
         partial_match = (source_partial_match + target_partial_match) / 2
 
+        # 🆕 원문과 번역문 쌍의 통합 유사도 계산
+        combined_text_similarity = (source_text_similarity + target_text_similarity) / 2
+        combined_avg_similarity = (source_avg_overlap + target_avg_similarity) / 2
+
         # 🆕 매칭 상세 정보 로깅
-        if matched_segments != total_gt_segments:
-            self.log(f"   문장 {sentence_id} 매칭 상세: 원문기준매칭 {matched_segments}개, 미매칭 {total_gt_segments - matched_segments}개")
+        unmatched_gt = total_gt_segments - num_matched_gt
+        unmatched_pred = total_pred_segments - num_matched_pred
+        if unmatched_gt > 0 or unmatched_pred > 0:
+            self.log(f"   문장 {sentence_id} 토큰 레벨 매칭 결과:")
+            self.log(f"     - GT 행: {num_matched_gt}/{total_gt_segments}개 매칭 ({unmatched_gt}개 미매칭)")
+            self.log(f"     - Pred 행: {num_matched_pred}/{total_pred_segments}개 활용 ({unmatched_pred}개 미활용)")
 
         return {
             'text_match': float(text_match),
@@ -659,10 +869,12 @@ class AccuracyEvaluator:
             'target_f1_score': target_f1_score,
             'gt_segments': len(gt_segments),
             'pred_segments': len(pred_segments),
-            # 🆕 원문 기준 매칭 지표들
-            'matched_pairs': matched_segments,
+            # 🆕 토큰 레벨 n:m 매칭 지표들
+            'matched_pairs': matched_pairs_count,
+            'matched_gt_count': num_matched_gt,
+            'matched_pred_count': num_matched_pred,
             'correct_translation_pairs': correct_translation_pairs,
-            'source_based_matches': matched_segments,  # 원문 기준 매칭 수
+            'token_based_matches': matched_pairs_count,  # 토큰 레벨 n:m 매칭 쌍 수
             # 🆕 번역문 평가 지표들
             'target_accuracy': target_accuracy,
             'target_avg_similarity': target_avg_similarity,
@@ -670,7 +882,10 @@ class AccuracyEvaluator:
             'source_jaccard': source_jaccard,
             'source_text_similarity': source_text_similarity,
             'target_text_similarity': target_text_similarity,
-            'source_avg_similarity': source_avg_similarity
+            'source_avg_overlap': source_avg_overlap,
+            # 🆕 원문과 번역문 쌍의 통합 유사도
+            'combined_text_similarity': combined_text_similarity,
+            'combined_avg_similarity': combined_avg_similarity
         }
     
     def find_best_alignment_by_source(self, gt_sources: List[str], pred_sources: List[str]) -> List[Tuple[int, int, float]]:
@@ -736,6 +951,185 @@ class AccuracyEvaluator:
         self.log(f"✅ 원문 기준 순서대로 정렬 완료: {matched_count}/{gt_len} 쌍 매칭")
         self.log(f"   📋 매칭 원리: 각 정답 [원문,번역문] 쌍에 대해 원문이 가장 유사한 예측 [원문,번역문] 쌍 찾기")
         return alignments
+
+    def find_best_alignment_by_source_with_dup(self, gt_sources, pred_sources, k=None, allow_dup=None, search_window=None) -> List[Tuple[int, int, float]]:
+        """원문 기준 정렬(중복 허용 + 단조 제약 + 검색 윈도우)
+        - 각 GT 인덱스에 대해 최대 k개의 예측을 순서 역행 없이 매칭
+        - search_window: 각 GT 행 주변 ±N 범위 내에서만 검색 (None이면 전체)
+        - 임계값 0.1 이상인 상위 후보를 선택
+        
+        Args:
+            gt_sources: GT 원문 리스트 또는 (id, segments) 튜플 리스트
+            pred_sources: Pred 원문 리스트 또는 (id, segments) 튜플 리스트
+            k: 각 GT당 최대 매칭 개수 (None이면 _max_dup_per_gt 사용)
+            allow_dup: 중복 매칭 허용 여부 (None이면 True)
+            search_window: 검색 윈도우 크기 (None이면 제한 없음)
+        """
+        # 입력 타입 처리: 튜플 리스트면 원문 추출
+        if gt_sources and isinstance(gt_sources[0], tuple):
+            gt_texts = [segs[0]['source'] if segs else '' for _, segs in gt_sources]
+        else:
+            gt_texts = gt_sources
+        
+        if pred_sources and isinstance(pred_sources[0], tuple):
+            pred_texts = [segs[0]['source'] if segs else '' for _, segs in pred_sources]
+        else:
+            pred_texts = pred_sources
+        
+        # 파라미터 설정
+        if k is None:
+            k = max(1, int(getattr(self, '_max_dup_per_gt', 1)))
+        if allow_dup is None:
+            allow_dup = True
+        monotonic = bool(getattr(self, '_monotonic_alignment', True))
+        
+        self.log(f"🔄 원문 기준 정렬(중복 k={k}, 단조={monotonic}, 윈도우={search_window}) 계산 중...")
+        gt_len = len(gt_texts)
+        pred_len = len(pred_texts)
+        alignments: List[Tuple[int, int, float]] = []
+        used_pred = set()
+        cur_pred_start = 0
+        
+        for gt_idx, gt_source in enumerate(gt_texts):
+            # 검색 범위 결정
+            if search_window is not None:
+                # 윈도우 기반: gt_idx ±search_window 범위
+                window_start = max(0, gt_idx - search_window)
+                window_end = min(pred_len, gt_idx + search_window + 1)
+                if monotonic:
+                    # 단조 제약과 윈도우 제약 교집합
+                    j_range = range(max(cur_pred_start, window_start), window_end)
+                else:
+                    j_range = range(window_start, window_end)
+            else:
+                # 윈도우 없음: 기존 로직
+                j_range = range(cur_pred_start, pred_len) if monotonic else range(0, pred_len)
+            
+            candidates = []
+            for pred_idx in j_range:
+                if not allow_dup and pred_idx in used_pred:
+                    continue
+                sim = self.calculate_text_similarity(gt_source, pred_texts[pred_idx])
+                if sim >= 0.1:  # skip threshold
+                    candidates.append((pred_idx, sim))
+            
+            # 상위 k개 선택 (유사도 desc, 인덱스 asc 안정성)
+            candidates.sort(key=lambda x: (-x[1], x[0]))
+            selected = candidates[:k]
+            
+            if selected:
+                for pred_idx, sim in selected:
+                    alignments.append((gt_idx, pred_idx, sim))
+                    if not allow_dup:
+                        used_pred.add(pred_idx)
+                if monotonic:
+                    cur_pred_start = max(cur_pred_start, max(p for p, _ in selected) + 1)
+            else:
+                # 매칭 실패 기록
+                alignments.append((gt_idx, -1, 0.0))
+        
+        matched_count = sum(1 for _, j, s in alignments if j >= 0 and s > 0)
+        self.log(f"✅ 원문 기준 정렬 완료: 매칭 {matched_count}건 (GT {gt_len}, Pred {pred_len})")
+        return alignments
+
+    # ---- 토씨(조사) 힌트 확장 매칭 ----
+    def _ensure_kiwi(self):
+        """Kiwi 인스턴스를 지연 초기화. 실패 시 None 유지(힌트 미사용)."""
+        if self._kiwi is not None:
+            return self._kiwi
+        try:
+            from kiwipiepy import Kiwi
+            self._kiwi = Kiwi()
+        except Exception:
+            self._kiwi = None
+        return self._kiwi
+
+    def _extract_ko_particles(self, text: str) -> List[str]:
+        """한글 조사 후보를 추출. Kiwi 사용 가능 시 태그 기반, 불가 시 빈 리스트.
+        - Sejong 태그 체계 기준: JKS/JKC/JKG/JKO/JKB/JKV/JKQ/JC/JX 등
+        - 무결성 보존: 입력 텍스트는 읽기만 함
+        """
+        if not text:
+            return []
+        kiwi = self._ensure_kiwi()
+        if kiwi is None:
+            return []
+        try:
+            tokens = kiwi.tokenize(str(text))
+            parts = []
+            for tk in tokens:
+                tag = getattr(tk, 'tag', '')
+                if tag.startswith('JK') or tag in ('JC', 'JX'):
+                    parts.append(getattr(tk, 'form', ''))
+            return parts
+        except Exception:
+            return []
+
+    def _particle_overlap_score(self, a: str, b: str) -> float:
+        """번역문 두 텍스트의 조사 겹침 점수(Jaccard 유사도)."""
+        A = set(self._extract_ko_particles(a))
+        B = set(self._extract_ko_particles(b))
+        if not A and not B:
+            return 0.0
+        union = len(A | B)
+        if union == 0:
+            return 0.0
+        return len(A & B) / union
+
+    def find_best_alignment_by_source_with_hint(self, gt_segments: List[Dict[str, str]], pred_segments: List[Dict[str, str]]) -> List[Tuple[int, int, float]]:
+        """원문 유사도 + 번역문 조사 겹침을 가중 결합하여 정렬.
+        - 기본 검색 창: ±2, 부족하면 전체 검색(기존 로직 유지)
+        - 최종 유사도 = source_sim + w * particle_overlap, [0,1]에서 적절히 동작하도록 제한
+        """
+        self.log("🔄 원문+조사 힌트 기반 정렬 계산 중...")
+        gt_sources = [seg['source'] for seg in gt_segments]
+        pred_sources = [seg['source'] for seg in pred_segments]
+        gt_targets = [seg['target'] for seg in gt_segments]
+        pred_targets = [seg['target'] for seg in pred_segments]
+
+        gt_len = len(gt_sources)
+        pred_len = len(pred_sources)
+        alignments: List[Tuple[int, int, float]] = []
+        used_pred = set()
+
+        for gt_idx, gt_source in enumerate(gt_sources):
+            best_pred_idx = -1
+            best_score = 0.0
+            # 1) 근처 검색(±2)
+            search_start = max(0, gt_idx - 2)
+            search_end = min(pred_len, gt_idx + 3)
+            for pred_idx in range(search_start, search_end):
+                if pred_idx in used_pred:
+                    continue
+                base_sim = self.calculate_text_similarity(gt_source, pred_sources[pred_idx])
+                hint = self._particle_overlap_score(gt_targets[gt_idx], pred_targets[pred_idx])
+                score = max(0.0, min(1.0, base_sim + self._particle_weight * hint))
+                if score > best_score:
+                    best_score = score
+                    best_pred_idx = pred_idx
+            # 2) 전역 검색(근처에서 점수가 너무 낮으면)
+            if best_score < 0.1:
+                for pred_idx in range(pred_len):
+                    if pred_idx in used_pred:
+                        continue
+                    base_sim = self.calculate_text_similarity(gt_source, pred_sources[pred_idx])
+                    hint = self._particle_overlap_score(gt_targets[gt_idx], pred_targets[pred_idx])
+                    score = max(0.0, min(1.0, base_sim + self._particle_weight * hint))
+                    if score > best_score:
+                        best_score = score
+                        best_pred_idx = pred_idx
+            # 3) 적용(임계값 0.1)
+            if best_pred_idx >= 0 and best_score >= 0.1:
+                alignments.append((gt_idx, best_pred_idx, best_score))
+                used_pred.add(best_pred_idx)
+                self.log(f"     ✅ 정답 {gt_idx+1} → 예측 {best_pred_idx+1} (합성 유사도: {best_score:.3f})")
+            else:
+                alignments.append((gt_idx, -1, 0.0))
+                self.log(f"     ❌ 정답 {gt_idx+1} → 매칭 없음 (최고 합성 유사도: {best_score:.3f})")
+
+        matched = sum(1 for _, j, _ in alignments if j >= 0)
+        self.log(f"✅ 원문+조사 힌트 정렬 완료: {matched}/{gt_len} 쌍 매칭")
+        return alignments
     
     def smart_match_sentences_by_source_only(self, all_gt_sentences: List[Tuple[int, List[Dict[str, str]]]], 
                                            all_pred_sentences: List[Tuple[int, List[Dict[str, str]]]]) -> List[Tuple[int, int, float]]:
@@ -790,6 +1184,12 @@ class AccuracyEvaluator:
             self.log("평가 단위: 행(로우) 단위")
             # 행 단위에서는 그룹 라벨을 명시적으로 '행'으로 지정
             self.group_label = '행'
+            # 선택: 키 기반 정렬로 예측 데이터 정렬 (문장/구 식별자)
+            if getattr(self, '_row_align_by_keys', False):
+                try:
+                    self.align_prediction_rows_by_keys()
+                except Exception as _e_align:
+                    self.log(f"행 정렬(키 기반) 실패: {_e_align}")
             gt_grouped = self.group_by_row(self.gt_data)
             pred_grouped = self.group_by_row(self.pred_data)
         else:
@@ -815,51 +1215,36 @@ class AccuracyEvaluator:
 
         # 매칭 방식 선택
         if unit == 'row':
-            # 기본: i=i 매칭
-            self.log("\n• 행 번호 1:1 매칭 시작...")
-            self.log("   💡 매칭 방식: 동일 행 인덱스(i=i)로 직접 매칭, 교차 매칭 없음")
-            gt_ids = sorted(gt_grouped.keys())
-            pred_ids = sorted(pred_grouped.keys())
-            common_ids = sorted(set(gt_ids).intersection(set(pred_ids)))
-            final_matches = [(i, i, 1.0) for i in common_ids]
-            # 행 오프셋 자동 보정 옵션이 켜진 경우, 오프셋 탐지 및 적용
-            if getattr(self, '_detect_row_shift', False):
-                max_shift = int(getattr(self, '_row_shift_range', 50))
-                shift_stats = self.detect_best_row_shift(gt_grouped, pred_grouped, max_shift=max_shift)
-                zero_eq = shift_stats['zero_count_eq']
-                best_eq = shift_stats['best_count_eq']
-                best_shift = shift_stats['best_shift']
-                # 요약용 추가 통계 저장 (적용/미적용과 무관)
-                self._row_shift_zero_eq = int(zero_eq)
-                self._row_shift_best_eq = int(best_eq)
-                self._row_shift_best_avg_sim = float(shift_stats.get('best_avg_sim', 0.0))
-                if best_shift != 0 and best_eq > zero_eq:
-                    # 최적 shift 적용
-                    self.log(f"   🔧 행 오프셋 자동 보정 적용: shift={best_shift} (검사범위 ±{max_shift})")
-                    self.log(f"      ↳ 원문 동일 행 수 개선: {zero_eq} ➜ {best_eq} (overlap={shift_stats['best_overlap']}, avg_sim={shift_stats['best_avg_sim']:.3f})")
-                    self._row_shift_applied = best_shift
-                    self._row_shift_overlap = shift_stats['best_overlap']
-                    self._row_shift_improved = int(best_eq - zero_eq)
-                    # 오프셋 매칭 재구성
-                    # 리스트 인덱스 기반으로 겹치는 구간 매핑
-                    gt_id_list = sorted(gt_grouped.keys())
-                    pred_id_list = sorted(pred_grouped.keys())
-                    start = max(0, -best_shift)
-                    end = (min(len(gt_id_list), len(pred_id_list) - best_shift)
-                           if best_shift >= 0 else
-                           min(len(gt_id_list) + best_shift, len(pred_id_list)))
-                    new_matches = []
-                    for idx in range(start, end):
-                        gt_id = gt_id_list[idx]
-                        pred_id = pred_id_list[idx + best_shift]
-                        new_matches.append((gt_id, pred_id, 1.0))
-                    final_matches = new_matches
+            # 🎯 PA 프로젝트는 항상 원문 기준 스마트 매칭 사용 (분할 차이로 인한 오정렬 방지)
+            if self.project == 'pa' or getattr(self, '_detect_row_shift', False):
+                if self.project == 'pa':
+                    self.log("\n• 🎯 PA 원문 기준 스마트 매칭 시작...")
+                    self.log("   💡 문장 분할 차이를 고려하여 원문 유사도로 최적 매칭")
                 else:
-                    self.log(f"   🔎 행 오프셋 자동 보정 결과: 적용 안 함 (best_shift={best_shift}, zero_eq={zero_eq}, best_eq={best_eq})")
-                    # 적용 안 했을 때도 overlap은 s=0 기준 사용
-                    self._row_shift_applied = 0
-                    self._row_shift_overlap = int(shift_stats.get('zero_overlap', 0))
-                    self._row_shift_improved = 0
+                    self.log("\n• 🔧 행 단위 동적 오프셋 매칭 시작...")
+                    self.log("   💡 매칭 방식: 각 GT 행마다 주변 범위에서 가장 유사한 Pred 행을 동적으로 탐색")
+                    self.log("   💡 중간중간 삽입된 행들을 자동으로 건너뛰며 최적 매칭 수행")
+                
+                all_gt_sentences = list(gt_grouped.items())
+                all_pred_sentences = list(pred_grouped.items())
+                
+                # 원문 기준 스마트 매칭
+                final_matches = self.smart_match_sentences_by_source_only(all_gt_sentences, all_pred_sentences)
+                
+                # 통계 저장
+                self._row_shift_applied = -999  # 동적 매칭 표시
+                self._row_shift_overlap = len(final_matches)
+                self._row_shift_improved = len(final_matches)
+                
+                self.log(f"   ✅ 원문 기준 매칭 완료: {len(final_matches)}/{len(all_gt_sentences)} 쌍 매칭")
+            else:
+                # 기본: i=i 매칭
+                self.log("\n• 행 번호 1:1 매칭 시작...")
+                self.log("   💡 매칭 방식: 동일 행 인덱스(i=i)로 직접 매칭, 교차 매칭 없음")
+                gt_ids = sorted(gt_grouped.keys())
+                pred_ids = sorted(pred_grouped.keys())
+                common_ids = sorted(set(gt_ids).intersection(set(pred_ids)))
+                final_matches = [(i, i, 1.0) for i in common_ids]
         else:
             # 원문 기준으로만 매칭 (식별자 매칭 제거)
             self.log("\n• 원문 기준 매칭 시작...")
@@ -872,10 +1257,18 @@ class AccuracyEvaluator:
             # 원문 기준 스마트 매칭
             final_matches = self.smart_match_sentences_by_source_only(all_gt_sentences, all_pred_sentences)
 
+        # 🆕 매칭되지 않은 GT 추가 (평가 포함)
+        matched_gt_ids = {gt_id for gt_id, _, _ in final_matches}
+        unmatched_gt_ids = [gt_id for gt_id in gt_grouped.keys() if gt_id not in matched_gt_ids]
+        
+        # 매칭되지 않은 GT를 빈 Pred와 쌍으로 추가
+        for gt_id in unmatched_gt_ids:
+            final_matches.append((gt_id, None, 0.0))
+        
         self.log("\n📊 최종 매칭 결과 (원문 기준):")
-        self.log(f"  • 총 매칭된 {unit_label} 쌍: {len(final_matches)}개")
-        self.log(f"  • 매칭되지 않은 정답 {unit_label}: {len(gt_grouped) - len(final_matches)}개")
-        self.log(f"  • 매칭되지 않은 예측 {unit_label}: {len(pred_grouped) - len(final_matches)}개")
+        self.log(f"  • 총 매칭된 {unit_label} 쌍: {len([m for m in final_matches if m[1] is not None])}개")
+        self.log(f"  • 매칭되지 않은 정답 {unit_label}: {len(unmatched_gt_ids)}개 (평가에 포함)")
+        self.log(f"  • 매칭되지 않은 예측 {unit_label}: {len(pred_grouped) - len([m for m in final_matches if m[1] is not None])}개")
 
         # 각 문장별 정확도 계산
         sentence_results = []
@@ -884,7 +1277,7 @@ class AccuracyEvaluator:
 
         for gt_id, pred_id, match_similarity in final_matches:
             gt_segments = gt_grouped.get(gt_id, [])
-            pred_segments = pred_grouped.get(pred_id, [])
+            pred_segments = pred_grouped.get(pred_id, []) if pred_id is not None else []
 
             accuracy = self.calculate_sentence_accuracy(gt_segments, pred_segments, gt_id)
             # 결과에 그룹 ID와 라벨 포함
@@ -919,6 +1312,20 @@ class AccuracyEvaluator:
 
         # 전체 평균/합계 계산
         overall_accuracy = {}
+        
+        # 매칭된 행만으로의 평균 계산 (미매칭 행 제외)
+        # sentence_results에서 match_similarity > 0인 경우만 필터링
+        matched_results = [r for r in sentence_results if r.get('match_similarity', 0) > 0]
+        matched_metrics = defaultdict(list)
+        
+        for result in matched_results:
+            for metric, value in result.items():
+                if metric in ['sentence_id', 'matched_pred_id', 'match_similarity', 'group_label', 'group_id']:
+                    continue
+                if isinstance(value, (int, float)) or isinstance(value, bool):
+                    matched_metrics[metric].append(float(value))
+        
+        # 1. 기본 평균값 기록 (전체 행 기준, 미매칭=0)
         for metric, values in overall_metrics.items():
             # 합계 지표도 함께 기록
             if metric in ['gt_segments', 'pred_segments', 'matched_pairs', 'correct_translation_pairs', 'source_based_matches',
@@ -927,6 +1334,28 @@ class AccuracyEvaluator:
                 overall_accuracy[f'total_{metric}'] = sum(values)
             # 평균값 기록
             overall_accuracy[f'avg_{metric}'] = (sum(values) / len(values)) if values else 0
+        
+        # 2. 매칭된 행만의 평균값 기록 (미매칭 행 제외)
+        for metric, values in matched_metrics.items():
+            overall_accuracy[f'avg_{metric}_matched_only'] = (sum(values) / len(values)) if values else 0
+        
+        # 3. 가중 평균값 기록 (매칭률 반영)
+        matched_count = len(matched_results)
+        total_count = len(sentence_results)
+        matching_rate = (matched_count / total_count) if total_count > 0 else 0.0
+        
+        # 매칭률을 별도 지표로 저장
+        overall_accuracy['matching_rate'] = matching_rate
+        overall_accuracy['matched_count'] = matched_count
+        overall_accuracy['total_count'] = total_count
+        
+        for metric, values in overall_metrics.items():
+            avg_all = (sum(values) / len(values)) if values else 0.0
+            matched_avg = (sum(matched_metrics.get(metric, [0])) / len(matched_metrics.get(metric, [1]))) if matched_metrics.get(metric) else 0.0
+            # 가중 평균: (매칭된 행의 평균) × 매칭률 + (미매칭 행의 0.0) × (1-매칭률)
+            # = 매칭된 행의 평균 × 매칭률
+            weighted_avg = matched_avg * matching_rate
+            overall_accuracy[f'avg_{metric}_weighted'] = weighted_avg
 
         # 🧩 전역 텍스트 무결성 체크 추가
         integrity = self.compute_global_text_integrity()
@@ -972,6 +1401,115 @@ class AccuracyEvaluator:
                 'row_shift_best_avg_sim': float(self._row_shift_best_avg_sim),
             }
         }
+
+    def analyze_unmatched_gt_rows(self, output_file: str = None) -> Dict[str, any]:
+        """키 기반 정렬 후 매칭되지 않은 GT 행들만 분석
+        - align_prediction_rows_by_keys()를 먼저 실행해야 함
+        - 매칭되지 않은 GT 행(예측 데이터에 빈 값으로 채워진 행) 추출
+        - 통계 및 상세 정보 반환
+        """
+        if self.gt_data is None or self.pred_data is None:
+            self.log("데이터가 로드되지 않았습니다.")
+            return {}
+        
+        # 원문 컬럼 찾기
+        source_col = None
+        for col in self.gt_data.columns:
+            if '원문' in str(col) or 'source' in str(col).lower():
+                source_col = col
+                break
+        
+        if source_col is None:
+            self.log("원문 컬럼을 찾을 수 없습니다.")
+            return {}
+        
+        # 예측 데이터에서 원문이 비어있는 행 추출
+        unmatched_mask = (self.pred_data[source_col].isna()) | (self.pred_data[source_col] == '')
+        unmatched_gt = self.gt_data[unmatched_mask].copy()
+        unmatched_pred = self.pred_data[unmatched_mask].copy()
+        
+        # 통계
+        total_unmatched = len(unmatched_gt)
+        total_chars = unmatched_gt[source_col].astype(str).str.len().sum()
+        
+        self.log(f"\n📌 매칭되지 않은 GT 행 분석:")
+        self.log(f"  • 총 unmatched 행: {total_unmatched}행")
+        self.log(f"  • 총 원문 문자수: {total_chars}자")
+        self.log(f"  • 비율: {total_unmatched/len(self.gt_data)*100:.1f}% of total")
+        
+        # 상세 정보 저장
+        result = {
+            'total_unmatched': total_unmatched,
+            'total_chars': total_chars,
+            'total_gt_rows': len(self.gt_data),
+            'unmatched_percentage': total_unmatched / len(self.gt_data) * 100 if len(self.gt_data) > 0 else 0,
+            'unmatched_data': unmatched_gt
+        }
+        
+        # 파일로 저장
+        if output_file:
+            try:
+                parent = os.path.dirname(output_file)
+                if parent:
+                    os.makedirs(parent, exist_ok=True)
+                unmatched_gt.to_excel(output_file, index=False)
+                self.log(f"  ✅ 저장: {output_file}")
+            except Exception as e:
+                self.log(f"  ❌ 저장 실패: {e}")
+        
+        return result
+
+    def align_prediction_rows_by_keys(self):
+        """GT의 (문장식별자, 구식별자) 순서에 맞춰 예측 DF를 재정렬한다.
+        - 키가 양쪽 모두 있을 때만 적용
+        - 매칭 실패 행은 빈 원문/번역문으로 채운다(길이 일치 보장)
+        """
+        gt = self.gt_data.copy()
+        pd_df = self.pred_data.copy()
+        key_sid = None
+        key_gid = None
+        for col in gt.columns:
+            if str(col) == '문장식별자':
+                key_sid = col
+            if str(col) == '구식별자':
+                key_gid = col
+        if key_sid is None or key_gid is None:
+            self.log("GT에 문장식별자/구식별자 키가 없어 정렬을 건너뜁니다.")
+            return
+        if key_sid not in pd_df.columns or key_gid not in pd_df.columns:
+            self.log("예측 데이터에 문장식별자/구식별자가 없어 정렬을 건너뜁니다.")
+            return
+        # 예측 인덱스 맵 구성(첫 매칭 우선)
+        pred_map = {}
+        for idx, row in pd_df.iterrows():
+            try:
+                key = (int(row[key_sid]), int(row[key_gid]))
+            except Exception:
+                continue
+            if key not in pred_map:
+                pred_map[key] = idx
+        # 새 행 목록 생성
+        rows = []
+        matched = 0
+        for _, r in gt.iterrows():
+            try:
+                key = (int(r[key_sid]), int(r[key_gid]))
+            except Exception:
+                key = None
+            if key and key in pred_map:
+                rows.append(pd_df.loc[pred_map[key]].to_dict())
+                matched += 1
+            else:
+                # 빈 행 생성(키는 GT와 동일, 원문/번역문은 공백)
+                new_row = {c: '' for c in pd_df.columns}
+                if key_sid in new_row:
+                    new_row[key_sid] = int(r[key_sid]) if not pd.isna(r[key_sid]) else ''
+                if key_gid in new_row:
+                    new_row[key_gid] = int(r[key_gid]) if not pd.isna(r[key_gid]) else ''
+                rows.append(new_row)
+        new_pred = pd.DataFrame(rows, columns=pd_df.columns)
+        self.pred_data = new_pred
+        self.log(f"🔧 키 기반 정렬 적용: {matched}/{len(gt)}행 매칭, 미매칭 {len(gt)-matched}행은 빈 값으로 채움")
 
     def detect_best_row_shift(self, gt_grouped: Dict[int, List[Dict[str, str]]], pred_grouped: Dict[int, List[Dict[str, str]]], max_shift: int = 50) -> Dict[str, any]:
         """행 단위에서 시스템적 인덱스 오프셋을 탐지해 최적 shift를 찾는다.
@@ -1175,6 +1713,10 @@ class AccuracyEvaluator:
     def save_results(self, results: Dict[str, any], output_file: str, csv_dir: str | None = None):
         """결과를 엑셀 파일로 저장"""
         try:
+            # 출력 디렉터리 자동 생성
+            parent = os.path.dirname(output_file)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
             with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
                 # 문장별 상세 결과
                 sentence_df = pd.DataFrame(results['sentence_results'])
@@ -1461,18 +2003,30 @@ def main():
     parser = argparse.ArgumentParser(description='관자 원문 분할 정확도 평가')
     parser.add_argument('ground_truth', help='정답 파일 경로 (구병렬 기준)')
     parser.add_argument('prediction', help='예측 파일 경로 (output01 등)')
-    parser.add_argument('--output', '-o', help='결과 저장 파일 경로', default='accuracy_results.xlsx')
+    parser.add_argument('--output', '-o', help='결과 저장 파일 경로', default='test_results/sa/row_eval_combined_similarity.xlsx')
     parser.add_argument('--csv-dir', help='각 시트를 CSV로도 저장할 디렉터리 경로(미지정 시 자동 생성)', default=None)
     parser.add_argument('--unit', choices=['sentence', 'row'], default='row', help='평가 단위: row(행 단위) 또는 sentence(문장식별자 그룹)')
-    parser.add_argument('--project', choices=['pa', 'sa'], default=None, help='프로젝트 유형에 따른 임계값 적용')
+    parser.add_argument('--project', choices=['pa', 'sa'], default='sa', help='프로젝트 유형에 따른 임계값 적용')
     parser.add_argument('--brief', action='store_true', help='간결 모드: 핵심 지표만 콘솔 출력')
     parser.add_argument('--minimal-summary', action='store_true', help='전체_요약(엑셀/CSV)에 핵심 지표만 저장')
     # 행 모드 자동 오프셋 감지 옵션
-    parser.add_argument('--row-auto-shift', action='store_true', help='행 단위에서 시스템적 인덱스 오프셋 자동 감지/보정 시도')
+    parser.add_argument('--row-auto-shift', action='store_true', default=True, help='행 단위에서 시스템적 인덱스 오프셋 자동 감지/보정 시도(기본: 활성)')
     parser.add_argument('--row-auto-shift-range', type=int, default=50, help='행 오프셋 자동 감지 시 검사 범위(±N)')
     # 공백/구두점 무시 일치 판정 옵션
     parser.add_argument('--ignore-space-punct', action='store_true', help='원문/번역문 일치 여부를 판단할 때 공백/구두점을 무시하여 관대하게 계산')
+    parser.add_argument('--ignore-space-only', action='store_true', default=True, help='공백(스페이스/개행/탭)만 무시하여 관대하게 계산(구두점은 유지) (기본: 활성)')
+    parser.add_argument('--ignore-brackets', action='store_true', default=True, help='[-텍스트] 패턴을 비교 시 무시 (예: [-曰] 제거) (기본: 활성)')
     parser.add_argument('--warn-lenient-mismatch', action='store_true', help='관대 일치로는 동일하지만 엄격 기준으로는 불일치인 경우 경고 로그를 남김')
+    # 번역문 조사(토씨) 힌트 매칭 옵션
+    parser.add_argument('--use-ko-particle-hint', action='store_true', help='번역문 내 한국어 조사 겹침을 힌트로 사용해 원문-번역 경계 매칭을 보조')
+    parser.add_argument('--particle-weight', type=float, default=0.15, help='조사 힌트 가중치(0.0~1.0), 기본 0.15')
+    # 중복 매칭 및 단조 정렬 옵션(문장 단위 매칭용)
+    parser.add_argument('--max-dup-per-gt', type=int, default=1, help='각 GT 단위당 허용할 예측 중복 매칭 수(k). 예: 2')
+    parser.add_argument('--no-monotonic', action='store_true', help='단조 제약을 해제(기본은 단조 유지)')
+    # 행 단위 정렬(키 기반)
+    parser.add_argument('--row-align-by-keys', action='store_true', help='행 단위에서 (문장식별자,구식별자) 순서대로 예측을 재정렬 후 1:1 매칭')
+    # Unmatched GT 행 분석 옵션
+    parser.add_argument('--analyze-unmatched', action='store_true', help='키 기반 정렬 후 매칭되지 않은 GT 행만 별도 분석 및 저장')
     
     args = parser.parse_args()
     
@@ -1493,13 +2047,29 @@ def main():
         brief=args.brief,
         minimal_summary=args.minimal_summary,
         ignore_space_punct=args.ignore_space_punct,
+        ignore_space_only=args.ignore_space_only,
+        ignore_brackets=args.ignore_brackets,
+        use_ko_particle_hint=args.use_ko_particle_hint,
+        particle_weight=args.particle_weight,
+        max_dup_per_gt=args.max_dup_per_gt,
+        monotonic_alignment=(not args.no_monotonic),
     )
     evaluator._warn_lenient_mismatch = bool(args.warn_lenient_mismatch)
     # 옵션 전달
     evaluator._detect_row_shift = bool(args.row_auto_shift)
     evaluator._row_shift_range = int(args.row_auto_shift_range)
+    evaluator._row_align_by_keys = bool(args.row_align_by_keys)
     evaluator.load_data()
     results = evaluator.evaluate_accuracy(unit=args.unit)
+    
+    # unmatched GT 행 분석 (행 모드이고 키 기반 정렬 적용 시)
+    if args.unit == 'row' and args.row_align_by_keys and args.analyze_unmatched:
+        unmatched_output = None
+        if args.output:
+            base = os.path.splitext(os.path.basename(args.output))[0]
+            parent = os.path.dirname(args.output) or '.'
+            unmatched_output = os.path.join(parent, f"{base}_unmatched.xlsx")
+        unmatched_results = evaluator.analyze_unmatched_gt_rows(output_file=unmatched_output)
     
     # 결과 출력 및 저장
     evaluator.print_detailed_results(results)

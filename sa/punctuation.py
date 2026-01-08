@@ -8,6 +8,16 @@ from typing import List, Dict, Any, Tuple
 import hashlib
 from difflib import SequenceMatcher
 import pandas as pd  # 🔧 누락된 import 추가
+import sys
+from pathlib import Path
+
+# 의미 기반 경계 감지용 (PA의 sentence_splitter 모듈 사용)
+try:
+    sys.path.insert(0, str(Path(__file__).parent.parent / "pa"))
+    from sentence_splitter import detect_semantic_boundaries, BGE_AVAILABLE
+except ImportError:
+    detect_semantic_boundaries = None
+    BGE_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +34,7 @@ class IntegrityGuard:
         if not isinstance(text, str):
             text = str(text)
         
-        # 정규화된 텍스트로 체크섬 계산 (공백/개행 무시)
+        # 공백/개행 제거한 정규화 문자열로 체크섬 계산 (공백 차이 허용)
         normalized = ''.join(text.split())
         checksum = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
         
@@ -43,51 +53,45 @@ class IntegrityGuard:
         """무결성 검증"""
         if text_id not in self.original_checksums:
             return False, f"원본 데이터 미등록: {text_id}", {}
-        
+
         original_info = self.original_checksums[text_id]
-        
+
         if not isinstance(processed_text, str):
             processed_text = str(processed_text)
-        
-        # 정규화된 텍스트로 비교
+
+        # 공백/개행 제거 후 비교 (공백 차이는 허용)
         processed_normalized = ''.join(processed_text.split())
         processed_checksum = hashlib.sha256(processed_normalized.encode('utf-8')).hexdigest()
-        
-        # 체크섬 비교 + 문자 정확도 기반 검증
+
+        # 체크섬 또는 높은 문자 정확도 허용
         checksum_match = (original_info['checksum'] == processed_checksum)
         character_accuracy = self._calculate_character_accuracy(original_info['normalized'], processed_normalized)
-        
-        # 🆕 더 관대한 무결성 기준: 체크섬 일치 또는 높은 문자 정확도
         integrity_valid = checksum_match or character_accuracy >= 0.90
-        
-        # 상세 정보
+
         verification_info = {
             'original_checksum': original_info['checksum'],
             'processed_checksum': processed_checksum,
             'original_length': original_info['length'],
             'processed_length': len(processed_normalized),
             'length_diff': len(processed_normalized) - original_info['length'],
-            'character_accuracy': self._calculate_character_accuracy(original_info['normalized'], processed_normalized)
+            'character_accuracy': character_accuracy
         }
-        
+
         if integrity_valid:
             message = f"무결성 검증 성공: {stage}"
-            self.processing_history.append(f"VERIFY_OK {text_id}: {stage} - 체크섬 일치")
+            self.processing_history.append(f"VERIFY_OK {text_id}: {stage}")
             logger.debug(f"무결성 성공: {text_id} - {stage}")
         else:
             message = f"무결성 검증 실패: {stage} - 길이차이 {verification_info['length_diff']}자"
             self.processing_history.append(f"VERIFY_FAIL {text_id}: {stage} - {message}")
-            
-            # 🆕 상세 실패 정보 로깅
+
             logger.error(f"무결성 실패 상세정보: {text_id}")
             logger.error(f"  원본 길이: {original_info['length']}자")
-            logger.error(f"  처리 후 길이: {len(processed_normalized)}자") 
+            logger.error(f"  처리 후 길이: {len(processed_normalized)}자")
             logger.error(f"  길이 차이: {verification_info['length_diff']}자")
             logger.error(f"  문자 정확도: {verification_info['character_accuracy']:.3f}")
-            
-            # 차이점 분석
             self._log_text_differences(text_id, original_info['normalized'], processed_normalized)
-        
+
         return integrity_valid, message, verification_info
     
     def _log_text_differences(self, text_id: str, original: str, processed: str):
@@ -339,19 +343,19 @@ def safe_mask_brackets(text: str, text_type: str = 'source') -> Tuple[str, List[
     try:
         masked_text, bracket_masks = mask_brackets(text, text_type)
         
-        # 무결성 검증
-        restored_for_verification = restore_brackets(masked_text, bracket_masks)
-        is_valid, message, info = integrity_guard.verify_integrity(text_id, restored_for_verification, "mask_verify")
+        # 무결성 검증 (마스킹/복원 즉시 확인)
+        # 주의: 복원 검증이 실패해도 마스킹 자체는 유지 (복원은 나중에 시도)
+        try:
+            restored_for_verification = restore_brackets(masked_text, bracket_masks)
+            is_valid, message, info = integrity_guard.verify_integrity(text_id, restored_for_verification, "mask_verify")
+            
+            if not is_valid:
+                logger.debug(f"괄호 마스킹 복원 검증 미통과 (진행): {message}")
+                # 검증 미통과해도 마스킹 텍스트는 사용 (복원은 나중에 재시도)
+        except Exception as e:
+            logger.debug(f"괄호 복원 검증 중 오류 (마스킹 유지): {e}")
         
-        if not is_valid:
-            logger.warning(f"괄호 마스킹 무결성 실패: {message}")
-            # 복원 시도
-            corrected_parts, success = integrity_guard.restore_integrity(text_id, [masked_text], "sequence_matcher")
-            if success and corrected_parts:
-                masked_text = corrected_parts[0]
-                # 새로운 마스크 생성 필요시
-                bracket_masks = []  # 실패시 빈 마스크
-        
+        # 마스킹 텍스트와 마스크 정보는 항상 반환 (복원 시도는 나중에)
         return masked_text, bracket_masks
         
     except Exception as e:
@@ -410,8 +414,16 @@ def mask_brackets(text: str, text_type: str = 'source') -> Tuple[str, List[Dict]
             start, end = match.span()
             content = match.group()
             
-            # 마스크 토큰 생성
-            mask_token = f"__BRACKET_MASK_{mask_counter}__"
+            # 마스크 토큰 생성 (숫자/ASCII 미포함, 전부 PUA 블록 문자)
+            # 분할/토크나이저가 숫자 경계로 쪼개는 문제를 방지하기 위해
+            # U+E000–U+F8FF 범위만으로 토큰을 구성
+            base1 = chr(0xE000 + ((mask_counter >> 0) & 0xFF))
+            base2 = chr(0xE000 + ((mask_counter >> 8) & 0xFF))
+            base3 = chr(0xE000 + ((mask_counter >> 16) & 0xFF))
+            # 고정 프리픽스/서픽스도 PUA로 구성하여 경계 신호 제거
+            prefix = chr(0xEFFF)
+            suffix = chr(0xEEFF)
+            mask_token = prefix + base3 + base2 + base1 + suffix
             mask_counter += 1
             
             # 마스크 정보 저장
@@ -448,15 +460,37 @@ def restore_brackets(text: str, bracket_masks: List[Dict]) -> str:
         if mask_token in restored_text:
             restored_text = restored_text.replace(mask_token, content, 1)
         else:
-            logger.warning(f"마스크 토큰 누락: {mask_token}")
+            # 🚨 마스크 토큰을 찾지 못했음 = SA 분할 중에 마스크가 분리되었을 가능성
+            logger.warning(f"마스크 토큰 누락: {mask_token} (SA 분할 중 분리된 것 같음)")
+            # 빈 문자열로 대체하지 말고, 원본 괄호 내용만 추가 (나중에 다시 찾을 수 있음)
+            # restored_text += f" {content}"  # 아니면 이렇게 마지막에 추가? (비추천)
+            # 그냥 로깅만 하고 진행
     
-    # 복원되지 않은 마스크 토큰 검사
-    remaining_masks = regex.findall(r'__BRACKET_MASK_\d+__', restored_text)
+    # 복원되지 않은 마스크 토큰 검사 (기존/신규 토큰 모두 탐지)
+    remaining_masks_standard = regex.findall(r'__BRACKET_MASK_\d+__', restored_text)
+    # PUA로만 구성된 토큰 탐지: 최소 3자 이상의 PUA 연속 + PUA 프리픽스/서픽스 포함 가능
+    remaining_masks_pua = regex.findall(r'[\uE000-\uF8FF]{3,}', restored_text)
+    remaining_masks = remaining_masks_standard + remaining_masks_pua
     if remaining_masks:
         logger.error(f"복원되지 않은 마스크: {remaining_masks}")
-        # 남은 마스크 토큰들을 빈 문자열로 대체
+        # 🚨 남은 마스크를 빈 문자열로 대체하면 데이터 손실!
+        # 대신 마스크 정보에서 해당 content를 찾아서 복원 시도
         for remaining in remaining_masks:
-            restored_text = restored_text.replace(remaining, '')
+            # 남은 마스크에 해당하는 content 찾기
+            found_content = None
+            for mask_info in bracket_masks:
+                if mask_info['mask_token'] == remaining:
+                    found_content = mask_info['content']
+                    break
+            
+            if found_content:
+                # 마스크를 원본 괄호로 대체
+                restored_text = restored_text.replace(remaining, found_content)
+                logger.warning(f"나중에 발견된 마스크 복원: {remaining}")
+            else:
+                # 대응하는 content를 찾지 못한 경우 (매우 드문 경우)
+                logger.error(f"마스크 정보 없음: {remaining}, 삭제 (데이터 손실 주의)")
+                restored_text = restored_text.replace(remaining, '')
     
     logger.debug(f"괄호 복원 완료: {len(bracket_masks)}개 괄호 복원")
     return restored_text
@@ -505,12 +539,28 @@ def safe_split_sentences(text: str, max_length: int = 150, method: str = "punctu
         return [text]
 
 def split_by_punctuation(text: str, max_length: int = 150) -> List[str]:
-    """구두점 기반 문장 분할 (기존 로직 유지)"""
+    """구두점 기반 문장 분할 + 의미 기반 경계 감지"""
     
     if not text.strip():
         return []
     
-    # 구두점 패턴 (한국어 + 중국어)
+    # 1) 구두점으로 분할 시도
+    sentence_enders = r'[.!?。！？；]'
+    sentences = regex.split(sentence_enders, text)
+    sentences = [s.strip() for s in sentences if s.strip()]
+    
+    # 2) 구두점이 없어서 분할 실패한 경우 의미 기반 경계 감지 (SA: 구 단위)
+    if len(sentences) == 1 and len(text) > 100 and detect_semantic_boundaries is not None:
+        try:
+            offsets = detect_semantic_boundaries(text, window_size=25, threshold=0.70, min_segment_length=10)
+            if len(offsets) > 1:
+                sentences = [text[start:end].strip() for start, end in offsets if start < end]
+                sentences = [s for s in sentences if s]
+                logger.info(f"✅ 의미 기반 경계 감지: {len(sentences)}개 문장")
+        except Exception as e:
+            logger.debug(f"⚠️ 의미 기반 경계 감지 실패: {e}")
+    
+    # 폴백: 구두점 패턴 (한국어 + 중국어)
     sentence_enders = r'[.!?。！？；]'
     
     # 구두점으로 분할

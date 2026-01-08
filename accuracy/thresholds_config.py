@@ -1,57 +1,12 @@
 """
 프로젝트별(PA/SA) 임계값 설정.
-퍼센타일 기반 제안치(P50/P75/P90)를 최소/권장/상위로 매핑.
-
-단위: 기본 row(행 단위) 기준.
-핵심 지표: partial_match, target_avg_similarity
+이제 csp_config.json에서 중앙 관리됩니다.
+하위 호환성을 위해 common.config에서 로드합니다.
 """
 
-THRESHOLDS = {
-    # Paragraph Alignment (PA): row 평가 기준
-    'pa': {
-        'unit': 'row',
-        'metrics': ['partial_match', 'target_avg_similarity'],
-        'levels': {
-            # ≈ P50
-            'min': {
-                'partial_match': 0.10,
-                'target_avg_similarity': 0.10,
-            },
-            # ≈ P75
-            'recommended': {
-                'partial_match': 0.15,
-                'target_avg_similarity': 0.19,
-            },
-            # ≈ P90
-            'top': {
-                'partial_match': 0.21,
-                'target_avg_similarity': 0.26,
-            },
-        },
-    },
+from common.config import get_thresholds
 
-    # Sentence Alignment (SA): row 평가 기준
-    'sa': {
-        'unit': 'row',
-        'metrics': ['partial_match', 'target_avg_similarity'],
-        'levels': {
-            # ≈ P50
-            'min': {
-                'partial_match': 0.885,
-                'target_avg_similarity': 0.769,
-            },
-            # ≈ P75
-            'recommended': {
-                'partial_match': 0.952,
-                'target_avg_similarity': 0.905,
-            },
-            # ≈ P90
-            'top': {
-                'partial_match': 1.0,
-                'target_avg_similarity': 1.0,
-            },
-        },
-    },
-}
+# 하위 호환성을 위한 직접 import
+THRESHOLDS = get_thresholds()
 
 LABEL_ORDER = ['below', 'min', 'recommended', 'top']

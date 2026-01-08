@@ -5,8 +5,11 @@ import os
 from pathlib import Path
 import pandas as pd
 from typing import List, Dict
+
 # 통합 진행률 관리자
 from common.progress_manager import start_unified_progress, update_unified_progress, finish_unified_progress, set_progress_description
+# 전역 무결성 검증 모듈
+from common.integrity_verifier import verify_global_integrity
 
 # 경로 설정
 current_dir = Path(__file__).parent
@@ -16,10 +19,13 @@ sys.path.insert(0, str(current_dir))
 
 # 로컬 모듈 import
 from sentence_splitter import split_target_sentences_advanced
-from aligner import improved_align_paragraphs
 
 try:
-    from aligner import get_embedder_function, improved_align_paragraphs
+    from aligner import (
+        get_embedder_function,
+        improved_align_paragraphs,
+        process_paragraph_alignment,
+    )
 except ImportError as e:
     print(f"❌ aligner import 실패: {e}")
     
@@ -29,6 +35,10 @@ except ImportError as e:
     
     def improved_align_paragraphs(*args, **kwargs):
         print("❌ 의미적 병합 기능을 사용할 수 없습니다.")
+        return []
+
+    def process_paragraph_alignment(*args, **kwargs):
+        print("❌ 문단 정렬 기능을 사용할 수 없습니다.")
         return []
 
 def process_paragraph_file(
@@ -64,26 +74,11 @@ def process_paragraph_file(
         print(f"❌ 입력 파일에 필수 컬럼이 없습니다: {missing_columns}")
         print(f"📋 현재 컬럼: {list(df.columns)}")
         return None
-    
-    all_results = []
-    total = len(df)
-    
-    # � 임베더 한 번만 초기화
-    print("🔧 임베더 초기화 중...")
-    embed_func = get_embedder_function(
-        embedder_name, 
-        device=device,
-        openai_model=openai_model,
-        openai_api_key=openai_api_key,
-        max_workers=max_workers,
-        batch_size=batch_size
-    )
-    print("✅ 임베더 초기화 완료")
-    
-    # 🔧 SA와 동일한 통합 진행률 시작
+
+    # 진행률 초기화
     try:
         start_unified_progress(
-            total=total,
+            total=len(df),
             description="📊 PA 분할",
             unit="문단",
             bar_format='{desc}: {percentage:3.0f}%|{bar:50}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]',
@@ -94,28 +89,28 @@ def process_paragraph_file(
     except Exception as e:
         print(f"⚠️ 진행률 초기화 실패: {e}")
         use_progress_bar = False
-    
+
+    all_results: List[Dict] = []
+    global_sent_idx = 1  # 전체 문장 번호 연속 부여
+
     for idx, row in df.iterrows():
         src_paragraph = str(row.get('원문', ''))
         tgt_paragraph = str(row.get('번역문', ''))
         
         if src_paragraph.strip() and tgt_paragraph.strip():
-            # 번역문 분할
-            tgt_sentences = split_target_sentences_advanced(
-                tgt_paragraph, 
-                max_length, 
-                splitter="punctuation"
-            )
-            
-            # 정렬 실행
-            alignments = improved_align_paragraphs(
-                tgt_sentences,
+            # 🆕 완전한 문단 정렬 파이프라인 사용 (어절 매칭 포함)
+            alignments = process_paragraph_alignment(
                 src_paragraph,
-                embed_func,
-                similarity_threshold,
-                embedder_name=embedder_name,  # 임베더 이름 전달
+                tgt_paragraph,
+                embedder_name=embedder_name,
+                tokenizer_name='korean_hybrid',
+                max_length=max_length,
+                similarity_threshold=similarity_threshold,
+                device=device,
+                quality_threshold=0.8,
+                use_spacy_tokenizer=False,
                 max_workers=max_workers,
-                batch_size=batch_size
+                batch_size=batch_size,
             )
             
             # 🆕 한글 토씨 힌트로 매칭 보정 (기존 로직은 보존)
@@ -127,9 +122,12 @@ def process_paragraph_file(
                     print(f"⚠️ 토씨 매칭 보정 실패 (기존 결과 유지): {e}")
                 # 실패해도 기존 alignments 그대로 사용
             
-            # 문단식별자 추가
+            # 문단식별자 추가 + 문장식별자 추가
+            original_para_id = row.get('문단식별자', idx + 1)  # 입력의 원본 문단식별자 사용
             for a in alignments:
-                a['문단식별자'] = idx + 1
+                a['문단식별자'] = original_para_id
+                a['문장식별자'] = global_sent_idx
+                global_sent_idx += 1
             
             all_results.extend(alignments)
             
@@ -143,6 +141,14 @@ def process_paragraph_file(
         elif verbose:
             print(f"⚠️ 문단 {idx + 1}: 빈 원문 또는 번역문 건너뜀")
             # 빈 문단도 진행률 업데이트
+            if use_progress_bar:
+                try:
+                    update_unified_progress(1)
+                except:
+                    pass
+
+        else:
+            # 빈 문단도 진행률 업데이트 (비-verbose)
             if use_progress_bar:
                 try:
                     update_unified_progress(1)
@@ -179,23 +185,42 @@ def process_paragraph_file(
         except:
             pass
     
-    # 컬럼 순서 정리
-    final_columns = ['문단식별자', '원문', '번역문', 'similarity', 'split_method', 'align_method']
+    # 컬럼 순서 정리 - 요구 형식: 문단식별자, 문장식별자, 원문, 번역문, similarity
+    final_columns = ['문단식별자', '문장식별자', '원문', '번역문', 'similarity']
     available_columns = [col for col in final_columns if col in result_df.columns]
     result_df = result_df[available_columns]
     
     # 결과 저장
     try:
-        result_df.to_excel(output_file, index=False)
+        with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+            result_df.to_excel(writer, index=False, sheet_name='results')
+
         if verbose:
             print(f"💾 결과 저장: {output_file}")
             print(f"📊 총 {len(all_results)}개 문장 쌍 생성")
-            # 간단한 통계
             analyze_alignment_results(result_df)
+        
+        # 🆕 전역 무결성 검증 (정규화 없음, 순수 텍스트 비교)
+        try:
+            input_df = pd.read_excel(input_file)
+            passed, integrity_losses_df, analysis = verify_global_integrity(
+                input_df, result_df, 
+                source_col='원문', target_col='번역문',
+                verbose=verbose
+            )
+            
+            # 무결성 손실 시트를 결과 파일에 추가
+            if len(integrity_losses_df) > 0:
+                with pd.ExcelWriter(output_file, engine='openpyxl', mode='a') as writer:
+                    integrity_losses_df.to_excel(writer, index=False, sheet_name='integrity_losses')
+        except Exception as e:
+            if verbose:
+                print(f"⚠️ 무결성 검증 오류: {e}")
+        
         # 기본 모드에서는 통합 진행률에서 완료 메시지 처리됨
-        
+
         return result_df
-        
+
     except Exception as e:
         print(f"❌ 결과 저장 실패: {e}")
         return None
