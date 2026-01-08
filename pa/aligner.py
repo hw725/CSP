@@ -525,19 +525,123 @@ def get_embedder_function(embedder_name: str, device: str = "cpu", openai_model:
             
     elif embedder_name == 'openai':
         try:
+            # SA와 동일한 직접 OpenAI 클라이언트 사용
+            import openai
+            import numpy as np
+            import json
+            import hashlib
+            from pathlib import Path
+            
+            # OpenAI API 키 설정
             if openai_api_key:
                 os.environ["OPENAI_API_KEY"] = openai_api_key
             
-            sys.path.insert(0, str(project_root / 'common' / 'embedders'))
-            from openai import compute_embeddings_with_cache
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError("OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
             
-            def embed_func(texts):
-                return compute_embeddings_with_cache(
-                    texts, 
-                    model=openai_model if openai_model else "text-embedding-3-large"
-                )
+            # OpenAI 클라이언트 생성
+            client = openai.OpenAI(api_key=api_key)
+            
+            # 캐시 설정
+            cache_dir = Path("embeddings_cache_openai")
+            cache_dir.mkdir(exist_ok=True)
+            cache_file = cache_dir / "openai_embeddings.json"
+            
+            # 메모리 캐시
+            embedding_cache = {}
+            
+            def load_cache():
+                nonlocal embedding_cache
+                if cache_file.exists():
+                    try:
+                        with open(cache_file, 'r', encoding='utf-8') as f:
+                            cache_data = json.load(f)
+                            embedding_cache = {k: np.array(v) for k, v in cache_data.items()}
+                    except Exception:
+                        embedding_cache = {}
+                else:
+                    embedding_cache = {}
+            
+            def save_cache():
+                try:
+                    cache_data = {k: v.tolist() for k, v in embedding_cache.items()}
+                    with open(cache_file, 'w', encoding='utf-8') as f:
+                        json.dump(cache_data, f, ensure_ascii=False)
+                except Exception:
+                    pass
+            
+            def get_cache_key(text):
+                return hashlib.md5(text.encode('utf-8')).hexdigest()
+            
+            def compute_embeddings_with_cache(texts, model="text-embedding-3-large"):
+                if isinstance(texts, str):
+                    texts = [texts]
+                    return_single = True
+                else:
+                    return_single = False
+                
+                # 캐시 로드
+                if not embedding_cache:
+                    load_cache()
+                
+                # 캐시에서 찾기
+                cached_embeddings = {}
+                missing_texts = []
+                missing_indices = []
+                
+                for i, text in enumerate(texts):
+                    cache_key = get_cache_key(text)
+                    if cache_key in embedding_cache:
+                        cached_embeddings[i] = embedding_cache[cache_key]
+                    else:
+                        missing_texts.append(text)
+                        missing_indices.append(i)
+                
+                # API 호출
+                new_embeddings = {}
+                if missing_texts:
+                    try:
+                        response = client.embeddings.create(
+                            model=model,
+                            input=missing_texts,
+                            encoding_format="float"
+                        )
+                        
+                        for i, (idx, item) in enumerate(zip(missing_indices, response.data)):
+                            embedding = np.array(item.embedding)
+                            new_embeddings[idx] = embedding
+                            
+                            # 캐시에 저장
+                            cache_key = get_cache_key(missing_texts[i])
+                            embedding_cache[cache_key] = embedding
+                        
+                        # 캐시 파일 저장
+                        if new_embeddings:
+                            save_cache()
+                            
+                    except Exception as e:
+                        print(f"❌ OpenAI API 호출 실패: {e}")
+                        raise
+                
+                # 결과 조합
+                all_embeddings = []
+                for i in range(len(texts)):
+                    if i in cached_embeddings:
+                        all_embeddings.append(cached_embeddings[i])
+                    elif i in new_embeddings:
+                        all_embeddings.append(new_embeddings[i])
+                    else:
+                        raise ValueError(f"임베딩을 찾을 수 없습니다: {texts[i]}")
+                
+                if return_single:
+                    return all_embeddings[0]
+                else:
+                    return all_embeddings
+            
             print("✅ OpenAI 임베더 초기화 성공")
-            return embed_func
+            return compute_embeddings_with_cache
+            
         except ImportError as e:
             print(f"❌ OpenAI 임베더 로드 실패: {e}")
             return None
@@ -588,7 +692,8 @@ def improved_align_paragraphs(
     tgt_sentences: List[str], 
     src_text: str, 
     embed_func=None,
-    similarity_threshold: float = 0.3
+    similarity_threshold: float = 0.3,
+    embedder_name: str = "bge"
 ) -> List[Dict]:
     """기존 순차적 1:1 정렬 (무결성 보장)"""
     if not tgt_sentences:
@@ -598,7 +703,9 @@ def improved_align_paragraphs(
     aligned_src_chunks = split_source_by_whitespace_and_align(
         src_text, 
         len(tgt_sentences),
-        target_sentences=tgt_sentences  # 의미적 매칭을 위한 번역문 전달
+        target_sentences=tgt_sentences,  # 의미적 매칭을 위한 번역문 전달
+        embedder_name=embedder_name,     # 임베더 이름 전달
+        embedder_func=embed_func         # 임베더 함수 전달
     )
     
     alignments = []

@@ -1,0 +1,16 @@
+# poetry.toml - Poetry 프로젝트 설정
+
+[virtualenvs]
+in-project = true
+prefer-active-python = true
+
+[installer]
+parallel = true
+modern-installation = false
+
+# 🔥 Poetry의 의존성 해결을 보수적으로 설정
+[solver]
+lazy-wheel = false
+
+# 🚨 실제로는 Poetry에 패키지 무시 기능이 없음!
+# 대신 pyproject.toml에서 torch 관련 패키지를 아예 제외해야 함

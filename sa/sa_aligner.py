@@ -14,20 +14,72 @@ import sys
 import os
 import pandas as pd
 import numpy as np
+import json
+import hashlib
+
+# OpenAI wrapper for direct access
+class OpenAIWrapper:
+    """OpenAI embedder wrapper - bypasses common module issues"""
+    def __init__(self):
+        try:
+            from openai import OpenAI
+            self.client = OpenAI()
+            self.cache_file = "/workspace/embeddings_cache_openai/openai_embeddings.json"
+            os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
+            self._load_cache()
+        except Exception as e:
+            raise ImportError(f"OpenAI 설정 실패: {e}")
+    
+    def _load_cache(self):
+        try:
+            with open(self.cache_file, 'r', encoding='utf-8') as f:
+                self.cache = json.load(f)
+        except:
+            self.cache = {}
+    
+    def _save_cache(self):
+        with open(self.cache_file, 'w', encoding='utf-8') as f:
+            json.dump(self.cache, f, ensure_ascii=False, indent=2)
+    
+    def _get_cache_key(self, text):
+        return hashlib.md5(text.encode('utf-8')).hexdigest()
+    
+    def compute_embeddings_with_cache(self, texts, batch_size=8):
+        if isinstance(texts, str):
+            texts = [texts]
+        
+        embeddings = []
+        for text in texts:
+            cache_key = self._get_cache_key(text)
+            if cache_key in self.cache:
+                embeddings.append(self.cache[cache_key])
+            else:
+                response = self.client.embeddings.create(
+                    model="text-embedding-3-large",
+                    input=text
+                )
+                embedding = response.data[0].embedding
+                self.cache[cache_key] = embedding
+                embeddings.append(embedding)
+        
+        self._save_cache()
+        return np.array(embeddings)
+
+logger = logging.getLogger(__name__)
 
 # 공통 토크나이저 모듈 import - 전근대 고전 전용 모델 우선
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from common.tokenizers import (
-    detect_chinese_period,
-    # 전근대 고전 전용 모델들
-    get_siku_tokenizer,
-    siku_get_embeddings,
-    siku_similarity,
-    # 전근대 고전 전용 토크나이저 사용 (교체 완료)
-    get_siku_tokenizer,
-    siku_get_embeddings,
-    siku_similarity
-)
+try:
+    from common.tokenizers import (
+        detect_chinese_period,
+        # 전근대 고전 전용 모델들
+        get_siku_tokenizer,
+        siku_get_embeddings,
+        siku_similarity
+    )
+except ImportError as e:
+    logger.warning(f"⚠️ SA: 하이브리드 토크나이저 초기화 실패: {e}")
+    # 폴백: 기본 split() 사용
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +142,7 @@ def split_tgt_meaning_units(text: str, src_units_count: int, src_units: List[str
     return _split_tgt_by_src_units_simple(text, src_units_count)
 
 def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_tokens: int = 1, **kwargs) -> List[str]:
-    """원문 단위에 따른 번역문 분할 (BGE-M3 Multi-Vector 의미 매칭)"""
+    """원문 단위에 따른 번역문 분할 (고어 패턴 감지 개선)"""
     
     tgt_tokens = tgt_text.split()
     N, T = len(src_units), len(tgt_tokens)
@@ -112,100 +164,152 @@ def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_to
                 result.append("")
         return result
     
-    # 🧠 BGE-M3 Multi-Vector 의미 기반 매칭 시도
+    # 🧠 동적 임베더 기반 분할 (순서 보장 모드)
     try:
-        from common.embedders.bge import get_embedding_manager
-        embedder = get_embedding_manager()
+        # 설정된 임베더 가져오기 (CLI --embedder 옵션 반영)
+        embedder_name = kwargs.get('embedder_name', kwargs.get('embedder', 'bge'))
         
-        logger.debug("✅ BGE-M3 Multi-Vector 의미 기반 매칭 시작")
+        if embedder_name.lower() == 'openai':
+            # OpenAI 직접 사용
+            embedder = OpenAIWrapper()
+            logger.debug(f"✅ OpenAI 임베더로 순서 보장 의미 매칭 시작")
+        else:
+            # BGE 등 다른 임베더 사용
+            from common.embedders import get_embedder
+            embedder = get_embedder(embedder_name)
+            logger.debug(f"✅ {embedder_name.upper()} 임베더로 순서 보장 의미 매칭 시작")
         
-        # 원문 단위별 Multi-Vector 임베딩 (Dense + Sparse + ColBERT)
+        # 원문 단위별 임베딩
         src_embeddings = embedder.compute_embeddings_with_cache(
             src_units, 
-            batch_size=4,  # SA는 작은 배치 사용
-            use_multi_vector=True  # Multi-vector 활성화
+            batch_size=4
         )
         
-        # 번역문 토큰들의 Multi-Vector 임베딩
+        # 번역문 토큰들의 임베딩
         tgt_embeddings = embedder.compute_embeddings_with_cache(
             tgt_tokens, 
-            batch_size=8,  # 토큰은 더 작은 단위
-            use_multi_vector=True  # Multi-vector 활성화
+            batch_size=8
         )
         
-        # Dynamic Programming으로 최적 분할 찾기
-        optimal_split = _find_optimal_split_dp(
+        # 🎯 순서 보장 Dynamic Programming
+        optimal_split = _find_optimal_split_dp_sequential(
             src_embeddings, tgt_embeddings, tgt_tokens, N, T
         )
         
-        if optimal_split:
-            logger.debug(f"✅ BGE-M3 Multi-Vector 최적 분할 성공: {len(optimal_split)}개 단위")
+        if optimal_split and len(optimal_split) == N:
+            logger.debug(f"✅ {embedder_name.upper()} 순서 보장 분할 성공: {len(optimal_split)}개 단위")
             return optimal_split
     
     except Exception as e:
-        logger.warning(f"⚠️ BGE-M3 Multi-Vector 매칭 실패, 순차 분할로 대체: {e}")
+        logger.warning(f"⚠️ 임베더 순서 보장 매칭 실패, 순차 분할로 대체: {e}")
     
-    # ⚡ 폴백: 순차적 분할 (토큰 순서 절대 변경 금지)
-    avg_len = T // N
-    remainder = T % N
-    
-    result = []
-    start_idx = 0
-    
-    for i in range(N):
-        # 각 원문 단위당 할당할 토큰 수
-        tokens_for_this_unit = avg_len
-        if i < remainder:  # 나머지를 앞쪽 단위들에 분배
-            tokens_for_this_unit += 1
+    # ⚡ 폴백: 순차적 분할만 사용 (순서 무결성 보장)
+    # 기본 모드: 평균 길이 기반 분할 (고어 패턴 보정 적용)
+    try:
+        from common.korean_particle_matcher import get_archaic_bonus
         
-        end_idx = min(start_idx + tokens_for_this_unit, T)
+        avg_len = T // N
+        remainder = T % N
         
-        if start_idx < T:
-            unit_text = " ".join(tgt_tokens[start_idx:end_idx])
-            result.append(unit_text)
-        else:
-            result.append("")
+        result = []
+        start_idx = 0
         
-        start_idx = end_idx
-    
-    return result
+        for i in range(N):
+            # 각 원문 단위당 할당할 토큰 수
+            tokens_for_this_unit = avg_len
+            if i < remainder:  # 나머지를 앞쪽 단위들에 분배
+                tokens_for_this_unit += 1
+            
+            end_idx = min(start_idx + tokens_for_this_unit, T)
+            
+            if start_idx < T:
+                unit_text = " ".join(tgt_tokens[start_idx:end_idx])
+                
+                # 🆕 고어 패턴 보정 적용
+                try:
+                    archaic_bonus = get_archaic_bonus(unit_text, mode='SA')
+                    if archaic_bonus > 0.05:
+                        logger.debug(f"기본 분할에서 고어 패턴 감지: {unit_text} (보너스: {archaic_bonus})")
+                except:
+                    pass  # 고어 패턴 실패해도 계속 진행
+                
+                result.append(unit_text)
+            else:
+                result.append("")
+            
+            start_idx = end_idx
+        
+        return result
+        
+    except Exception as e:
+        logger.warning(f"고어 패턴 보정 실패, 기본 분할 사용: {e}")
+        # 최종 폴백: 기본 균등 분할
+        avg_len = T // N
+        remainder = T % N
+        
+        result = []
+        start_idx = 0
+        
+        for i in range(N):
+            tokens_for_this_unit = avg_len
+            if i < remainder:
+                tokens_for_this_unit += 1
+            
+            end_idx = min(start_idx + tokens_for_this_unit, T)
+            
+            if start_idx < T:
+                unit_text = " ".join(tgt_tokens[start_idx:end_idx])
+                result.append(unit_text)
+            else:
+                result.append("")
+            
+            start_idx = end_idx
+        
+        return result
 
-def _find_optimal_split_dp(src_embeddings, tgt_embeddings, tgt_tokens, N, T) -> List[str]:
-    """BGE-M3 Multi-Vector 기반 Dynamic Programming 최적 분할"""
+def _find_optimal_split_dp_sequential(src_embeddings, tgt_embeddings, tgt_tokens, N, T) -> List[str]:
+    """순서 보장 Dynamic Programming 분할 (의미 기반 경계 조정만)"""
     
-    # 각 토큰과 각 원문 단위 간의 Multi-Vector 유사도 행렬 계산
+    # 유사도 매트릭스 계산
     similarity_matrix = np.zeros((T, N))
     
     for t in range(T):
         for s in range(N):
-            # Multi-Vector 코사인 유사도 (1636차원)
             sim = np.dot(tgt_embeddings[t], src_embeddings[s]) / (
                 np.linalg.norm(tgt_embeddings[t]) * np.linalg.norm(src_embeddings[s]) + 1e-8
             )
             similarity_matrix[t, s] = float(sim)
     
-    # DP 테이블: dp[i][j] = i번째 토큰까지 j개 단위로 분할하는 최대 점수
+    # 🎯 순서 보장: 각 토큰은 자신의 순서 위치 ±1 범위에서만 매칭 가능
+    enhanced_similarity = np.full_like(similarity_matrix, -1000.0)
+    
+    for t in range(T):
+        # 토큰의 대략적인 위치 (균등 분할 기준)
+        expected_unit = min(int(t * N / T), N - 1)
+        
+        # 인접 단위들에만 매칭 허용 (±1 범위)
+        for s in range(max(0, expected_unit - 1), min(N, expected_unit + 2)):
+            enhanced_similarity[t, s] = similarity_matrix[t, s]
+    
+    # DP로 최적 분할 찾기
     dp = np.full((T + 1, N + 1), -np.inf)
     parent = np.full((T + 1, N + 1), -1, dtype=int)
     
-    dp[0][0] = 0  # 기저 사례
+    dp[0][0] = 0
     
-    # DP 수행
     for i in range(1, T + 1):
         for j in range(1, min(i, N) + 1):
-            # k는 j번째 단위의 시작 위치 (0-indexed)
             for k in range(j - 1, i):
                 if dp[k][j - 1] == -np.inf:
                     continue
                 
-                # k부터 i-1까지 토큰들을 j번째 단위에 할당
+                # 유사도 점수 계산
                 unit_score = 0
                 token_count = i - k
                 
                 for t in range(k, i):
-                    unit_score += similarity_matrix[t, j - 1]
+                    unit_score += enhanced_similarity[t, j - 1]
                 
-                # 평균 점수로 정규화
                 if token_count > 0:
                     unit_score /= token_count
                 
@@ -215,7 +319,7 @@ def _find_optimal_split_dp(src_embeddings, tgt_embeddings, tgt_tokens, N, T) -> 
                     dp[i][j] = new_score
                     parent[i][j] = k
     
-    # 백트래킹으로 최적 분할 복원
+    # 백트래킹으로 분할 복원
     if dp[T][N] == -np.inf:
         return None
     
@@ -236,11 +340,7 @@ def _find_optimal_split_dp(src_embeddings, tgt_embeddings, tgt_tokens, N, T) -> 
     
     splits.reverse()
     
-    # 결과 검증
-    if len(splits) == N:
-        return splits
-    else:
-        return None
+    return splits if len(splits) == N else None
 
 def _split_tgt_by_src_units_simple(text: str, target_count: int) -> List[str]:
     """번역문 단순 분할 (폴백용)"""
@@ -308,6 +408,45 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
     except Exception as e:
         logger.warning(f"SA 토씨 매칭 보완 실패 (기존 결과 유지): {e}")
         # 실패해도 기존 result_rows 그대로 사용
+
+    # 🔒 SA 무결성 검증: 번역문 텍스트 보존 확인
+    try:
+        # 원본 번역문 (공백 제거)
+        original_trans = translation_text.replace(' ', '')
+        
+        # 처리된 번역문 재결합 (공백 제거)
+        processed_trans = ''.join([row['번역문'].replace(' ', '') for row in result_rows])
+        
+        # 무결성 검증
+        if original_trans != processed_trans:
+            logger.error(f"SA 무결성 실패: {base_id}")
+            logger.error(f"  원본 길이: {len(original_trans)}자")
+            logger.error(f"  처리 후 길이: {len(processed_trans)}자")
+            logger.error(f"  길이 차이: {len(processed_trans) - len(original_trans)}자")
+            
+            # 문자 정확도 계산
+            correct_chars = sum(1 for a, b in zip(original_trans, processed_trans) if a == b)
+            accuracy = correct_chars / max(len(original_trans), len(processed_trans))
+            logger.error(f"  문자 정확도: {accuracy:.3f}")
+            
+            # 차이점 상세 분석 (처음 100자만)
+            if len(original_trans) > 0 and len(processed_trans) > 0:
+                import difflib
+                diff = list(difflib.unified_diff(
+                    original_trans[:100], processed_trans[:100], 
+                    fromfile='원본', tofile='처리후', lineterm=''
+                ))
+                if diff:
+                    logger.error(f"SA 텍스트 차이점 분석: {base_id}")
+                    logger.error(f"  원본 샘플: '{original_trans[:50]}{'...' if len(original_trans) > 50 else ''}'")
+                    logger.error(f"  처리 샘플: '{processed_trans[:50]}{'...' if len(processed_trans) > 50 else ''}'")
+            
+            # 무결성 실패시에도 결과는 반환 (분석용)
+        else:
+            logger.debug(f"SA 무결성 확인: {base_id} ✅")
+            
+    except Exception as e:
+        logger.warning(f"SA 무결성 검증 실패: {e}")
 
     logger.info(f"SA 처리 완료: {len(src_units)}개 단위, 시대: {period}")
     

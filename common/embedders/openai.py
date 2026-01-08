@@ -73,7 +73,9 @@ def _get_openai_client():
             "Linux/Mac: export OPENAI_API_KEY=your-api-key"
         )
     
-    return openai.OpenAI(api_key=api_key)
+    # OpenAI 클라이언트 생성 - 명시적 import 사용
+    from openai import OpenAI
+    return OpenAI(api_key=api_key)
 
 def compute_embeddings_batch(
     texts: List[str], 

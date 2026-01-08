@@ -56,12 +56,16 @@ class RowPairAccuracyEvaluator:
         return text
     
     def combine_source_target(self, source: str, target: str) -> str:
-        """원문과 번역문을 결합"""
+        """원문과 번역문을 결합 (번역문 우선)"""
         source_clean = self.preprocess_text(source)
         target_clean = self.preprocess_text(target)
         
-        # 원문 | 번역문 형태로 결합
-        return f"{source_clean} | {target_clean}"
+        # 번역문을 기준으로 하되, 원문도 참고용으로 포함
+        return f"{target_clean} | {source_clean}"
+    
+    def extract_target_only(self, source: str, target: str) -> str:
+        """번역문만 추출 (순수 번역문 기준 매칭용)"""
+        return self.preprocess_text(target)
     
     def calculate_text_similarity(self, text1: str, text2: str) -> float:
         """두 텍스트 간 유사도 계산 (difflib 사용)"""

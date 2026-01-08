@@ -108,7 +108,8 @@ def process_paragraph_file(
                 tgt_sentences,
                 src_paragraph,
                 embed_func,
-                similarity_threshold
+                similarity_threshold,
+                embedder_name=embedder_name  # 임베더 이름 전달
             )
             
             # 🆕 한글 토씨 힌트로 매칭 보정 (기존 로직은 보존)

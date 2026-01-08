@@ -1,6 +1,134 @@
 """PA 문장 분할기 - SuPar-Kanbun & Stanza 기반 (spaCy 대체)"""
 from typing import List, Tuple
 import torch
+import os
+import json
+import hashlib
+import numpy as np
+from pathlib import Path
+
+# OpenAI wrapper 클래스 (SA와 동일)
+class OpenAIWrapper:
+    """OpenAI API 래퍼 - SA 시스템과 동일한 방식"""
+    
+    def __init__(self, api_key=None, model="text-embedding-3-large"):
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.model = model
+        self.cache_dir = Path("embeddings_cache_openai")
+        self.cache_dir.mkdir(exist_ok=True)
+        self.cache_file = self.cache_dir / "openai_embeddings.json"
+        self._embedding_cache = {}
+        self._load_cache()
+        
+        if not self.api_key:
+            raise ValueError("OPENAI_API_KEY가 설정되지 않았습니다")
+    
+    def _load_cache(self):
+        """캐시 파일에서 임베딩 로드"""
+        if self.cache_file.exists():
+            try:
+                with open(self.cache_file, 'r', encoding='utf-8') as f:
+                    cache_data = json.load(f)
+                    self._embedding_cache = {k: np.array(v) for k, v in cache_data.items()}
+                print(f"📂 OpenAI 캐시 로드: {len(self._embedding_cache)}개 항목")
+            except Exception as e:
+                print(f"⚠️ 캐시 로드 실패: {e}")
+                self._embedding_cache = {}
+    
+    def _save_cache(self):
+        """임베딩을 캐시 파일에 저장"""
+        try:
+            cache_data = {k: v.tolist() for k, v in self._embedding_cache.items()}
+            with open(self.cache_file, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, ensure_ascii=False)
+            print(f"💾 OpenAI 캐시 저장: {len(self._embedding_cache)}개 항목")
+        except Exception as e:
+            print(f"⚠️ 캐시 저장 실패: {e}")
+    
+    def _get_cache_key(self, text: str) -> str:
+        """텍스트에 대한 캐시 키 생성"""
+        return hashlib.md5(text.encode('utf-8')).hexdigest()
+    
+    def compute_embeddings_with_cache(self, texts, use_cache=True):
+        """캐시를 사용한 OpenAI 임베딩 생성"""
+        
+        # 단일 텍스트 처리
+        if isinstance(texts, str):
+            texts = [texts]
+            return_single = True
+        else:
+            return_single = False
+        
+        # 캐시에서 찾기
+        cached_embeddings = {}
+        missing_texts = []
+        missing_indices = []
+        
+        if use_cache:
+            for i, text in enumerate(texts):
+                cache_key = self._get_cache_key(text)
+                if cache_key in self._embedding_cache:
+                    cached_embeddings[i] = self._embedding_cache[cache_key]
+                else:
+                    missing_texts.append(text)
+                    missing_indices.append(i)
+        else:
+            missing_texts = texts
+            missing_indices = list(range(len(texts)))
+        
+        # 캐시 히트 로그
+        if use_cache and cached_embeddings:
+            print(f"📂 캐시 히트: {len(cached_embeddings)}개, 누락: {len(missing_texts)}개")
+        
+        # 누락된 텍스트들 API 호출
+        new_embeddings = {}
+        if missing_texts:
+            try:
+                import openai
+                client = openai.OpenAI(api_key=self.api_key)
+                
+                print(f"🔄 OpenAI API 호출: {len(missing_texts)}개 텍스트")
+                
+                response = client.embeddings.create(
+                    model=self.model,
+                    input=missing_texts,
+                    encoding_format="float"
+                )
+                
+                batch_embeddings = [np.array(item.embedding) for item in response.data]
+                
+                for i, (idx, embedding) in enumerate(zip(missing_indices, batch_embeddings)):
+                    new_embeddings[idx] = embedding
+                    
+                    # 캐시에 저장
+                    if use_cache:
+                        cache_key = self._get_cache_key(missing_texts[i])
+                        self._embedding_cache[cache_key] = embedding
+                
+                # 캐시 파일 저장
+                if use_cache and new_embeddings:
+                    self._save_cache()
+                    
+                print(f"✅ OpenAI 임베딩 생성: {len(batch_embeddings)}개 → 차원: {len(batch_embeddings[0])}")
+                
+            except Exception as e:
+                print(f"❌ OpenAI API 호출 실패: {e}")
+                raise
+        
+        # 결과 조합
+        all_embeddings = []
+        for i in range(len(texts)):
+            if i in cached_embeddings:
+                all_embeddings.append(cached_embeddings[i])
+            elif i in new_embeddings:
+                all_embeddings.append(new_embeddings[i])
+            else:
+                raise ValueError(f"임베딩을 찾을 수 없습니다: {texts[i]}")
+        
+        if return_single:
+            return all_embeddings[0]
+        else:
+            return all_embeddings
 
 # SuPar-Kanbun과 Stanza 사용 (spaCy 대체)
 import re
@@ -318,7 +446,7 @@ def contains_chinese(text: str) -> bool:
     chinese_count = len(regex.findall(r'\p{Han}', text))
     return chinese_count > len(text) * 0.3
 
-def split_source_by_whitespace_and_align(source: str, target_count: int, target_sentences: List[str] = None) -> List[str]:
+def split_source_by_whitespace_and_align(source: str, target_count: int, target_sentences: List[str] = None, embedder_name: str = "bge", embedder_func=None) -> List[str]:
     """
     원문(한문) 분할: 어절 경계에서만 분할, 어절 내부 절대 분할 금지!
     
@@ -326,6 +454,8 @@ def split_source_by_whitespace_and_align(source: str, target_count: int, target_
         source: 원문 텍스트
         target_count: 분할할 개수
         target_sentences: 번역문 문장들 (의미적 매칭용)
+        embedder_name: 사용할 임베더 이름 ("bge" 또는 "openai")
+        embedder_func: 외부에서 전달된 임베더 함수 (선택적)
     """
     if not source.strip():
         return [''] * target_count
@@ -348,8 +478,25 @@ def split_source_by_whitespace_and_align(source: str, target_count: int, target_
     # 2. 임베딩 기반 의미적 분할 (어절 경계에서만!)
     if target_sentences and len(target_sentences) > 0:
         try:
-            # 🎯 SA와 동일한 BGE 사용 방식: 작은 배치, 안전한 처리
-            try:
+            # 외부에서 전달된 임베더 함수가 있으면 우선 사용
+            if embedder_func:
+                embed_func = embedder_func
+                target_embeddings = embed_func(target_sentences)
+                print(f"✅ 외부 임베더 함수 사용 ({embedder_name})")
+            
+            # OpenAI 임베더 사용
+            elif embedder_name == "openai":
+                # 외부에서 전달된 임베더 함수를 사용해야 함
+                if not embedder_func:
+                    print("⚠️ OpenAI 임베더 함수가 전달되지 않았습니다. BGE로 폴백합니다.")
+                    embedder_name = "bge"  # BGE로 폴백
+                else:
+                    embed_func = embedder_func
+                    target_embeddings = embed_func(target_sentences)
+                    print("✅ OpenAI 임베딩 사용 (외부 함수)")
+            
+            # BGE 임베더 사용 (기본값 또는 OpenAI 실패시 폴백)
+            if embedder_name == "bge":
                 from common.embedders.bge import get_embedding_manager
                 
                 embedder = get_embedding_manager()
@@ -372,30 +519,30 @@ def split_source_by_whitespace_and_align(source: str, target_count: int, target_
                 
                 embed_func = bge_embed_source
                 
-            except Exception as e:
-                print(f"⚠️ BGE 임베딩 실패, 하이브리드로 폴백: {e}")
-                # 폴백: 하이브리드 임베딩
-                from common.tokenizers import siku_get_embeddings
-                from common.tokenizers import get_roberta_hanja_tokenizer
-                import numpy as np
-                
-                print("✅ 하이브리드 임베딩 폴백 (원문:SikuBERT + 번역문:RoBERTa)")
-                
-                roberta_tokenizer = get_roberta_hanja_tokenizer()
-                
-                def get_roberta_embeddings(texts, batch_size=32):
-                    embeddings = []
-                    for text in texts:
-                        emb = roberta_tokenizer.get_embeddings(text)
-                        embeddings.append(emb.cpu().numpy())
-                    return np.array(embeddings)
-                
-                target_embeddings = get_roberta_embeddings(target_sentences, batch_size=32)
-                
-                def hybrid_embed_source(texts):
-                    return siku_get_embeddings(texts, batch_size=32)
-                
-                embed_func = hybrid_embed_source
+        except Exception as e:
+            print(f"⚠️ 임베딩 실패, 하이브리드로 폴백: {e}")
+            # 폴백: 하이브리드 임베딩
+            from common.tokenizers import siku_get_embeddings
+            from common.tokenizers import get_roberta_hanja_tokenizer
+            import numpy as np
+            
+            print("✅ 하이브리드 임베딩 폴백 (원문:SikuBERT + 번역문:RoBERTa)")
+            
+            roberta_tokenizer = get_roberta_hanja_tokenizer()
+            
+            def get_roberta_embeddings(texts, batch_size=32):
+                embeddings = []
+                for text in texts:
+                    emb = roberta_tokenizer.get_embeddings(text)
+                    embeddings.append(emb.cpu().numpy())
+                return np.array(embeddings)
+            
+            target_embeddings = get_roberta_embeddings(target_sentences, batch_size=32)
+            
+            def hybrid_embed_source(texts):
+                return siku_get_embeddings(texts, batch_size=32)
+            
+            embed_func = hybrid_embed_source
             
             # 어절 경계 기반 스팬 임베딩 계산
             N, W = target_count, len(words)

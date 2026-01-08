@@ -1,0 +1,32 @@
+version: "3.8"
+
+services:
+  csp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: csp-workspace
+
+    # GPU 지원
+    runtime: nvidia
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+    # 볼륨 마운트
+    volumes:
+      - .:/workspace
+
+    # 포트
+    ports:
+      - "8888:8888"
+      - "6006:6006"
+
+    # 작업 디렉토리
+    working_dir: /workspace
+
+    # 컨테이너 유지
+    tty: true
+    stdin_open: true

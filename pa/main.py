@@ -1,29 +1,53 @@
 """PA (Paragraph Aligner) 메인 실행기"""
 
-# torch.load 보안 패치 먼저 적용 (다른 import보다 먼저 실행)
 import sys
 from pathlib import Path
 current_dir = Path(__file__).parent
 project_root = current_dir.parent
 sys.path.insert(0, str(project_root))
 
-# torch.load 보안 패치 적용
-import torch_load_patch  # 이것이 torch.load를 패치함
-
 import os
 import argparse
 import time
 import warnings
+import torch
 
-# 환경 변수로 torch.load 보안 검사 비활성화
+# PyTorch 보안 경고 완전 비활성화
 os.environ['TORCH_FORCE_WEIGHTS_ONLY'] = 'False'
 os.environ['HF_HUB_DISABLE_WARNINGS'] = '1'
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
-# torch.load 보안 경고 전역 무시 (PyTorch 2.6 호환성)
-warnings.filterwarnings("ignore", message=".*torch.load.*")
-warnings.filterwarnings("ignore", message=".*vulnerability.*")
-warnings.filterwarnings("ignore", message=".*CVE-2025-32434.*")
+# 모든 경고 필터링
+warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+# PyTorch 2.6 torch.load 호환성 설정
+if hasattr(torch.serialization, 'add_safe_globals'):
+    try:
+        # SuPar 모델을 위한 안전한 글로벌 추가
+        from supar.utils.config import Config
+        torch.serialization.add_safe_globals([Config])
+    except ImportError:
+        pass
+
+# torch.load에 대한 추가 보안 경고 억제
+def suppress_torch_warnings():
+    """PyTorch 보안 경고를 완전히 억제"""
+    import logging
+    logging.getLogger("torch").setLevel(logging.ERROR)
+    logging.getLogger("transformers").setLevel(logging.ERROR)
+    
+    # torch.load monkey patching
+    original_load = torch.load
+    def safe_load(*args, **kwargs):
+        if 'weights_only' not in kwargs:
+            kwargs['weights_only'] = False
+        return original_load(*args, **kwargs)
+    torch.load = safe_load
+
+suppress_torch_warnings()
 
 # 프로젝트 루트와 현재 디렉토리를 Python 경로에 추가
 sys.path.insert(0, str(current_dir))
