@@ -139,11 +139,6 @@
     "disable_whitespace_dp": false
   },
   "pa": {
-    "sentence_splitter": {
-      "prior_bonus": 0.005,
-      "length_penalty_coef": 0.3,
-      "supar_bonus": 0.15
-    },
     "boundary_threshold": 0.7
   }
 }

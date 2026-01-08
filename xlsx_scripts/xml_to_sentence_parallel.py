@@ -13,8 +13,10 @@ import pandas as pd
 
 def extract_book_name(filename):
     """파일명에서 책 이름 추출"""
-    # 예: jti_1e0201-[역주]춘추좌씨전1_원문_x-C2017.xml -> 춘추좌씨전1
-    match = re.search(r'\[역주\](.+?)_(?:원문|번역문)', filename)
+    # 예:
+    # - jti_1e0201-[역주]춘추좌씨전1_원문_x-C2017.xml -> 춘추좌씨전1
+    # - jti_1h0301-[현토]논어집주_원문_x-C2017.xml -> 논어집주
+    match = re.search(r'\[(?:역주|현토)\](.+?)_(?:원문|번역문)', filename)
     if match:
         return match.group(1)
     return None
@@ -58,8 +60,12 @@ def parse_xml_sentence_level(xml_path, content_type):
 
         # 현재 노드의 식별자가 있으면 리스트에 추가
         next_para_ids = parent_para_ids.copy()
+        # 일반 서종: 상위 노드의 '식별자' (예: ID:W1)
+        # 현토(hyeonto): <단락 id="1"> 형태이므로 단락 id를 문단식별자로 사용
         if '식별자' in elem.attrib:
             next_para_ids.append(elem.get('식별자'))
+        elif elem.tag == '단락' and 'id' in elem.attrib:
+            next_para_ids.append(elem.get('id'))
 
         # 현재 노드의 언어 설정
         if 'lang' in elem.attrib:

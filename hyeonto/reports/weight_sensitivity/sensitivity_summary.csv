@@ -1,0 +1,5 @@
+﻿scenario,weight_saseo,weight_samgyeong,weight_other_gyeong,avg_genre_entropy,n_markers
+uniform,1.0,1.0,1.0,1.3545532283676351,155
+weak,2.0,1.5,1.2,1.3545532283676351,162
+moderate,3.0,2.0,1.5,1.3545532283676351,172
+strong,5.0,3.0,2.0,1.3545532283676351,192

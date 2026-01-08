@@ -14,8 +14,10 @@ from datetime import datetime
 
 def extract_book_name(filename):
     """파일명에서 책 이름 추출"""
-    # 예: jti_1e0201-[역주]춘추좌씨전1_원문_x-C2017.xml -> 춘추좌씨전1
-    match = re.search(r'\[역주\](.+?)_(?:원문|번역문)', filename)
+    # 예:
+    # - jti_1e0201-[역주]춘추좌씨전1_원문_x-C2017.xml -> 춘추좌씨전1
+    # - jti_1h0301-[현토]논어집주_원문_x-C2017.xml -> 논어집주
+    match = re.search(r'\[(?:역주|현토)\](.+?)_(?:원문|번역문)', filename)
     if match:
         return match.group(1)
     return None

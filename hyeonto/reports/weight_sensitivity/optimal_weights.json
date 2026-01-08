@@ -1,0 +1,15 @@
+{
+  "optimal_weights": {
+    "saseo": 8.0,
+    "samgyeong": 1.0,
+    "other_gyeong": 1.0
+  },
+  "composite_score": 0.5016539063991494,
+  "analysis_date": "2026-01-08",
+  "optimization_criteria": [
+    "saseo_purity (30%): 사서 클러스터(p6) 내 사서 비중",
+    "separation (25%): 클러스터 간 정의-서사 분리도",
+    "marker_diff (20%): 사서/비사서 마커 차별화",
+    "p6_def_score (25%): p6 클러스터의 정의형 마커 우세도"
+  ]
+}
