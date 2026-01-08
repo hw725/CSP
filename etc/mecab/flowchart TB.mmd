@@ -1,0 +1,52 @@
+flowchart TB
+    %% 스타일 정의 (글자가 잘 보이도록)
+    classDef startEnd fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px,color:#000,font-weight:bold
+    classDef mainFile fill:#e3f2fd,stroke:#1976d2,stroke-width:3px,color:#000,font-weight:bold
+    classDef core fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000,font-weight:bold
+    classDef tokenizer fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000,font-weight:bold
+    classDef data fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000,font-weight:bold
+    classDef utility fill:#f1f8e9,stroke:#558b2f,stroke-width:2px,color:#000,font-weight:bold
+    classDef cache fill:#fff8e1,stroke:#f9a825,stroke-width:2px,color:#000,font-weight:bold
+    
+    A[🚀 SA 디렉토리 시작]:::startEnd
+    
+    %% 메인 실행기
+    B[📋 main.py<br/>CLI 인터페이스<br/>로깅 및 실행 제어]:::mainFile
+    
+    %% 핵심 모듈들
+    C[🔧 io_manager.py<br/>메인 처리 로직<br/>병렬 처리 및 무결성 보장]:::core
+    D[🎭 punctuation.py<br/>구두점 마스킹/언마스킹<br/>무결성 검증]:::core
+    
+    %% 토크나이저 서브디렉토리
+    E[📁 sa_tokenizers/<br/>토크나이저 모듈 모음]:::tokenizer
+    F[🔧 jieba_mecab.py<br/>jieba와 mecab<br/>토크나이저 구현]:::tokenizer
+    
+    %% 데이터 파일들
+    G[📊 input.xlsx<br/>원문과 번역문<br/>문장 단위 입력]:::data
+    H[📊 input01.xlsx<br/>샘플 데이터 1]:::data
+    I[📊 output.xlsx<br/>구별 정렬 결과<br/>문장식별자와 구식별자와 원문구와 번역구]:::data
+    
+    %% 캐시 및 유틸리티
+    J[💾 embedding_cache.pkl<br/>임베딩 캐시<br/>성능 최적화]:::cache
+    K[📁 tested/<br/>테스트 파일들<br/>검증용 데이터]:::utility
+    
+    %% 공통 모듈 의존성
+    L[🧠 ../common/embedders/<br/>BGE-M3와 OpenAI<br/>임베딩 엔진]:::core
+    M[🔧 ../common/io_utils.py<br/>Excel 입출력<br/>공통 유틸리티]:::core
+    
+    A --> B
+    B --> C
+    C --> D
+    C --> E
+    E --> F
+    
+    %% 데이터 관계
+    B --> G
+    B --> H
+    C --> I
+    C --> J
+    
+    %% 의존성 관계
+    C -.-> L
+    C -.-> M
+    D -.-> K

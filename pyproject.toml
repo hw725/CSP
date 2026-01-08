@@ -1,0 +1,77 @@
+[project]
+name = "csp"
+version = "0.1.0"
+description = "Multilingual NLP project with Korean/Chinese support"
+authors = [
+    {name = "hw725", email = "hw725@g.skku.edu"}
+]
+readme = "README.md"
+requires-python = ">=3.10.11,<3.14"
+dependencies = [
+    # 데이터 처리 및 분석
+    "pandas",
+    "numpy",
+    "openpyxl", 
+    "scipy",
+    
+    # 유틸리티
+    "regex",
+    "tqdm",
+    "konlpy",
+    "openai",
+    
+    # 🆕 하이브리드 한국어 처리
+    "kiwipiepy (>=0.21.0,<0.22.0)",  # 한글 형태소 분석 (MeCab 대체)
+    
+    # 머신러닝
+    "scikit-learn",
+    
+    # NLP 및 임베딩 패키지 (전근대 고전 전용)
+    "spacy",
+    
+    # 🔄 기존 MeCab (폴백용으로 유지)
+    "mecab-ko",
+    "mecab-ko-dic", 
+    "mecab-ko-msvc",
+    
+    # 추가 유틸리티
+    "jinja2",
+    "transformers (>=4.21.0,<4.30.0)",
+    "torch (>=2.8.0,<3.0.0)",
+]
+
+[project.optional-dependencies]
+hf-optimization = ["hf_xet"]
+dev = [
+    "jupyter",
+    "ipykernel",
+    "matplotlib",
+    "seaborn", 
+    "black",
+    "isort",
+    "pytest",
+    "pytest-cov",
+]
+
+[project.scripts]
+install-models = "scripts.install_models:main"
+setup-mecab = "scripts.setup_mecab:main"
+
+[tool.poetry]
+package-mode = false
+
+# PyTorch 설치 안내
+# =================
+# CUDA 환경: poetry run pip install torch==2.7.1+cu128 torchvision==0.22.1+cu128 torchaudio==2.7.1+cu128 --extra-index-url https://download.pytorch.org/whl/cu128
+# CPU 환경: poetry run pip install torch==2.7.1+cpu torchvision==0.22.1+cpu torchaudio==2.7.1+cpu --index-url https://download.pytorch.org/whl/cpu
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
