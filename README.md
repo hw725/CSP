@@ -84,10 +84,12 @@ CSP/
 ### 1. 환경 구성
 
 ```bash
-# Docker 환경에서 실행 (권장)
-docker-compose up -d
+# Docker 환경에서 실행 (권장: torch/GPU/파서 포함)
+docker compose up -d
 
-# 또는 로컬 환경 설정
+# 로컬 환경(선택): 일부 경량 스크립트만 가능
+# - torch/suparkanbun/stanza 등이 없으면 PA 관련 모듈은 경고가 발생할 수 있습니다.
+# - 정확한 재현/평가/trace는 아래 "도커에서만" 섹션 커맨드를 사용하세요.
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -97,7 +99,7 @@ pip install -r requirements.txt
 
 ```bash
 # 문단병렬 입력 → 문장병렬 출력
-docker-compose run csp python pa/main.py \
+docker compose run --rm csp python pa/main.py \
   xlsx/당송팔대가문초한유3/당송팔대가문초한유3_문단병렬.xlsx \
   output.xlsx \
   --embedder bge
@@ -107,7 +109,125 @@ docker-compose run csp python pa/main.py \
 
 ```bash
 # 모든 책 자동 처리 (PA + SA + 평가)
-docker-compose run csp python batch_43books.py
+docker compose run --rm csp python batch_43books.py
+```
+
+---
+
+## 🐳 PA 재현/평가(도커에서만)
+
+로컬 Python 환경에 `torch`/`suparkanbun`/`stanza`가 없으면 PA 관련 경고가 발생할 수 있습니다. **성능/재현/trace/평가는 아래처럼 도커 컨테이너에서만 실행**하는 것을 기준으로 합니다.
+
+### (중요) 실험 산출물 정리 규칙
+
+- 대량 산출물은 기본적으로 `test_results/`, `logs/`에 생성됩니다.
+- 작업 중 누적된 산출물이 너무 많아지면, 로컬 전용 `trash/<timestamp>/`로 **이동(삭제 아님)** 해서 폴더를 비웁니다.
+- `trash/`와 `logs/`는 로컬 전용이며 git에 포함하지 않습니다.
+- 번역문 분할의 **종결부호 뒤 공백 관련 미세 튜닝은 현재 보류**(추후 필요 시 실험 브랜치에서 진행)합니다.
+
+### 1) (선택) 도커에서 의존성 로드 확인
+
+```bash
+docker compose run --rm csp python -c "import torch; print('torch', torch.__version__); from pa.processor import process_paragraph_alignment_with_boundary_model; print('import ok')"
+```
+
+### (자주씀) 이미 떠있는 컨테이너에서 한 줄 실행 (exec)
+
+```bash
+# PA 실행(예: PD test100, strict) - 결정론 재현(권장)
+# - PYTHONHASHSEED까지 고정해야 결과 drift가 줄어듭니다.
+docker compose exec -e PYTHONHASHSEED=1 csp python -u pa/main.py \
+  datasets/pd/test_100.csv \
+  test_results/repro_det_thr070_len200_seed1.csv \
+  --embedder bge \
+  --use-boundary-model \
+  --boundary-threshold 0.70 \
+  --boundary-min-len 20 \
+  --max-length 200 \
+  --seed 1 \
+  --deterministic
+
+# gold 비교 리포트 (정답: datasets/pa/test_100_from_pd.csv)
+docker compose exec csp python -u integrity_report.py \
+  --input test_results/repro_det_thr070_len200_seed1.csv \
+  --gold datasets/pa/test_100_from_pd.csv
+```
+
+### 2) PA 실행 + stage trace(JSONL) 생성 (권장 기본값)
+
+아래 커맨드는 현재 작업 기준으로 **자주 사용하는 기본값**을 고정합니다:
+
+- `--boundary-threshold 0.70`
+- `--seed 1 --deterministic`
+- `PYTHONHASHSEED=1` (파이썬 해시 랜덤화 고정)
+- trace 파일명 규칙: `logs/pa_stage_trace_bthr{bthr}_ml{ml}_seed{seed}.jsonl`
+
+```bash
+# adjacent refine ON (권장)
+docker compose run -e PYTHONHASHSEED=1 --rm csp python pa/main.py \
+  <input.xlsx> \
+  <output.xlsx> \
+  --embedder bge \
+  --use-boundary-model \
+  --boundary-threshold 0.70 \
+  --boundary-min-len 20 \
+  --trace-stages-jsonl logs/pa_stage_trace_bthr0.70_ml10_seed1.jsonl \
+  --seed 1 \
+  --deterministic
+
+# adjacent refine OFF (비교/ablation)
+docker compose run -e PYTHONHASHSEED=1 --rm csp python pa/main.py \
+  <input.xlsx> \
+  <output.xlsx> \
+  --embedder bge \
+  --use-boundary-model \
+  --boundary-threshold 0.70 \
+  --boundary-min-len 20 \
+  --disable-adjacent-boundary-refine \
+  --trace-stages-jsonl logs/pa_stage_trace_bthr0.70_ml10_seed1_noAdjRef.jsonl \
+  --seed 1 \
+  --deterministic
+```
+
+### 3) stage drift 분석(ground truth + trace)
+
+```bash
+docker compose run --rm csp python scripts/analyze_stage_drift.py \
+  --gt-xlsx datasets/pa/test_100_from_pd.csv \
+  --trace-jsonl logs/pa_stage_trace_bthr0.70_ml20_seed1.jsonl \
+  --out-csv test_results/stage_drift_bthr0.70_ml20_seed1.csv
+
+docker compose run --rm csp python scripts/analyze_stage_drift.py \
+  --gt-xlsx datasets/pa/test_100_from_pd.csv \
+  --trace-jsonl logs/pa_stage_trace_bthr0.70_ml20_seed1_noAdjRef.jsonl \
+  --out-csv test_results/stage_drift_bthr0.70_ml20_seed1_noAdjRef.csv
+```
+
+### PowerShell 예시(줄바꿈은 백틱 ` 사용)
+
+```powershell
+$env:PYTHONHASHSEED = 1
+
+docker compose run --rm csp python pa/main.py `
+  <input.xlsx> `
+  <output.xlsx> `
+  --embedder bge `
+  --use-boundary-model `
+  --boundary-threshold 0.70 `
+  --boundary-min-len 20 `
+  --trace-stages-jsonl logs/pa_stage_trace_bthr0.70_ml20_seed1.jsonl `
+  --seed 1 `
+  --deterministic
+
+docker compose run --rm csp python scripts/analyze_stage_drift.py `
+  --gt-xlsx datasets/pa/test_100_from_pd.csv `
+  --trace-jsonl logs/pa_stage_trace_bthr0.70_ml20_seed1.jsonl `
+  --out-csv test_results/stage_drift_bthr0.70_ml20_seed1.csv
+
+docker compose run --rm csp python scripts/analyze_stage_drift.py `
+  --gt-xlsx datasets/pa/test_100_from_pd.csv `
+  --trace-jsonl logs/pa_stage_trace_bthr0.70_ml20_seed1_noAdjRef.jsonl `
+  --out-csv test_results/stage_drift_bthr0.70_ml20_seed1_noAdjRef.csv
 ```
 
 ---

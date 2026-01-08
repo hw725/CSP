@@ -201,15 +201,85 @@
 
 ---
 
+### PROJECT_CLEANUP_REPORT.md
+
+**용도**: 프로젝트 전체 정리 보고서
+
+**주요 내용**:
+- 코드 정리 결과
+- 중복 파일 제거 내역
+- 폴더 구조 개선 사항
+- 의존성 업데이트 내역
+
+**분량**: ~290줄
+**읽기 시간**: 5분
+
+---
+
+### CONTEXT_AWARE_ALIGNMENT_GUIDE.md
+
+**용도**: 경계 인식 정렬 모델 개발 가이드
+
+**주요 내용**:
+1. **학습 메커니즘**: Contrastive Learning + Boundary Classification
+2. **데이터 생성**: 경계 정보 포함 학습 데이터 생성
+3. **모델 학습**: BoundaryAwareDualEncoder 학습 방법
+4. **PA Processor 통합**: 기존 시스템에 통합하는 방법
+5. **하이퍼파라미터 튜닝**: boundary_weight, hard_neg_ratio 등
+
+**대상**: PA 정확도 향상을 원하는 개발자
+**분량**: ~440줄
+**읽기 시간**: 20분
+
+---
+
+### OBSERVABILITY_FIRST_PROMPT_DESIGN_MANUAL.md
+
+**용도**: AI 에이전트와의 효율적 협업을 위한 설계 매뉴얼
+
+**주요 내용**:
+1. **3대 원칙**: 관측성 우선, 증거 기반 디버깅, 컴포넌트별 기여도 분리
+2. **프롬프트 템플릿**: 초기 요구사항 작성법
+3. **단계별 체크리스트**: 설계 → 인프라 → 구현 → 실험
+4. **코드 스니펫**: TraceWriter, Stage Decorator, Ablation Runner
+5. **실전 예시**: 이 프로젝트에서의 적용 사례
+
+**대상**: AI 에이전트와 복잡한 시스템을 개발하는 개발자
+**분량**: ~440줄
+**읽기 시간**: 15분
+
+---
+
+### MULTIVECTOR_VS_DENSE.md
+
+**용도**: BGE-M3 임베딩 방식 비교 설명
+
+**주요 내용**:
+1. **Dense Vector**: 의미적 유사도 (1024차원)
+2. **Sparse Vector**: 키워드 기반 매칭 (100차원)
+3. **ColBERT Vector**: 토큰별 상세 표현 (512차원)
+4. **작업별 선택 가이드**: SA는 Dense, PA는 Multi-Vector
+5. **성능 비교**: 속도, 메모리, 정확도
+
+**대상**: 임베딩 선택에 혼란을 겪는 개발자
+**분량**: ~430줄
+**읽기 시간**: 10분
+
+---
+
 ## 🗂️ 파일 구조
 
 ```
 documents/
-├── README.md              ← 📍 여기서 시작!
-├── WORKFLOW.md            ← 시스템 이해
-├── TROUBLESHOOTING.md     ← 문제 해결
-├── PERFORMANCE.md         ← 성능 최적화
-└── INDEX.md               ← 이 파일
+├── INDEX.md                          ← 📍 이 파일 (문서 가이드)
+├── DATA_PREPARATION.md               ← 데이터 처리 과정
+├── WORKFLOW.md                       ← PA/SA 워크플로우
+├── TROUBLESHOOTING.md                ← 문제 해결
+├── PERFORMANCE.md                    ← 성능 최적화
+├── PROJECT_CLEANUP_REPORT.md         ← 프로젝트 정리 보고서
+├── CONTEXT_AWARE_ALIGNMENT_GUIDE.md  ← 경계 인식 정렬 모델 가이드
+├── OBSERVABILITY_FIRST_PROMPT_DESIGN_MANUAL.md ← 관측성 우선 설계 매뉴얼
+└── MULTIVECTOR_VS_DENSE.md           ← Multi-Vector vs Dense 임베딩 비교
 ```
 
 ---

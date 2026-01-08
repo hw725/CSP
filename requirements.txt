@@ -1,38 +1,72 @@
-# 한자 모델 커스터마이징 + SQL 통합 의존성
-# ML Framework
-torch==2.6.0
-transformers==4.55.3
+# CSP (Corpus Split Pipeline) Dependencies
+# Python 3.10+ 지원
+#
+# ========================================
+# 의존성 관리 가이드
+# ========================================
+# - 현재 방식: 수동 관리 + 주석으로 업데이트 이유 명시
+# - 주기적 업데이트 확인 (3~6개월마다):
+#   docker exec csp-container pip list --outdated
+# - 보안 취약점 확인:
+#   pip install safety
+#   safety check -r requirements.txt
+# ========================================
+
+# ========================================
+# ML Framework & Transformers
+# ========================================
+torch==2.9.1  # 업데이트: CVE 보안 수정 (2.6.0 → 2.9.1)
+transformers==4.57.3  # 업데이트: 버그 수정 (4.55.3 → 4.57.3)
 datasets==3.2.0
 accelerate==1.10.0
-huggingface-hub==0.34.4
+huggingface-hub==0.34.4  # ⚠️ 유지 필수: transformers 4.57.3이 <1.0 요구
 
+# ========================================
+# Embeddings & NLP
+# ========================================
+# BGE-M3 모델 (문단/문장 임베딩)
+FlagEmbedding>=1.2.0
+sentence-transformers>=2.2.0
+
+# 한글/한자 형태소 분석
+kiwipiepy==0.22.2  # 업데이트: 패치 버그 수정 (0.22.1 → 0.22.2)
+
+# 정규표현식 (확장)
+regex==2023.12.25
+
+# ========================================
 # SQL & Data Processing
-pandas==2.2.2
+# ========================================
+pandas==2.3.3  # 업데이트: 성능 향상 (2.2.2 → 2.3.3)
 pyodbc==5.1.0
 sqlalchemy==2.0.35
-openpyxl==3.1.2
-lxml==5.1.0
+openpyxl==3.1.5  # 업데이트: 버그 수정 (3.1.2 → 3.1.5)
+lxml==5.1.0  # ⚠️ 유지: 6.0은 메이저 업데이트, 테스트 필요
 
-# Utilities
-tqdm==4.67.1
-numpy==1.26.4
-scikit-learn==1.5.1
+# ========================================
+# Scientific Computing
+# ========================================
+tqdm==4.67.1  # ✅ 최신
+numpy==1.26.4  # ✅ 최신 1.x (2.x는 선택사항)
+scikit-learn==1.8.0  # 업데이트: 성능 향상 (1.5.1 → 1.8.0)
 
-# Optional: Fine-tuning & Inference
+# ========================================
+# Fine-tuning & Inference (Optional)
+# ========================================
 peft==0.15.0
 bitsandbytes==0.43.3
 
-# Korean Morphological Analysis
-kiwipiepy==0.22.1
+# ========================================
+# AI APIs
+# ========================================
+openai==2.14.0  # 업데이트: API 개선 (2.11.0 → 2.14.0)
+google-generativeai==0.7.2
 
-# Development (선택사항)
+# ========================================
+# Development Tools (Optional)
+# ========================================
 jupyter==1.0.0
 ipython==8.30.0
 black==24.10.0
 flake8==7.1.1
 pytest==8.3.4
-regex
-
-# AI APIs
-openai==2.11.0
-google-generativeai==0.7.2
