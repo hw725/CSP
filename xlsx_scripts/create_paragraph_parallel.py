@@ -61,5 +61,5 @@ def create_paragraph_parallel(output_base_dir):
     print(f"\n완료!")
 
 if __name__ == '__main__':
-    output_directory = '/workspace/tsv_output'
+    output_directory = '/workspace/xlsx'
     create_paragraph_parallel(output_directory)

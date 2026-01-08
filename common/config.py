@@ -75,16 +75,18 @@ def get_alignment_params() -> Dict[str, Any]:
     cfg = _load_file_config()
     params = cfg.get("alignment_params", {})
     
-    # 기본값 정의
+    # 기본값 정의 (정확도 중심)
     defaults = {
-        "similarity_threshold": 0.5,
+        "similarity_threshold": 0.65,
         "length_penalty": 0.1,
-        "distance_decay": 0.05,
-        "boundary_bonus": 0.15,
-        "particle_bonus": 0.2,
-        "comma_bonus": 0.1,
-        "dp_window": 2,
-        "sim_gamma": 1.2,
+        "distance_decay": 0.08,
+        "boundary_bonus": 0.2,
+        "particle_bonus": 0.25,
+        "comma_bonus": 0.15,
+        "dp_window": 4,
+        "sim_gamma": 1.4,
+        "hanja_bonus": 0.3,
+        "hanja_strict": True,
     }
     
     # 설정 파일 값으로 덮어쓰기

@@ -65,8 +65,8 @@ def normalize_xlsx_file(file_path: str, backup: bool = True) -> dict:
             src = str(df.at[idx, src_col]) if pd.notna(df.at[idx, src_col]) else ""
             tgt = str(df.at[idx, tgt_col]) if pd.notna(df.at[idx, tgt_col]) else ""
             
-            # 번역문의 [-...] 패턴도 제거
-            norm_src, norm_tgt = normalize_source_and_target(src, tgt, normalize_brackets_in_tgt=True)
+            # 내부 개행 제거, 공백만 정규화 ([-텍스트] 보존!)
+            norm_src, norm_tgt = normalize_source_and_target(src, tgt, normalize_brackets_in_tgt=False)
             
             # 변화가 있으면 카운트
             if norm_src != src or norm_tgt != tgt:

@@ -38,6 +38,9 @@ class EmbeddingManager:
         self._use_dummy = False
         self.process_id = os.getpid()
         self.device_id = device_id
+        # 🔧 API 버전 캐싱 (한 번만 감지하도록)
+        self._api_version_checked = False
+        self._use_legacy_api = False  # True면 구버전 API
     
     def _load_model(self):
         """모델 로딩 (프로세스별)"""
@@ -49,6 +52,9 @@ class EmbeddingManager:
             self.process_id = os.getpid()
             self._model_loaded = False
             self.model = None
+            # 🔧 프로세스 변경 시 API 버전도 재확인
+            self._api_version_checked = False
+            self._use_legacy_api = False
         
         try:
             from FlagEmbedding import FlagModel
@@ -347,33 +353,53 @@ class EmbeddingManager:
                         
                         if use_multi_vector:
                             # BGE-M3 multi-vector 임베딩 계산 (API 버전 자동 감지)
-                            try:
-                                # 최신 API 시도 (BGE-M3 v1.2.0+)
-                                result = self.model.encode(
-                                    batch, 
-                                    return_dense=True, 
-                                    return_sparse=True, 
-                                    return_colbert_vecs=True
-                                )
-                                batch_embeddings = self._combine_multi_vectors(result, batch)
-                                print(f"✅ BGE-M3 Multi-vector 성공: {len(batch_embeddings)}개 텍스트")
-                                
-                            except TypeError as api_error:
-                                if "unexpected keyword argument" in str(api_error):
-                                    # 구버전 API - dense embedding + 추가 정보로 multi-vector 시뮬레이션
-                                    print(f"⚠️ BGE-M3 구버전 API 감지, Dense + 시뮬레이션 Multi-vector 모드")
-                                    dense_embeddings = self.model.encode(batch)
+                            # 🔧 API 버전이 이미 결정되었으면 그대로 사용
+                            if not self._api_version_checked:
+                                try:
+                                    # 최신 API 시도 (BGE-M3 v1.2.0+)
+                                    result = self.model.encode(
+                                        batch, 
+                                        return_dense=True, 
+                                        return_sparse=True, 
+                                        return_colbert_vecs=True
+                                    )
+                                    batch_embeddings = self._combine_multi_vectors(result, batch)
+                                    self._api_version_checked = True
+                                    self._use_legacy_api = False
+                                    logger.info(f"✅ BGE-M3 최신 API 감지 (multi-vector 지원)")
                                     
-                                    # Dense embedding을 기반으로 multi-vector 시뮬레이션
+                                except TypeError as api_error:
+                                    if "unexpected keyword argument" in str(api_error):
+                                        # 구버전 API - dense embedding + 시뮬레이션 multi-vector
+                                        self._api_version_checked = True
+                                        self._use_legacy_api = True
+                                        logger.warning(f"⚠️ BGE-M3 구버전 API 감지, Dense + 시뮬레이션 Multi-vector 모드")
+                                        dense_embeddings = self.model.encode(batch)
+                                        # Dense embedding을 기반으로 multi-vector 시뮬레이션 (품질 유지)
+                                        batch_embeddings = []
+                                        for i, (text, dense_emb) in enumerate(zip(batch, dense_embeddings)):
+                                            simulated_multi = self._simulate_multi_vector_from_dense(text, dense_emb)
+                                            batch_embeddings.append(simulated_multi)
+                                    else:
+                                        raise api_error
+                            else:
+                                # API 버전이 이미 결정됨 - 그에 맞게 처리
+                                if self._use_legacy_api:
+                                    # 구버전: dense + 시뮬레이션 multi-vector (품질 유지)
+                                    dense = self.model.encode(batch)
                                     batch_embeddings = []
-                                    for i, (text, dense_emb) in enumerate(zip(batch, dense_embeddings)):
-                                        # Dense (1024) + 시뮬레이션 sparse (100) + 시뮬레이션 colbert (512)
+                                    for i, (text, dense_emb) in enumerate(zip(batch, dense)):
                                         simulated_multi = self._simulate_multi_vector_from_dense(text, dense_emb)
                                         batch_embeddings.append(simulated_multi)
-                                    
-                                    print(f"✅ 시뮬레이션 Multi-vector: {len(batch_embeddings)}개 텍스트 (1636차원)")
                                 else:
-                                    raise api_error
+                                    # 최신 버전: multi-vector 계산
+                                    result = self.model.encode(
+                                        batch, 
+                                        return_dense=True, 
+                                        return_sparse=True, 
+                                        return_colbert_vecs=True
+                                    )
+                                    batch_embeddings = self._combine_multi_vectors(result, batch)
                         else:
                             # dense embedding만 계산
                             dense = self.model.encode(batch)

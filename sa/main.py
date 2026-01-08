@@ -16,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 warnings.filterwarnings("ignore", message=".*torch.load.*")
 warnings.filterwarnings("ignore", message=".*vulnerability.*")
 warnings.filterwarnings("ignore", message=".*CVE-2025-32434.*")
+# BGE-M3 구버전 API 경고 억제
+warnings.filterwarnings("ignore", message=".*BGE-M3 구버전 API 감지.*")
 
 def setup_logging(verbose: bool = False):
     """로깅 설정"""

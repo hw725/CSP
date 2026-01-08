@@ -6,11 +6,10 @@ import pandas as pd
 from pathlib import Path
 
 def renumber_excel_files(output_base_dir):
-    """Excel 파일들의 문단식별자를 식별자 값의 변화에 따라 누적 번호로 다시 매기기
+    """Excel 파일들의 문단식별자를 순차 번호로 재지정
     
-    주의: 같은 식별자 그룹은 각각 고유한 번호를 할당해야 함
-    단순히 식별자가 바뀔 때만 번호를 증가시키면, 
-    같은 식별자의 여러 문장이 모두 같은 번호로 병합될 수 있음
+    같은 식별자가 연속되는 동안은 같은 번호, 
+    식별자가 바뀌면 새로운 번호를 부여한다.
     """
     
     output_base_dir = Path(output_base_dir)
@@ -25,28 +24,23 @@ def renumber_excel_files(output_base_dir):
             # Excel 파일 읽기
             df = pd.read_excel(excel_file, engine='openpyxl')
             
-            # 원본 식별자 유지 (문단번호로 재설정하지 않음)
-            # 대신 문단 그룹별로 순차 번호 할당
-            new_para_id = []
-            current_para_num = 0
+            # 식별자 그룹 번호 부여: 연속된 같은 식별자는 같은 번호
+            group_numbers = []
+            current_group = 0
             prev_identifier = None
             
-            for idx, row in df.iterrows():
-                current_identifier = row['문단식별자']
-                
-                # 식별자가 바뀌면 번호 증가
-                if current_identifier != prev_identifier:
-                    current_para_num += 1
-                    prev_identifier = current_identifier
-                
-                new_para_id.append(current_para_num)
+            for identifier in df['문단식별자']:
+                if identifier != prev_identifier:
+                    current_group += 1
+                    prev_identifier = identifier
+                group_numbers.append(current_group)
             
-            df['문단식별자'] = new_para_id
+            df['문단식별자'] = group_numbers
             
             # 다시 저장
             df.to_excel(excel_file, index=False, engine='openpyxl')
             
-            print(f"✓ {excel_file.parent.name}/{excel_file.name} - {len(df)}개 행, {current_para_num}개 문단")
+            print(f"✓ {excel_file.parent.name}/{excel_file.name} - {len(df)}개 행, {current_group}개 문단")
             
         except Exception as e:
             print(f"✗ 오류: {excel_file.name} - {str(e)}")
@@ -54,5 +48,5 @@ def renumber_excel_files(output_base_dir):
     print(f"\n완료!")
 
 if __name__ == '__main__':
-    output_directory = '/workspace/tsv_output'
+    output_directory = '/workspace/xlsx'
     renumber_excel_files(output_directory)

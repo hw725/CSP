@@ -19,6 +19,11 @@ import numpy as np
 import json
 import hashlib
 
+try:
+    from common.llm_boundary_refiner import refine_boundaries_with_llm
+except Exception:
+    refine_boundaries_with_llm = None
+
 # 전역 구식별자 (파일 처리마다 리셋)
 _global_segment_id = 0
 
@@ -225,6 +230,248 @@ def _unmask_text(text: str, mapping):
 def _unmask_list(chunks: List[str], mapping):
     return [_unmask_text(chunk, mapping) for chunk in chunks]
 
+
+def _merge_leading_quotation_markers(units: List[str]) -> List[str]:
+    """인용 표지가 문장 앞에 오면 바로 앞 단위로 이동시키되 길이는 유지한다."""
+    if len(units) <= 1:
+        return units
+
+    quotation_particles = r'(고|[이]?라?고|하고|며|면서)'
+    speech_verbs = r'(하|말하|말씀하|명하|이르|대답하|답하|묻|문|여쭙|아뢰|전하|칭하|부르|외치)'
+    honorific_tense = r'(?:셨|ㅆ|시었|시어|시는|시ㄴ|시ㄹ|시|었|았|였|는|ㄴ|ㄹ|을)?'
+    endings = r'(다|ㄴ다|는다|습니다|ㅂ니다|까|ㄹ까|을까|느냐|ㄴ가|는가|라|거라|소|오|어라|아라|니|으니)'
+    closing_quote = r'["”’]?'
+    punctuation = r'[\.。?!,，]?'
+    marker_chunk = (
+        closing_quote +
+        r'\s*' +
+        quotation_particles +
+        r'\s+' +
+        speech_verbs +
+        honorific_tense +
+        endings +
+        r'\s*' +
+        punctuation +
+        r'\s*' +
+        closing_quote +
+        r'\s*'
+    )
+    marker_prefix_regex = re.compile(r'^\s*' + marker_chunk, re.IGNORECASE)
+
+    merged = list(units)
+    for idx in range(1, len(merged)):
+        seg = merged[idx]
+        if seg and marker_prefix_regex.match(seg):
+            merged[idx - 1] = (merged[idx - 1].rstrip() + ' ' + seg.lstrip()).strip()
+            merged[idx] = ''
+    return merged
+
+def _adjust_segments_to_count(
+    segments: List[str], 
+    target_count: int, 
+    mode: str,
+    text: str = None,
+    src_units: List[str] = None
+) -> List[str]:
+    """
+    LLM이 제안한 세그먼트를 원문 의미에 맞게 목표 개수로 조정
+    
+    Args:
+        segments: LLM이 제안한 세그먼트 리스트
+        target_count: 목표 세그먼트 개수 (원문 단위 수)
+        mode: 'split' (추가 분할) 또는 'merge' (병합)
+        text: 원본 번역문 텍스트 (LLM 재요청용)
+        src_units: 원문 세그먼트 리스트 (의미 대응 정보)
+    
+    Returns:
+        조정된 세그먼트 리스트 (정확히 target_count 개)
+    """
+    if len(segments) == target_count:
+        return segments
+    
+    # LLM에게 의미 기반 재조정 요청 시도
+    if text and src_units and len(src_units) == target_count and refine_boundaries_with_llm:
+        try:
+            adjusted = _adjust_with_llm_semantic(text, segments, src_units, target_count, mode)
+            if adjusted and len(adjusted) == target_count:
+                # 텍스트 무결성 검증
+                original_flat = ''.join(text.split())
+                adjusted_flat = ''.join(''.join(adjusted).split())
+                if original_flat == adjusted_flat:
+                    logger.info(f"✅ LLM 의미 기반 조정 성공: {len(segments)}개 → {target_count}개")
+                    return adjusted
+        except Exception as e:
+            logger.debug(f"LLM 의미 기반 조정 실패, 폴백 사용: {e}")
+    
+    # 폴백: 길이 기반 조정
+    result = list(segments)
+    
+    if mode == 'split':
+        # 가장 긴 세그먼트를 반복적으로 분할
+        while len(result) < target_count:
+            # 가장 긴 세그먼트 찾기 (공백으로 분할 가능한 것 우선)
+            longest_idx = -1
+            longest_len = 0
+            for i, seg in enumerate(result):
+                tokens = seg.split()
+                if len(tokens) > 1 and len(tokens) > longest_len:
+                    longest_len = len(tokens)
+                    longest_idx = i
+            
+            if longest_idx == -1:
+                # 분할 가능한 세그먼트가 없음 - 마지막에 빈 문자열 추가
+                result.append('')
+                continue
+            
+            # 세그먼트를 중간에서 분할
+            seg = result[longest_idx]
+            tokens = seg.split()
+            mid = len(tokens) // 2
+            left = ' '.join(tokens[:mid])
+            right = ' '.join(tokens[mid:])
+            result[longest_idx] = left
+            result.insert(longest_idx + 1, right)
+    
+    elif mode == 'merge':
+        # 가장 짧은 인접 세그먼트 쌍을 반복적으로 병합
+        while len(result) > target_count:
+            # 가장 짧은 인접 쌍 찾기
+            shortest_pair_idx = -1
+            shortest_pair_len = float('inf')
+            for i in range(len(result) - 1):
+                pair_len = len(result[i]) + len(result[i + 1])
+                if pair_len < shortest_pair_len:
+                    shortest_pair_len = pair_len
+                    shortest_pair_idx = i
+            
+            if shortest_pair_idx == -1:
+                # 병합할 수 없음 - 마지막 제거
+                result.pop()
+                continue
+            
+            # 두 세그먼트 병합
+            merged = result[shortest_pair_idx] + ' ' + result[shortest_pair_idx + 1]
+            result[shortest_pair_idx] = merged.strip()
+            result.pop(shortest_pair_idx + 1)
+    
+    return result
+
+
+def _adjust_with_llm_semantic(
+    text: str,
+    current_segments: List[str],
+    src_units: List[str],
+    target_count: int,
+    mode: str
+) -> List[str]:
+    """
+    LLM을 사용해 원문 의미에 맞게 번역문 세그먼트 재조정
+    
+    Args:
+        text: 원본 번역문 전체 텍스트
+        current_segments: 현재 LLM이 제안한 세그먼트
+        src_units: 원문 세그먼트 리스트
+        target_count: 목표 개수
+        mode: 'split' 또는 'merge'
+    
+    Returns:
+        재조정된 세그먼트 리스트
+    """
+    import os
+    import json
+    
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    
+    model_name = os.getenv("LLM_BOUNDARY_MODEL", "gpt-4o-mini")
+    
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+    except Exception:
+        return None
+    
+    # 원문 세그먼트 번호와 함께 제시
+    src_list = "\n".join([f"{i+1}. {s}" for i, s in enumerate(src_units)])
+    
+    # 현재 LLM이 제안한 세그먼트
+    current_list = "\n".join([f"  {i+1}. {s}" for i, s in enumerate(current_segments)])
+    
+    if mode == 'split':
+        instruction = f"""당신이 제안한 {len(current_segments)}개 세그먼트를 {target_count}개로 세분화해야 합니다.
+        
+원문은 {target_count}개의 의미 단위로 구성되어 있습니다:
+{src_list}
+
+현재 당신이 제안한 번역문 세그먼트 {len(current_segments)}개:
+{current_list}
+
+번역문을 정확히 {target_count}개 세그먼트로 나누되, 각 세그먼트가 원문의 대응하는 의미 단위와 맞도록 분할하세요.
+번역문의 일부 세그먼트가 원문의 여러 의미 단위를 포함하고 있다면, 그것을 원문 단위에 맞게 나누세요."""
+    else:  # merge
+        instruction = f"""당신이 제안한 {len(current_segments)}개 세그먼트를 {target_count}개로 병합해야 합니다.
+
+원문은 {target_count}개의 의미 단위로 구성되어 있습니다:
+{src_list}
+
+현재 당신이 제안한 번역문 세그먼트 {len(current_segments)}개:
+{current_list}
+
+번역문을 정확히 {target_count}개 세그먼트로 병합하되, 각 세그먼트가 원문의 대응하는 의미 단위와 맞도록 조정하세요.
+번역문의 여러 세그먼트가 원문의 하나의 의미 단위에 대응한다면, 그것들을 병합하세요."""
+    
+    prompt = f"""{instruction}
+
+원본 번역문 전체:
+{text}
+
+중요 규칙:
+1. 텍스트의 문자나 순서를 절대 변경하지 마세요. 오직 경계만 조정하세요.
+2. 반드시 정확히 {target_count}개 세그먼트를 반환하세요.
+3. 각 세그먼트가 원문의 대응하는 의미 단위를 번역한 부분이 되도록 하세요.
+
+JSON 형식으로만 응답하세요:
+{{"segments": ["세그먼트1", "세그먼트2", ...]}}"""
+    
+    try:
+        resp = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a precise boundary adjuster. Adjust boundaries based on source-target semantic correspondence. Never alter text content."
+                },
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            max_tokens=2000,
+        )
+        
+        content = resp.choices[0].message.content.strip()
+        
+        # JSON 파싱
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        content = content.strip()
+        
+        data = json.loads(content)
+        adjusted = data.get("segments", [])
+        
+        if not isinstance(adjusted, list) or len(adjusted) != target_count:
+            logger.warning(f"LLM 의미 조정: 잘못된 개수 반환 ({len(adjusted)} != {target_count})")
+            return None
+        
+        return adjusted
+        
+    except Exception as e:
+        logger.debug(f"LLM 의미 조정 요청 실패: {e}")
+        return None
+
 def split_tgt_meaning_units(text: str, src_units_count: int, src_units: List[str] = None, use_semantic: bool = True, **kwargs) -> List[str]:
     """
     번역문을 원문 단위에 맞춰 분할 (의미 기반 매칭)
@@ -246,16 +493,78 @@ def split_tgt_meaning_units(text: str, src_units_count: int, src_units: List[str
     N, T = src_units_count, len(tgt_tokens)
 
     # 의미 기반 분할 시도
+    result: List[str]
     if use_semantic and src_units and len(src_units) == src_units_count:
         try:
             result = _split_tgt_by_src_units_semantic(src_units, text, **kwargs)
             logger.debug(f"의미 기반 분할 성공: {result}")
-            return result
         except Exception as e:
             logger.warning(f"의미 기반 분할 실패, 단순 분할로 대체: {e}")
     
     # 폴백: 단순 분할
-    return _split_tgt_by_src_units_simple(text, src_units_count)
+    if 'result' not in locals():
+        result = _split_tgt_by_src_units_simple(text, src_units_count, src_units=src_units, **kwargs)
+
+    # 인용 표지가 문장 앞에 오면 앞 단위로 이동 (빈 칸 유지)
+    result = _merge_leading_quotation_markers(result)
+
+    # 선택적 LLM 경계 재검증 (길이/문자 무결성 유지)
+    original_result = list(result)
+    original_flat = ''.join(original_result).replace("\n", "")
+    if refine_boundaries_with_llm:
+        try:
+            # 의미 대응 강화를 위해 원문 단위들을 참조 텍스트로 제공
+            ref_text = None
+            try:
+                if src_units and isinstance(src_units, list) and len(src_units) == src_units_count:
+                    ref_text = " ".join([s for s in src_units if isinstance(s, str)])
+            except Exception:
+                ref_text = None
+            llm_checked = refine_boundaries_with_llm(
+                text,
+                result,
+                task="sa",
+                max_segments=20,
+                reference_text=ref_text,
+            )
+            if llm_checked:
+                llm_flat = ''.join(llm_checked).replace("\n", "")
+                same_text = ''.join(llm_flat.split()) == ''.join(original_flat.split())
+                
+                if not same_text:
+                    logger.warning(f"SA LLM boundary rejected: text mismatch")
+                elif len(llm_checked) == src_units_count:
+                    # 개수 정확히 일치 - 바로 적용
+                    result = llm_checked
+                    logger.info(f"✅ LLM 경계 적용: {len(llm_checked)}개 (정확 일치)")
+                elif len(llm_checked) < src_units_count:
+                    # LLM이 적게 나눔 - 긴 세그먼트를 추가 분할
+                    logger.info(f"🔧 LLM 경계 조정: {len(llm_checked)}개 → {src_units_count}개 (추가 분할)")
+                    adjusted = _adjust_segments_to_count(
+                        llm_checked, src_units_count, mode='split',
+                        text=text, src_units=src_units
+                    )
+                    if adjusted and len(adjusted) == src_units_count:
+                        result = adjusted
+                        logger.info(f"✅ LLM 경계 적용: 조정 후 {len(adjusted)}개")
+                    else:
+                        logger.warning(f"⚠️ LLM 경계 조정 실패, 원본 유지")
+                elif len(llm_checked) > src_units_count:
+                    # LLM이 많이 나눔 - 짧은 세그먼트를 병합
+                    logger.info(f"🔧 LLM 경계 조정: {len(llm_checked)}개 → {src_units_count}개 (병합)")
+                    adjusted = _adjust_segments_to_count(
+                        llm_checked, src_units_count, mode='merge',
+                        text=text, src_units=src_units
+                    )
+                    if adjusted and len(adjusted) == src_units_count:
+                        result = adjusted
+                        logger.info(f"✅ LLM 경계 적용: 조정 후 {len(adjusted)}개")
+                    else:
+                        logger.warning(f"⚠️ LLM 경계 조정 실패, 원본 유지")
+        except Exception:
+            pass
+
+    return result
 
 def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_tokens: int = 1, **kwargs) -> List[str]:
     """원문 단위에 따른 번역문 분할 (고어 패턴 감지 개선)"""
@@ -689,16 +998,154 @@ def _find_optimal_split_dp_sequential(
     splits.reverse()
     return splits if len(splits) == N else None
 
-def _split_tgt_by_src_units_simple(text: str, target_count: int) -> List[str]:
-    """번역문 단순 분할 (폴백용)"""
-    trans_words = text.split()
-    
-    if len(trans_words) == target_count:
-        return trans_words
-    elif len(trans_words) < target_count:
-        return trans_words + [''] * (target_count - len(trans_words))
-    else:
-        return _distribute_words_evenly(trans_words, target_count)
+def _split_tgt_by_src_units_simple(text: str, target_count: int, src_units: List[str] = None, **kwargs) -> List[str]:
+    """번역문 폴백 분할: 형태(EC/EF)+의미 임베딩 결합 점수 (어절 경계 보존)"""
+    if target_count <= 1:
+        return [text.strip()]
+
+    # 어절 단위 spans 추출 (공백 포함 원본 위치 유지)
+    import regex as _re
+    word_matches = list(_re.finditer(r"\S+", text))
+    words = [m.group(0) for m in word_matches]
+    if not words:
+        return [''] * target_count
+    word_starts = [m.start() for m in word_matches]
+    word_ends = [m.end() for m in word_matches]
+    word_count = len(words)
+
+    def _cosine(u: np.ndarray, v: np.ndarray) -> float:
+        denom = (np.linalg.norm(u) * np.linalg.norm(v))
+        if denom == 0:
+            return 0.0
+        return float(np.dot(u, v) / denom)
+
+    def _get_embed_func():
+        embedder_name = kwargs.get('embedder_name', kwargs.get('embedder', 'bge'))
+        embedder_device_id = kwargs.get('embedder_device_id', 0)
+        if embedder_name.lower() == 'none':
+            return None
+        try:
+            if embedder_name.lower() == 'openai':
+                embedder = OpenAIWrapper(max_workers=kwargs.get('max_workers', 4))
+                return embedder.compute_embeddings_with_cache
+            else:
+                from common.embedders import get_embedder
+                return get_embedder(embedder_name, device_id=embedder_device_id)
+        except Exception as e:
+            logger.debug(f"⚠️ SA 폴백 임베더 초기화 실패: {e}")
+            return None
+
+    embed_func = _get_embed_func()
+
+    def _semantic_delta(left: str, right: str) -> float:
+        if not embed_func:
+            return 0.0
+        try:
+            embs = embed_func([left, right], batch_size=kwargs.get('batch_size', 100))
+            if not embs or len(embs) < 2:
+                return 0.0
+            a = np.array(embs[0])
+            b = np.array(embs[1])
+            sim = _cosine(a, b)
+            return max(0.0, 1.0 - sim)
+        except Exception as e:
+            logger.debug(f"⚠️ SA 폴백 의미 스코어 실패: {e}")
+            return 0.0
+
+    candidates: List[Tuple[int, str]] = []
+    semantic_window_words = kwargs.get('semantic_window_words', 30)
+    text_len = len(text)
+
+    # 구두점 기반 후보
+    try:
+        from sentence_splitter import split_target_sentences_advanced
+        cand = split_target_sentences_advanced(text, max_length=400, splitter="punctuation") or []
+        offset = 0
+        for seg in cand:
+            seg = seg or ""
+            offset += len(seg)
+            if 0 < offset < text_len:
+                candidates.append((offset, "PUNC"))
+    except Exception as e:
+        logger.debug(f"⚠️ SA 구두점 후보 추출 실패: {e}")
+
+    # Kiwi EC/EF 기반 후보
+    try:
+        from kiwipiepy import Kiwi
+        kiwi = Kiwi()
+        analysis = kiwi.analyze(text, top_n=1)
+        tokens = analysis[0][0] if analysis and analysis[0] else []
+        for tok in tokens:
+            tag = getattr(tok, "tag", "") or ""
+            if tag.startswith(("EF", "EC")):
+                candidates.append((tok.start + tok.len, tag[:2]))
+    except Exception as e:
+        logger.debug(f"⚠️ SA Kiwi 후보 추출 실패: {e}")
+
+    # 후보 없으면 기존 단순 분배
+    if not candidates:
+        trans_words = text.split()
+        if len(trans_words) == target_count:
+            return trans_words
+        elif len(trans_words) < target_count:
+            return trans_words + [''] * (target_count - len(trans_words))
+        else:
+            return _distribute_words_evenly(trans_words, target_count)
+
+    # 후보를 어절 경계로 스냅
+    def _charpos_to_word_boundary(pos: int) -> Optional[int]:
+        # boundary index in [0, word_count]
+        for idx, (s, e) in enumerate(zip(word_starts, word_ends)):
+            if pos <= s:
+                return idx
+            if s < pos < e:
+                return idx + 1
+        return word_count
+
+    unique_candidates = {}
+    for pos, tag in candidates:
+        if not (0 < pos < text_len):
+            continue
+        w_idx = _charpos_to_word_boundary(pos)
+        if w_idx is None or w_idx <= 0 or w_idx >= word_count:
+            continue
+        unique_candidates[w_idx] = tag
+
+    if not unique_candidates:
+        trans_words = words
+        if len(trans_words) == target_count:
+            return trans_words
+        elif len(trans_words) < target_count:
+            return trans_words + [''] * (target_count - len(trans_words))
+        else:
+            return _distribute_words_evenly(trans_words, target_count)
+
+    scored: List[Tuple[float, int]] = []
+    for w_idx, tag in sorted(unique_candidates.items()):
+        lidx = max(0, w_idx - semantic_window_words)
+        ridx = min(word_count, w_idx + semantic_window_words)
+        left = " ".join(words[lidx:w_idx]).strip()
+        right = " ".join(words[w_idx:ridx]).strip()
+        sem = _semantic_delta(left, right) if left and right else 0.0
+        morph = 1.0 if tag.startswith("EF") else 0.6 if tag.startswith("EC") else 0.7
+        score = sem + 0.2 * morph
+        scored.append((score, w_idx))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    choose = sorted([w for _, w in scored[:max(0, target_count - 1)]])
+
+    boundaries = [0] + choose + [word_count]
+    segments = []
+    for i in range(len(boundaries) - 1):
+        seg_words = words[boundaries[i]:boundaries[i+1]]
+        seg = " ".join(seg_words).strip()
+        segments.append(seg)
+
+    if len(segments) < target_count:
+        segments += [''] * (target_count - len(segments))
+    elif len(segments) > target_count:
+        segments = segments[:target_count]
+
+    return segments
 
 def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any]]:
     """

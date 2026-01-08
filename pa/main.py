@@ -85,10 +85,10 @@ def main():
                        help='OpenAI API 키')
     
     # 🚀 병렬 처리 옵션 추가
-    parser.add_argument('--max-workers', type=int, default=4,
-                       help='OpenAI API 병렬 워커 수 (기본: 4, OpenAI 전용)')
-    parser.add_argument('--batch-size', type=int, default=50,
-                       help='OpenAI API 배치 크기 (기본: 50, OpenAI 전용)')
+    parser.add_argument('--max-workers', type=int, default=16,
+                       help='병렬 워커 수 (기본: 16, BGE/OpenAI 모두 지원)')
+    parser.add_argument('--batch-size', type=int, default=256,
+                       help='배치 크기 (기본: 256, BGE/OpenAI 모두 지원)')
     parser.add_argument('--device', default='cuda', choices=['cuda', 'cpu'],
                        help='디바이스 (기본: cuda, GPU 미지원시 자동 cpu)')
     

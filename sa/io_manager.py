@@ -61,6 +61,17 @@ class SafeFileProcessor:
             df = pd.read_excel(input_file)
             logger.info(f"입력 데이터 로드: {len(df)}개 행")
             
+            # 🔧 NaN 값 필터링 (원문/번역문 중 하나라도 NaN이면 제외)
+            original_rows = len(df)
+            df = df.dropna(subset=['원문', '번역문'], how='any')
+            if len(df) < original_rows:
+                filtered_out = original_rows - len(df)
+                logger.info(f"⚠️ NaN 행 {filtered_out}개 제외 → {len(df)}개 행 처리")
+            
+            if len(df) == 0:
+                logger.error("❌ 유효한 데이터 없음 (모두 NaN)")
+                return False
+            
             # 전체 데이터 무결성 등록
             file_id = f"file_{hashlib.md5(input_file.encode()).hexdigest()[:8]}"
             self._register_file_integrity(df, file_id)
@@ -520,6 +531,13 @@ def process_file_fallback(input_file: str, output_file: str, **kwargs) -> bool:
     
     try:
         df = pd.read_excel(input_file)
+        
+        # 🔧 NaN 값 필터링
+        original_rows = len(df)
+        df = df.dropna(subset=['원문', '번역문'], how='any')
+        if len(df) < original_rows:
+            filtered_out = original_rows - len(df)
+            logger.info(f"⚠️ NaN 행 {filtered_out}개 제외 → {len(df)}개 행 처리")
         
         results = []
         for idx, row in df.iterrows():

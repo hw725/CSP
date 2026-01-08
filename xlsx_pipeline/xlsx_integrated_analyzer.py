@@ -51,6 +51,14 @@ except ImportError:
     ACCURACY_AVAILABLE = False
     logging.warning("⚠️ Accuracy 모듈을 로드할 수 없습니다.")
 
+try:
+    from common.integrity_verifier import verify_global_integrity
+    from common.global_integrity_restorer import restore_global_integrity
+    INTEGRITY_AVAILABLE = True
+except ImportError:
+    INTEGRITY_AVAILABLE = False
+    logging.warning("⚠️ Integrity 모듈을 로드할 수 없습니다.")
+
 logger = logging.getLogger(__name__)
 
 
@@ -65,7 +73,8 @@ class XLSXIntegratedAnalyzer:
         self.modules_available = {
             "pa": PA_AVAILABLE,
             "sa": SA_AVAILABLE,
-            "accuracy": ACCURACY_AVAILABLE
+            "accuracy": ACCURACY_AVAILABLE,
+            "integrity": INTEGRITY_AVAILABLE
         }
         
         logger.info(f"📦 모듈 가용성: {self.modules_available}")
@@ -130,6 +139,50 @@ class XLSXIntegratedAnalyzer:
             
             # 결과 DataFrame 생성
             result_df = pd.DataFrame(result_rows)
+            
+            # ========== 전역 무결성 검증 및 복원 ==========
+            if INTEGRITY_AVAILABLE and len(result_df) > 0:
+                logger.info(f"🔍 전역 무결성 검증 시작: {book_id}")
+                
+                # 전역 무결성 검증
+                passed, losses_df, analysis = verify_global_integrity(
+                    paragraph_df, 
+                    result_df, 
+                    source_col='원문',
+                    target_col='번역문',
+                    verbose=True
+                )
+                
+                # 손실 발견 시 복원 시도
+                if not passed or analysis.get('total_losses', 0) > 0:
+                    logger.info(f"⚠️  무결성 손실 감지, 복원 시작...")
+                    result_df = restore_global_integrity(
+                        paragraph_df,
+                        result_df,
+                        source_col='원문',
+                        target_col='번역문',
+                        verbose=True
+                    )
+                    
+                    # 복원 후 재검증
+                    passed_after, _, analysis_after = verify_global_integrity(
+                        paragraph_df,
+                        result_df,
+                        source_col='원문',
+                        target_col='번역문',
+                        verbose=False
+                    )
+                    
+                    if passed_after:
+                        logger.info(f"✅ 무결성 완전 복원 성공")
+                    else:
+                        logger.warning(f"⚠️  부분 복원 완료 (여전히 {analysis_after.get('total_losses', 0)}건 손실)")
+                
+                # 무결성 리포트 저장
+                if not losses_df.empty:
+                    integrity_report_file = self.output_dir / f"{book_id}_pa_integrity_report.csv"
+                    losses_df.to_csv(integrity_report_file, index=False, encoding='utf-8-sig')
+                    logger.info(f"💾 무결성 리포트 저장: {integrity_report_file}")
             
             # 결과 저장
             output_file = self.output_dir / f"{book_id}_pa_output.xlsx"
@@ -238,6 +291,56 @@ class XLSXIntegratedAnalyzer:
             
             # 결과 DataFrame 생성
             result_df = pd.DataFrame(result_rows)
+            
+            # ========== SA 전역 무결성 검증 (선택적, 환경변수 제어) ==========
+            # 기본값: 비활성화 (SA 손실이 적으므로 필요시만 활성화)
+            # 활성화: CSP_SA_RESTORE_INTEGRITY=1
+            restore_sa_integrity = os.getenv("CSP_SA_RESTORE_INTEGRITY", "0") == "1"
+            
+            if INTEGRITY_AVAILABLE and restore_sa_integrity and len(result_df) > 0:
+                logger.info(f"🔍 SA 전역 무결성 검증 시작: {book_id}")
+                
+                # 전역 무결성 검증
+                passed, losses_df, analysis = verify_global_integrity(
+                    sentence_df,
+                    result_df,
+                    source_col='원문',
+                    target_col='번역문',
+                    verbose=True
+                )
+                
+                # 손실 발견 시 복원 시도
+                if not passed or analysis.get('total_losses', 0) > 0:
+                    logger.info(f"⚠️  무결성 손실 감지, 복원 시작...")
+                    result_df = restore_global_integrity(
+                        sentence_df,
+                        result_df,
+                        source_col='원문',
+                        target_col='번역문',
+                        verbose=True
+                    )
+                    
+                    # 복원 후 재검증
+                    passed_after, _, analysis_after = verify_global_integrity(
+                        sentence_df,
+                        result_df,
+                        source_col='원문',
+                        target_col='번역문',
+                        verbose=False
+                    )
+                    
+                    if passed_after:
+                        logger.info(f"✅ 무결성 완전 복원 성공")
+                    else:
+                        logger.warning(f"⚠️  부분 복원 완료 (여전히 {analysis_after.get('total_losses', 0)}건 손실)")
+                
+                # 무결성 리포트 저장
+                if not losses_df.empty:
+                    integrity_report_file = self.output_dir / f"{book_id}_sa_integrity_report.csv"
+                    losses_df.to_csv(integrity_report_file, index=False, encoding='utf-8-sig')
+                    logger.info(f"💾 무결성 리포트 저장: {integrity_report_file}")
+            elif INTEGRITY_AVAILABLE and not restore_sa_integrity:
+                logger.debug(f"⏭️  SA 무결성 복원 스킵 (CSP_SA_RESTORE_INTEGRITY=0)")
             
             # 결과 저장
             output_file = self.output_dir / f"{book_id}_sa_output.xlsx"

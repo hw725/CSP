@@ -6,14 +6,16 @@
   "device": "cuda:0",
   "openai_api_key": null,
   "alignment_params": {
-    "similarity_threshold": 0.5,
-    "length_penalty": 0.05,
-    "distance_decay": 0.05,
-    "boundary_bonus": 0.15,
-    "particle_bonus": 0.2,
-    "comma_bonus": 0.1,
-    "dp_window": 2,
-    "sim_gamma": 1.2
+    "similarity_threshold": 0.65,
+    "length_penalty": 0.1,
+    "distance_decay": 0.08,
+    "boundary_bonus": 0.2,
+    "particle_bonus": 0.25,
+    "comma_bonus": 0.15,
+    "dp_window": 4,
+    "sim_gamma": 1.4,
+    "hanja_bonus": 0.3,
+    "hanja_strict": true
   },
   "thresholds": {
     "pa": {

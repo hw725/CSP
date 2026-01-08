@@ -9,6 +9,11 @@ from pathlib import Path
 import re
 import sys
 
+try:
+    from common.llm_boundary_refiner import refine_boundaries_with_llm
+except Exception:
+    refine_boundaries_with_llm = None
+
 # BGE Embedder import (의미 기반 경계 감지용)
 try:
     sys.path.insert(0, str(Path(__file__).parent.parent / "common"))
@@ -333,6 +338,7 @@ def split_target_sentences_advanced(text: str, max_length: int = 150, splitter: 
     번역문 분할 - 종결 구두점 우선, 구두점 없으면 의미 기반 경계 감지
     
     ⭐️ 개선: 의미 기반 경계 감지로 구두점 없는 텍스트도 분할 가능
+    ⭐️ 인용 표지 병합 지원
     """
     # 1) 구두점 기반 분할 시도
     strong_end_pattern = r'(?<=[。！？.!?])\s+'
@@ -358,6 +364,9 @@ def split_target_sentences_advanced(text: str, max_length: int = 150, splitter: 
     strong_end_pattern = r'(?<=[。！？.!?])\s+'  # 중국어/영문 종결부호
     sentences = re.split(strong_end_pattern, text.strip())
     sentences = [s.strip() for s in sentences if s.strip()]
+    
+    # 인용 표지 병합
+    sentences = merge_quotation_markers_in_list(sentences)
 
     # 4) 너무 긴 문장만 예외적으로 콤마에서 1회 분할 (괄호/브래킷 내부 제외)
     def split_long_by_comma_outside_brackets(s: str, limit: int) -> List[str]:
@@ -440,10 +449,20 @@ def split_target_sentences_advanced(text: str, max_length: int = 150, splitter: 
         return merged
 
     adjusted = merge_lonely_closers(adjusted)
+    
+    # 최종 반환 전 인용 표지 병합 (여러 단계 처리 후 재병합)
+    adjusted = merge_quotation_markers_in_list(adjusted)
+
+    if refine_boundaries_with_llm:
+        try:
+            adjusted = refine_boundaries_with_llm(text, adjusted, task="pa")
+        except Exception:
+            pass
+    
     return adjusted
 
 def split_with_new_parsers(text: str, is_target: bool = True, use_siku_preprocessing: bool = True) -> List[str]:
-    """새로운 파서들(SuPar-Kanbun/Stanza)을 사용한 문장 분할"""
+    """새로운 파서들(SuPar-Kanbun/Stanza)을 사용한 문장 분할 - 인용 표지 병합 지원"""
     # SikuBERT 전처리 적용
     if use_siku_preprocessing and contains_chinese(text):
         text = preprocess_with_siku_tokenization(text)
@@ -451,10 +470,115 @@ def split_with_new_parsers(text: str, is_target: bool = True, use_siku_preproces
     try:
         # is_target이 True면 번역문(Stanza), False면 원문(SuPar-Kanbun)
         sentences = smart_sentence_split(text, is_source=not is_target)
+        
+        # 번역문인 경우 인용 표지 병합 처리
+        if is_target and sentences:
+            sentences = merge_quotation_markers_in_list(sentences)
+            if refine_boundaries_with_llm:
+                try:
+                    sentences = refine_boundaries_with_llm(text, sentences, task="pa")
+                except Exception:
+                    pass
+        
         return sentences if sentences else [text]
     except Exception as e:
         print(f"⚠️ 새 파서 분할 실패, 폴백: {e}")
-        return split_with_smart_punctuation_rules(text)
+        result = split_with_smart_punctuation_rules(text)
+        # 폴백에서도 인용 표지 병합
+        if is_target:
+            result = merge_quotation_markers_in_list(result)
+        return result
+
+def merge_quotation_markers_in_list(sentences: List[str]) -> List[str]:
+    """인용 표지를 이전 인용문과 병합 (PA 전용 헬퍼) - 중첩 인용 지원
+    
+    인용 표지 구조: [인용조사] + [동사어간] + [어미]
+    예: "고 하였다", "라고 말한다", "하고 명하셨다", "며 여쭙는다" 등
+    중첩 예: [문장1] + [인용표지1] + [인용표지2] → 모두 병합
+    """
+    if len(sentences) <= 1:
+        return sentences
+    
+    # 인용 조사 패턴 (빈번한 단독 '고' 포함)
+    quotation_particles = r'(고|[이]?라?고|하고|며|면서)'
+    
+    # 발화 동사 어간 (인용 표지에 자주 쓰이는 동사들)
+    speech_verbs = r'(하|말하|말씀하|명하|이르|대답하|답하|묻|문|여쭙|아뢰|전하|칭하|부르|외치)'
+    
+    # 존칭+시제 통합 패턴 (축약형 포함)
+    # "시었다" → "셨다", "시었" → "셨", "시어" → "셔" 등
+    honorific_tense = r'(?:셨|ㅆ|시었|시어|시는|시ㄴ|시ㄹ|시|었|았|였|는|ㄴ|ㄹ|을)?'
+    
+    # 종결 어미
+    endings = r'(다|ㄴ다|는다|습니다|ㅂ니다|까|ㄹ까|을까|느냐|ㄴ가|는가|라|거라|소|오|어라|아라|니|으니)'
+    
+    # 따옴표(닫는 따옴표)와 종결 부호 (선택적)
+    closing_quote = r'["”’]?'  # ”, ’, " 등 허용
+    punctuation = r'[\.。?!,，]?'  # 마침표/물음표/쉼표 허용
+
+    # 마커 1개 조각: (선행 닫는 따옴표) + 인용조사 + 동사(시제/존칭) + 종결어미 + (부호/닫는 따옴표)
+    marker_chunk = (
+        closing_quote +               # 문장 시작에 붙을 수 있는 닫는 따옴표
+        r'\s*' +
+        quotation_particles +
+        r'\s+' +
+        speech_verbs +
+        honorific_tense +
+        endings +
+        r'\s*' +
+        punctuation +
+        r'\s*' +
+        closing_quote +               # 끝쪽 닫는 따옴표 허용
+        r'\s*'
+    )
+
+    # 전체 패턴: 마커 조각이 1회 이상 연쇄된 문장 전체
+    quotation_marker_pattern = r'^\s*(?:' + marker_chunk + r')+$'
+    
+    # 반복 병합 (중첩 인용 처리)
+    changed = True
+    while changed:
+        changed = False
+        merged = []
+        i = 0
+        
+        while i < len(sentences):
+            current = sentences[i]
+            
+            # 연속된 인용 표지들을 모두 병합
+            accumulated_markers = []
+            j = i + 1
+            while j < len(sentences):
+                next_sent = sentences[j]
+                if re.match(quotation_marker_pattern, next_sent, re.IGNORECASE):
+                    accumulated_markers.append(next_sent)
+                    j += 1
+                    changed = True
+                else:
+                    break
+            
+            # 병합
+            if accumulated_markers:
+                merged_text = current + ' ' + ' '.join(accumulated_markers)
+                merged.append(merged_text)
+                i = j  # 병합된 만큼 건너뛰기
+            else:
+                merged.append(current)
+                i += 1
+        
+        sentences = merged
+
+    # 🎯 인용 표지가 문장 맨 앞에 붙은 경우도 앞 문장으로 당겨 붙이기
+    marker_prefix_regex = re.compile(r'^\s*' + marker_chunk, re.IGNORECASE)
+    merged_prefix = []
+    for idx, seg in enumerate(sentences):
+        if idx > 0 and seg and marker_prefix_regex.match(seg):
+            # 바로 앞 문장에 현재 전체 구문을 붙인다 (내용 보존)
+            merged_prefix[-1] = (merged_prefix[-1].rstrip() + ' ' + seg.lstrip()).strip()
+        else:
+            merged_prefix.append(seg)
+
+    return merged_prefix
 
 def split_with_smart_punctuation_rules(text: str) -> List[str]:
     """중국고전 문장 분할 패턴 강화 + 의미 기반 경계 감지"""
@@ -722,47 +846,92 @@ def split_source_by_whitespace_and_align(
         text_aug = re.sub(r"\[([^\]]*)\]", repl, text_aug)
         return ' '.join(text_aug.split())
     
-    def mask_unaligned_segments(text: str):
-        """비대응 표시 구간([- (...)])에서 [, -, ]만 토큰으로 마스킹"""
-        pattern = re.compile(r"\[-\(([^)]*)\)\]")
-        mapping = []  # (token, symbol)
+    def strip_bracket_segments(text: str):
+        """[-…] 또는 [-(…)] 구간을 정렬에서 완전히 제외하고, 복원용 위치/내용을 기록한다.
 
-        def repl(match):
-            seq = len(mapping) // 3
-            token_l = f"__UNALIGNED_L_{seq}__"
-            token_h = f"__UNALIGNED_H_{seq}__"
-            token_r = f"__UNALIGNED_R_{seq}__"
-            # 순서대로 복원할 수 있도록 매핑 저장
-            mapping.extend([
-                (token_l, "["),
-                (token_h, "-"),
-                (token_r, "]"),
-            ])
-            inner = match.group(1)
-            return f"{token_l}{token_h}({inner}){token_r}"
+        - 앞뒤 공백은 제거하지 않고 남겨 위치/간격을 그대로 보존한다.
+        - working 텍스트를 순차적으로 구성하면서 현재 working 오프셋 기준으로 삽입 지점을 기록한다.
 
-        masked = pattern.sub(repl, text)
-        return masked, mapping
+        Returns:
+            working (str): 괄호 구간이 제거된 텍스트
+            insertions (List[Tuple[int, str]]): (working_index, bracket_text)
+        """
+        import re as _re
+        pattern = _re.compile(r"\[-\([^)]*\)\]|\[-[^\]]*\]")
+        insertions: List[Tuple[int, str]] = []
+        parts: List[str] = []
+        last = 0
+        curr_len = 0
+        for m in pattern.finditer(text):
+            # 본문 부분 추가
+            parts.append(text[last:m.start()])
+            curr_len += (m.start() - last)
+            # 괄호 블록은 제거, 복원용으로 현재 working 오프셋에 삽입
+            bracket_text = m.group(0)
+            insertions.append((curr_len, bracket_text))
+            last = m.end()
+        parts.append(text[last:])
+        working = ''.join(parts)
+        return working, insertions
 
-    def unmask_text(text: str, mapping):
-        for token, original in mapping:
-            text = text.replace(token, original)
-        return text
+    def restore_brackets_in_chunks(chunks: List[str], insertions: List[Tuple[int, str]]) -> List[str]:
+        """작게 분할된 working 텍스트 조각들에 기록된 괄호 블록을 원위치에 삽입한다.
 
-    def unmask_list(chunks: List[str], mapping):
-        return [unmask_text(chunk, mapping) for chunk in chunks]
+        insertions는 working 텍스트의 전역 오프셋 기준이며, 각 조각의 누적 길이를 이용해
+        적절한 조각과 로컬 오프셋을 계산하여 삽입한다.
+        """
+        if not insertions:
+            return chunks
+
+        # 각 chunk의 전역 누적 오프셋 경계 계산
+        cumulative = [0]
+        for ch in chunks:
+            cumulative.append(cumulative[-1] + len(ch))
+
+        # 문자열 삽입이 빈번하므로 리스트로 변환 후 조합
+        chunk_buffers = [list(ch) for ch in chunks]
+
+        for pos, content in insertions:
+            # pos가 어느 chunk에 속하는지 탐색 (cumulative[i] <= pos <= cumulative[i+1])
+            idx = 0
+            while idx < len(chunks) and not (cumulative[idx] <= pos <= cumulative[idx+1]):
+                idx += 1
+            if idx >= len(chunks):
+                # 마지막 범위를 넘어가면 최종 조각 뒤에 붙임
+                chunk_buffers[-1].extend(list(content))
+                # 경계 갱신
+                cumulative[-1] += len(content)
+                continue
+
+            # 경계에 정확히 일치하면 앞 조각에 붙여 이전 어절과 결합
+            if pos == cumulative[idx] and idx > 0:
+                idx -= 1
+            local_pos = pos - cumulative[idx]
+            # local_pos는 0~len(chunk) 범위. 그 위치에 content 삽입
+            # 리스트 삽입 비용을 줄이기 위해 앞/뒤로 분할 병합
+            buf = chunk_buffers[idx]
+            left = buf[:local_pos]
+            right = buf[local_pos:]
+            chunk_buffers[idx] = left + list(content) + right
+
+            # 이후 조각들의 경계 보정
+            delta = len(content)
+            for j in range(idx+1, len(cumulative)):
+                cumulative[j] += delta
+
+        return [''.join(b) for b in chunk_buffers]
     if not source.strip():
         return [''] * target_count
 
-    # 0. 비대응 구간 마스킹 후 분할 처리
-    masked_source, mask_map = mask_unaligned_segments(source)
+    # 0. 비대응 구간 제거 후(정렬에서 제외) 분할 처리, 최종에 복원
+    working_source, bracket_insertions = strip_bracket_segments(source)
 
     # 🎯 원본 어절 보존 (최종 출력용) - 어절 경계의 원문 오프셋을 수집하여 슬라이스로 재조립
     # 공백을 기준으로 어절(span)들을 추출하되, 최종 결과 조립은 원문 슬라이스로 수행
     word_spans = []  # List[Tuple[start, end]] for each non-whitespace token
-    for m in re.finditer(r"\S+", masked_source):
+    for m in re.finditer(r"\S+", working_source):
         word_spans.append((m.start(), m.end()))
-    words_original = [masked_source[s:e] for (s, e) in word_spans]
+    words_original = [working_source[s:e] for (s, e) in word_spans]
 
     def slice_segment_by_word_index(i_start: int, i_end: int) -> str:
         """어절 인덱스 구간 [i_start, i_end) 에 해당하는 원문 슬라이스를 그대로 반환
@@ -773,7 +942,7 @@ def split_source_by_whitespace_and_align(
             return ''
         start_char = word_spans[i_start][0]
         end_char = word_spans[i_end - 1][1]
-        return masked_source[start_char:end_char]
+        return working_source[start_char:end_char]
     
     # 🎯 Augmented 어절 생성 (임베딩 계산용만)
     source_augmented = augment_source_hanja(masked_source)
@@ -792,7 +961,7 @@ def split_source_by_whitespace_and_align(
                 result.append(slice_segment_by_word_index(i, i+1))
             else:
                 result.append('')
-        return unmask_list(result, mask_map)
+        return restore_brackets_in_chunks(result, bracket_insertions)
     
     # 1-1. PA 원문에 의미 기반 경계 감지 적용 (어절 경계만 지키면서 문장 단위로)
     # 구두점이 명확하지 않으면 BGE 임베딩으로 의미 변화 지점 감지
@@ -844,7 +1013,7 @@ def split_source_by_whitespace_and_align(
                 
                 if len(result) > 0:
                     print(f"✅ PA 원문 의미 기반 분할: {len(result)}개 어절 그룹")
-                    return unmask_list(result, mask_map)
+                    return restore_brackets_in_chunks(result, bracket_insertions)
         except Exception as e:
             print(f"⚠️ PA 원문 의미 기반 분할 실패: {e}")
     
@@ -1214,7 +1383,7 @@ def split_source_by_whitespace_and_align(
             if best_similarity >= 0:
                 logger.info(f"최적 분할 완료 (평균 유사도: {best_similarity:.3f})")
             
-            return unmask_list(result, mask_map)
+            return restore_brackets_in_chunks(result, bracket_insertions)
             
         except Exception as e:
             # 로깅으로 변경하여 진행바 간섭 방지
@@ -1235,4 +1404,4 @@ def split_source_by_whitespace_and_align(
         result.append(' '.join(chunk_words_orig))
         start = end
     
-    return unmask_list(result, mask_map)
+    return restore_brackets_in_chunks(result, bracket_insertions)

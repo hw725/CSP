@@ -106,7 +106,7 @@ supar_parser = None
 stanza_nlp = None
 
 def smart_sentence_split(text: str, is_source: bool = True) -> List[str]:
-    """스마트 문장 분할 함수 (폴백 구현)"""
+    """스마트 문장 분할 함수 (폴백 구현) - 인용 표지 병합 지원"""
     if is_source:
         # 한문 원문 분할
         pattern = r'(?<=[。？！])\s*|(?<=[.!?])\s+'
@@ -115,7 +115,94 @@ def smart_sentence_split(text: str, is_source: bool = True) -> List[str]:
         pattern = r'(?<=[.!?])\s*|(?<=다)\s*|(?<=요)\s*'
     
     sentences = re.split(pattern, text.strip())
-    return [s.strip() for s in sentences if s.strip()]
+    sentences = [s.strip() for s in sentences if s.strip()]
+    
+    # 인용 표지 병합 처리 (번역문 전용)
+    if not is_source:
+        sentences = merge_quotation_markers(sentences)
+    
+    return sentences
+
+def merge_quotation_markers(sentences: List[str]) -> List[str]:
+    """인용 표지를 이전 인용문과 병합 - 중첩 인용 지원
+    
+    인용 표지 구조: [인용조사] + [동사어간] + [어미]
+    예: "고 하였다", "라고 말한다", "하고 명하셨다" 등
+    중첩 예: [문장1] + [인용표지1] + [인용표지2] → 모두 병합
+    """
+    if len(sentences) <= 1:
+        return sentences
+    
+    # 인용 조사 패턴 (빈번한 단독 '고' 포함)
+    quotation_particles = r'(고|[이]?라?고|하고|며|면서)'
+    
+    # 발화 동사 어간 (인용 표지에 자주 쓰이는 동사들)
+    speech_verbs = r'(하|말하|말씀하|명하|이르|대답하|답하|묻|문|여쭙|아뢰|전하|칭하|부르|외치)'
+    
+    # 존칭+시제 통합 패턴 (축약형 포함)
+    # "시었다" → "셨다", "시었" → "셨", "시어" → "셔" 등
+    honorific_tense = r'(?:셨|ㅆ|시었|시어|시는|시ㄴ|시ㄹ|시|었|았|였|는|ㄴ|ㄹ|을)?'
+    
+    # 종결 어미
+    endings = r'(다|ㄴ다|는다|습니다|ㅂ니다|까|ㄹ까|을까|느냐|ㄴ가|는가|라|거라|소|오|어라|아라|니|으니)'
+    
+    # 따옴표(닫는 따옴표)와 종결 부호 (선택적)
+    closing_quote = r'["”’]?'
+    punctuation = r'[\.。?!,，]?'
+
+    # 마커 1개 조각: (선행 닫는 따옴표) + 인용조사 + 동사(시제/존칭) + 종결어미 + (부호/닫는 따옴표)
+    marker_chunk = (
+        closing_quote +
+        r'\s*' +
+        quotation_particles +
+        r'\s+' +
+        speech_verbs +
+        honorific_tense +
+        endings +
+        r'\s*' +
+        punctuation +
+        r'\s*' +
+        closing_quote +
+        r'\s*'
+    )
+
+    # 전체 패턴: 마커 조각이 1회 이상 연쇄된 문장 전체
+    quotation_marker_pattern = r'^\s*(?:' + marker_chunk + r')+$'
+    
+    # 반복 병합 (중첩 인용 처리)
+    changed = True
+    while changed:
+        changed = False
+        merged = []
+        i = 0
+        
+        while i < len(sentences):
+            current = sentences[i]
+            
+            # 연속된 인용 표지들을 모두 병합
+            accumulated_markers = []
+            j = i + 1
+            while j < len(sentences):
+                next_sent = sentences[j]
+                if re.match(quotation_marker_pattern, next_sent, re.IGNORECASE):
+                    accumulated_markers.append(next_sent)
+                    j += 1
+                    changed = True
+                else:
+                    break
+            
+            # 병합
+            if accumulated_markers:
+                merged_text = current + ' ' + ' '.join(accumulated_markers)
+                merged.append(merged_text)
+                i = j  # 병합된 만큼 건너뛰기
+            else:
+                merged.append(current)
+                i += 1
+        
+        sentences = merged
+    
+    return sentences
 
 def split_source_with_supar(text: str) -> List[str]:
     """SuPar-Kanbun 파서 (폴백)"""
@@ -205,13 +292,18 @@ try:
         print(f"✅ Stanza 한국어 모델 로드 완료 (GPU: {use_gpu})")
         
         def split_target_with_stanza(text: str) -> List[str]:
-            """실제 Stanza 파서"""
+            """실제 Stanza 파서 - 인용 표지 병합 지원"""
             global stanza_nlp
             try:
                 # Stanza로 문장 분할
                 doc = stanza_nlp(text)
                 sentences = [sent.text for sent in doc.sentences]
-                return [s.strip() for s in sentences if s.strip()]
+                sentences = [s.strip() for s in sentences if s.strip()]
+                
+                # 인용 표지 병합
+                sentences = merge_quotation_markers(sentences)
+                
+                return sentences
             except Exception as e:
                 print(f"⚠️ Stanza 파싱 실패: {e}")
                 return smart_sentence_split(text, is_source=False)

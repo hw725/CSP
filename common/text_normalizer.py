@@ -79,9 +79,9 @@ def normalize_for_similarity(text: str) -> str:
     """
     유사도 비교용 정규화 (더 적극적)
     - 공백, 개행 모두 제거
-    - 구두점도 제거 (선택적)
+    - [-텍스트] 패턴 보존! (무결성 검증용)
     """
-    t = normalize_text(text, normalize_brackets=True)
+    t = normalize_text(text, normalize_brackets=False)  # ✅ 변경: [-텍스트] 보존
     # 모든 공백 제거
     t = re.sub(r"\s+", "", t)
     return t
