@@ -1,0 +1,93 @@
+---
+title: SA 순차 정렬 플로우
+---
+flowchart TD
+    %% 고대비 색상 스타일 정의
+    classDef startEnd fill:#2e7d32,stroke:#1b5e20,stroke-width:3px,color:#ffffff,font-weight:bold
+    classDef process fill:#1976d2,stroke:#0d47a1,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef decision fill:#f57c00,stroke:#e65100,stroke-width:2px,color:#000000,font-weight:bold
+    classDef embedder fill:#7b1fa2,stroke:#4a148c,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef tokenizer fill:#00796b,stroke:#004d40,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef alignment fill:#558b2f,stroke:#2e7d32,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef integrity fill:#c2185b,stroke:#880e4f,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef output fill:#0277bd,stroke:#01579b,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef openai fill:#2e7d32,stroke:#1b5e20,stroke-width:2px,color:#ffffff,font-weight:bold
+    
+    A[🚀 순차적 문장 정렬 시작<br/>하이브리드 임베딩 기반]:::startEnd
+    
+    %% 하이브리드 임베더 초기화
+    B[🤖 하이브리드 임베더 선택<br/>OpenAI vs BGE-M3 vs 자동선택]:::embedder
+    C{임베더 유형<br/>선택}:::decision
+    D[🔑 OpenAI 임베더 초기화<br/>text-embedding-3-large<br/>API 키 검증]:::openai
+    E[🧠 BGE-M3 임베더 초기화<br/>FlagModel 로컬 로드<br/>GPU 가속 활성화]:::embedder
+    F[⚠️ 임베딩 엔진 오류<br/>백업 임베더로 전환]:::process
+    
+    %% 순차적 정렬 초기화
+    G[📋 순차 정렬기 초기화<br/>무결성 보장 설정]:::alignment
+    H[🔍 문장 쌍 검증<br/>원문-번역문 길이 확인]:::integrity
+    I{문장 쌍<br/>유효성}:::decision
+    J[❌ 문장 쌍 오류<br/>오류 로그 및 건너뛰기]:::process
+    
+    %% 토크나이징 및 임베딩
+    K[🏮 하이브리드 토크나이징<br/>SikuBERT + RoBERTa-Hanja + Kiwipiepy]:::tokenizer
+    L[📊 텍스트 길이 확인<br/>토큰 수 제한 검증]:::process
+    M{토큰 길이<br/>기준 통과?}:::decision
+    N[✂️ 텍스트 자르기<br/>최대 토큰 수 적용]:::process
+    
+    %% 임베딩 생성
+    O[🧠 순차적 임베딩 생성<br/>문장 순서 유지]:::embedder
+    P{임베딩<br/>성공?}:::decision
+    Q[⚠️ 임베딩 실패<br/>재시도 또는 백업 방법]:::process
+    
+    %% 유사도 계산 및 정렬
+    R[📊 코사인 유사도 계산<br/>벡터 내적 기반]:::alignment
+    S[🎯 최적 매칭 탐색<br/>헝가리안 알고리즘]:::alignment
+    T[📈 매칭 점수 평가<br/>임계값 기반 검증]:::integrity
+    
+    %% 무결성 검증
+    U{매칭 품질<br/>임계값 통과?}:::decision
+    V[🔄 재정렬 시도<br/>파라미터 조정]:::alignment
+    W[✅ 순차적 정렬 완료<br/>무결성 보장된 결과]:::startEnd
+    
+    %% 결과 생성
+    X[📋 정렬 결과 생성<br/>원문-번역문 매칭쌍]:::output
+    Y[📊 품질 통계 생성<br/>매칭 정확도 및 신뢰도]:::output
+    Z[💾 결과 저장<br/>Excel 또는 JSON 형식]:::output
+    
+    A --> B
+    B --> C
+    C -->|OpenAI| D
+    C -->|BGE-M3| E
+    C -->|자동| E
+    D --> G
+    E --> G
+    F --> G
+    G --> H
+    H --> I
+    I -->|유효| K
+    I -->|무효| J
+    J --> H
+    
+    K --> L
+    L --> M
+    M -->|실패| N
+    M -->|성공| O
+    N --> O
+    O --> P
+    P -->|실패| Q
+    P -->|성공| R
+    Q --> O
+    
+    R --> S
+    S --> T
+    T --> U
+    U -->|실패| V
+    U -->|성공| W
+    V --> S
+    W --> X
+    X --> Y
+    Y --> Z
+    
+    %% 오류 처리
+    D -.->|실패| F
+    E -.->|실패| F

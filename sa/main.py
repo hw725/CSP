@@ -64,12 +64,12 @@ def main():
     parser.add_argument('output_file', nargs='?', default='output.xlsx', help='출력 엑셀 파일 경로 (기본: output.xlsx)')
     
     # 선택적 인수
-    parser.add_argument('--embedder', choices=['bge', 'openai'], default='bge',
-                       help='임베더 선택 (기본: bge)')
+    parser.add_argument('--embedder', choices=['bge', 'openai', 'none'], default='bge',
+                       help='임베더 선택 (기본: bge, OpenAI: --embedder openai, 순차분할: --embedder none)')
     parser.add_argument('--max-workers', type=int, default=4,
-                       help='최대 워커 수 (기본: 4)')
+                       help='최대 워커 수 (기본: 4, OpenAI 병렬 처리 지원)')
     parser.add_argument('--chunk-size', type=int, default=100,
-                       help='청크 크기 (기본: 100)')
+                       help='청크 크기 (기본: 100, OpenAI 병렬 최적화)')
     parser.add_argument('--no-parallel', action='store_true',
                        help='병렬 처리 비활성화')
     parser.add_argument('--verbose', '-v', action='store_true',
@@ -82,13 +82,42 @@ def main():
                        help='원문 최대 토큰 수 (기본: 20)')
     parser.add_argument('--min-tgt-tokens', type=int, default=1,
                        help='번역문 최소 토큰 수 (기본: 1)')
-    parser.add_argument('--max-tgt-tokens', type=int, default=30,
-                       help='번역문 최대 토큰 수 (기본: 30)')
+    parser.add_argument('--max-tgt-tokens', type=int, default=40,
+                       help='번역문 최대 토큰 수 (기본: 40)')
+    # 가중치/스코어링 옵션 (실험적)
+    parser.add_argument('--dp-window', type=int, default=2,
+                       help='DP 예상 위치 허용 창 크기 (기본: 2)')
+    parser.add_argument('--distance-decay', type=float, default=0.9,
+                       help='위치 거리 감쇠 알파 (기본: 0.9)')
+    parser.add_argument('--boundary-bonus', type=float, default=0.3,
+                       help='문장 경계 보너스 (기본: 0.3)')
+    parser.add_argument('--particle-bonus', type=float, default=0.1,
+                       help='토씨 경계 보너스 (기본: 0.2)')
+    parser.add_argument('--length-penalty', type=float, default=0.05,
+                       help='세그먼트 길이 패널티 알파 (기본: 0.05)')
+    parser.add_argument('--sim-gamma', type=float, default=1.5,
+                       help='유사도 샤프닝 지수 (기본: 1.5)')
+    # 문장 내부 경계 힌트(옵션)
+    parser.add_argument('--syntax-hints', choices=['none', 'ko', 'zh', 'both'], default='both',
+                       help='구문 파서 힌트 사용 (기본: both)')
+    parser.add_argument('--comma-bonus', type=float, default=0.0,
+                       help='콤마(,) 경계 보너스 (기본: 0.0, soft 모드)')
+    parser.add_argument('--comma-mode', choices=['soft', 'strict'], default='soft',
+                       help='콤마 경계 모드: soft(나열 제외) | strict(전부 적용)')
+    parser.add_argument('--syntax-when', choices=['ambiguous', 'always'], default='always',
+                       help='구문 힌트 실행 시점: ambiguous(애매할 때만) | always(항상, 기본)')
     
     args = parser.parse_args()
     
     # 로깅 설정
     setup_logging(args.verbose)
+
+    # SuPar 안전 로딩 준비 (torch 2.6 weights_only 대응)
+    try:
+        from sa_aligner import _prepare_supar_safe_loading  # 내부 유틸
+        _prepare_supar_safe_loading()
+    except Exception:
+        pass
     
     # use_parallel 계산 (기존 코드와 호환)
     use_parallel = not args.no_parallel
@@ -96,7 +125,20 @@ def main():
     if args.verbose:
         print("🚀 SA 파일 처리 시작:", args.input_file)
         print(f"⚙️  설정: 임베더={args.embedder}, 병렬={use_parallel}, 워커={args.max_workers}")
+        if args.embedder == 'openai':
+            print("🔥 OpenAI 병렬 처리 활성화")
+        elif args.embedder == 'none':
+            print("⚡ 순차 분할 모드 (임베더 미사용)")
         print()
+    else:
+        print("🚀 SA (Sentence Aligner) 시작")
+        print(f"⚙️ 설정: 임베더={args.embedder}, 워커={args.max_workers}, 청크={args.chunk_size}")
+        if args.embedder == 'openai':
+            print("🔥 OpenAI 병렬 처리 활성화")
+        elif args.embedder == 'none':
+            print("⚡ 순차 분할 모드 (임베더 미사용, 빠른 처리)")
+        else:
+            print("📊 BGE 임베더 사용 (기본)")
     # 🔧 기본 모드에서는 시작 메시지 제거 (io_manager에서 처리)
     
     start_time = time.time()
@@ -137,6 +179,16 @@ def main():
             max_src_tokens=args.max_src_tokens,
             min_tgt_tokens=args.min_tgt_tokens,
             max_tgt_tokens=args.max_tgt_tokens,
+            dp_window=args.dp_window,
+            distance_decay=args.distance_decay,
+            boundary_bonus=args.boundary_bonus,
+            particle_bonus=args.particle_bonus,
+            length_penalty=args.length_penalty,
+            sim_gamma=args.sim_gamma,
+            syntax_hints=args.syntax_hints,
+            comma_bonus=args.comma_bonus,
+            comma_mode=args.comma_mode,
+            syntax_when=args.syntax_when,
             verbose=args.verbose
         )
         

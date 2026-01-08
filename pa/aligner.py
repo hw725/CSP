@@ -496,8 +496,13 @@ def get_tokenizer_function(tokenizer_name: str = "siku"):
         print(f"⚠️ 토크나이저 로드 실패: {e}, 기본 분할 사용")
         return lambda text: list(text)
 
-def get_embedder_function(embedder_name: str, device: str = "cpu", openai_model: str = None, openai_api_key: str = None):
-    """임베더 함수 반환 - 기존과 동일"""
+def get_embedder_function(embedder_name: str, device: str = "cpu", openai_model: str = None, openai_api_key: str = None, max_workers: int = 4, batch_size: int = 100):
+    """임베더 함수 반환 - 병렬 처리 지원"""
+    
+    # 순차 분할 모드 (임베더 미사용)
+    if embedder_name == 'none':
+        print("⚡ 순차 분할 모드: 임베더 미사용으로 빠른 처리")
+        return None
     
     if device == "cuda":
         if not TORCH_AVAILABLE or not torch.cuda.is_available():
@@ -525,12 +530,9 @@ def get_embedder_function(embedder_name: str, device: str = "cpu", openai_model:
             
     elif embedder_name == 'openai':
         try:
-            # SA와 동일한 직접 OpenAI 클라이언트 사용
-            import openai
-            import numpy as np
-            import json
-            import hashlib
-            from pathlib import Path
+            # 모듈명 충돌 해결: openai_embedder.py로 파일명 변경
+            sys.path.insert(0, str(project_root / 'common' / 'embedders'))
+            from openai_embedder import compute_embeddings_batch
             
             # OpenAI API 키 설정
             if openai_api_key:
@@ -540,107 +542,27 @@ def get_embedder_function(embedder_name: str, device: str = "cpu", openai_model:
             if not api_key:
                 raise ValueError("OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
             
-            # OpenAI 클라이언트 생성
-            client = openai.OpenAI(api_key=api_key)
-            
-            # 캐시 설정
-            cache_dir = Path("embeddings_cache_openai")
-            cache_dir.mkdir(exist_ok=True)
-            cache_file = cache_dir / "openai_embeddings.json"
-            
-            # 메모리 캐시
-            embedding_cache = {}
-            
-            def load_cache():
-                nonlocal embedding_cache
-                if cache_file.exists():
-                    try:
-                        with open(cache_file, 'r', encoding='utf-8') as f:
-                            cache_data = json.load(f)
-                            embedding_cache = {k: np.array(v) for k, v in cache_data.items()}
-                    except Exception:
-                        embedding_cache = {}
-                else:
-                    embedding_cache = {}
-            
-            def save_cache():
-                try:
-                    cache_data = {k: v.tolist() for k, v in embedding_cache.items()}
-                    with open(cache_file, 'w', encoding='utf-8') as f:
-                        json.dump(cache_data, f, ensure_ascii=False)
-                except Exception:
-                    pass
-            
-            def get_cache_key(text):
-                return hashlib.md5(text.encode('utf-8')).hexdigest()
-            
-            def compute_embeddings_with_cache(texts, model="text-embedding-3-large"):
+            def openai_embed_func(texts, model="text-embedding-3-large"):
                 if isinstance(texts, str):
                     texts = [texts]
                     return_single = True
                 else:
                     return_single = False
                 
-                # 캐시 로드
-                if not embedding_cache:
-                    load_cache()
-                
-                # 캐시에서 찾기
-                cached_embeddings = {}
-                missing_texts = []
-                missing_indices = []
-                
-                for i, text in enumerate(texts):
-                    cache_key = get_cache_key(text)
-                    if cache_key in embedding_cache:
-                        cached_embeddings[i] = embedding_cache[cache_key]
-                    else:
-                        missing_texts.append(text)
-                        missing_indices.append(i)
-                
-                # API 호출
-                new_embeddings = {}
-                if missing_texts:
-                    try:
-                        response = client.embeddings.create(
-                            model=model,
-                            input=missing_texts,
-                            encoding_format="float"
-                        )
-                        
-                        for i, (idx, item) in enumerate(zip(missing_indices, response.data)):
-                            embedding = np.array(item.embedding)
-                            new_embeddings[idx] = embedding
-                            
-                            # 캐시에 저장
-                            cache_key = get_cache_key(missing_texts[i])
-                            embedding_cache[cache_key] = embedding
-                        
-                        # 캐시 파일 저장
-                        if new_embeddings:
-                            save_cache()
-                            
-                    except Exception as e:
-                        print(f"❌ OpenAI API 호출 실패: {e}")
-                        raise
-                
-                # 결과 조합
-                all_embeddings = []
-                for i in range(len(texts)):
-                    if i in cached_embeddings:
-                        all_embeddings.append(cached_embeddings[i])
-                    elif i in new_embeddings:
-                        all_embeddings.append(new_embeddings[i])
-                    else:
-                        raise ValueError(f"임베딩을 찾을 수 없습니다: {texts[i]}")
+                embeddings = compute_embeddings_batch(
+                    texts, 
+                    model=model, 
+                    max_workers=max_workers, 
+                    batch_size=batch_size
+                )
                 
                 if return_single:
-                    return all_embeddings[0]
+                    return embeddings[0]
                 else:
-                    return all_embeddings
+                    return embeddings
             
-            print("✅ OpenAI 임베더 초기화 성공")
-            return compute_embeddings_with_cache
+            print(f"✅ OpenAI 임베더 초기화 성공 (max_workers={max_workers}, batch_size={batch_size})")
+            return openai_embed_func
             
         except ImportError as e:
             print(f"❌ OpenAI 임베더 로드 실패: {e}")
@@ -693,7 +615,9 @@ def improved_align_paragraphs(
     src_text: str, 
     embed_func=None,
     similarity_threshold: float = 0.3,
-    embedder_name: str = "bge"
+    embedder_name: str = "bge",
+    max_workers: int = 4,
+    batch_size: int = 100
 ) -> List[Dict]:
     """기존 순차적 1:1 정렬 (무결성 보장)"""
     if not tgt_sentences:
@@ -705,7 +629,9 @@ def improved_align_paragraphs(
         len(tgt_sentences),
         target_sentences=tgt_sentences,  # 의미적 매칭을 위한 번역문 전달
         embedder_name=embedder_name,     # 임베더 이름 전달
-        embedder_func=embed_func         # 임베더 함수 전달
+        embedder_func=embed_func,        # 임베더 함수 전달
+        max_workers=max_workers,         # 병렬 처리 매개변수 전달
+        batch_size=batch_size            # 배치 크기 매개변수 전달
     )
     
     alignments = []
@@ -886,7 +812,9 @@ def process_paragraph_alignment(
     similarity_threshold: float = 0.3,
     device: str = "cpu",
     quality_threshold: float = 0.8,
-    use_spacy_tokenizer: bool = False
+    use_spacy_tokenizer: bool = False,
+    max_workers: int = 4,
+    batch_size: int = 100
 ):
     """PA 처리: 완벽한 무결성 보장"""
     
@@ -900,12 +828,12 @@ def process_paragraph_alignment(
     try:
         # 1. 기존 순차적 정렬 (punctuation)
         tgt_sentences_seq = safe_text_split(tgt_paragraph, max_length, "punctuation")
-        alignments_seq = improved_align_paragraphs(tgt_sentences_seq, src_paragraph)
+        alignments_seq = improved_align_paragraphs(tgt_sentences_seq, src_paragraph, max_workers=max_workers, batch_size=batch_size)
         
         # 2. 기존 의미적 정렬 (spacy)
         tgt_sentences_sem = safe_text_split(tgt_paragraph, max_length, "spacy")
-        embed_func = get_embedder_function(embedder_name, device=device)
-        alignments_sem = improved_align_paragraphs(tgt_sentences_sem, src_paragraph, embed_func, similarity_threshold)
+        embed_func = get_embedder_function(embedder_name, device=device, max_workers=max_workers, batch_size=batch_size)
+        alignments_sem = improved_align_paragraphs(tgt_sentences_sem, src_paragraph, embed_func, similarity_threshold, max_workers=max_workers, batch_size=batch_size)
         
         # 3. 기존 Vice Versa 토크나이저 정렬
         tokenizer_func = get_tokenizer_function(tokenizer_name)
@@ -1006,6 +934,8 @@ def process_paragraph_file(
     quality_threshold: float = 0.8,
     use_spacy_tokenizer: bool = False,
     verbose: bool = False,
+    max_workers: int = 4,
+    batch_size: int = 100,
     **kwargs
 ):
     """파일 단위 처리 - 완벽한 무결성 보장"""
@@ -1018,6 +948,7 @@ def process_paragraph_file(
     print(f"⚙️  임베더: {embedder_name}")
     print(f"🔗  spaCy 융합: {use_spacy_tokenizer}")
     print(f"🔒  무결성 보장: ON")
+    print(f"🚀  병렬 처리: max_workers={max_workers}, batch_size={batch_size}")
     
     try:
         df = pd.read_excel(input_file)
@@ -1056,7 +987,9 @@ def process_paragraph_file(
                     similarity_threshold=similarity_threshold,
                     device=device,
                     quality_threshold=quality_threshold,
-                    use_spacy_tokenizer=use_spacy_tokenizer
+                    use_spacy_tokenizer=use_spacy_tokenizer,
+                    max_workers=max_workers,
+                    batch_size=batch_size
                 )
                 
                 # 문단식별자 부여

@@ -1,0 +1,79 @@
+---
+title: 성능 최적화기 모듈
+---
+flowchart TD
+    %% 고대비 색상 스타일 정의
+    classDef startEnd fill:#2e7d32,stroke:#1b5e20,stroke-width:3px,color:#ffffff,font-weight:bold
+    classDef process fill:#1976d2,stroke:#0d47a1,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef decision fill:#f57c00,stroke:#e65100,stroke-width:2px,color:#000000,font-weight:bold
+    classDef optimization fill:#7b1fa2,stroke:#4a148c,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef gpu fill:#558b2f,stroke:#2e7d32,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef memory fill:#00796b,stroke:#004d40,stroke-width:2px,color:#ffffff,font-weight:bold
+    
+    A[📈 성능 모니터 시작]:::startEnd --> B[🔍 시스템 자원 확인]:::process
+    B --> C{💾 메모리 상태?}:::decision
+    C -->|메모리 부족| D[💾 메모리 최적화 활성화]:::memory
+    C -->|메모리 충분| E[📦 배치 처리 활성화]:::optimization
+    
+    D --> F[📉 배치 크기 감소]:::memory
+    E --> G[📈 배치 크기 증가]:::optimization
+    
+    F --> H[📊 CPU 사용률 모니터링]:::process
+    G --> H
+    
+    H --> I{💻 CPU 부하}:::decision
+    I -->|높은 부하| J[⬇️ 스레딩 감소]:::optimization
+    I -->|낮은 부하| K[⬆️ 스레딩 증가]:::optimization
+    
+    J --> L[🎮 GPU 가용성 확인]:::gpu
+    K --> L
+    
+    L --> M{🎮 GPU 사용 가능?}:::decision
+    M -->|예| N[⚡ GPU 가속 적용]:::gpu
+    M -->|아니오| O[💻 CPU 처리 최적화]:::optimization
+    
+    N --> P[⚖️ 동적 부하 분산]:::optimization
+    O --> P
+    
+    P --> Q[📊 성능 지표 업데이트]:::process
+    Q --> R{처리 계속?}:::decision
+    
+    R -->|예| H
+    R -->|아니오| S[📋 성능 리포트 생성]:::process
+    S --> T[💾 최적화 설정 저장]:::process
+    T --> U[✅ 완료]:::startEnd
+    
+    subgraph "메모리 최적화 전략"
+        D1[가비지 컬렉션]
+        D2[메모리 풀 관리]
+        D3[버퍼 크기 조정]
+        D4[캐시 관리]
+        D --> D1
+        D --> D2
+        D --> D3
+        D --> D4
+    end
+    
+    subgraph "GPU 가속 옵션"
+        N1[CUDA 처리]
+        N2[메모리 전송 최적화]
+        N3[병렬 커널 실행]
+        N4[GPU 메모리 관리]
+        N --> N1
+        N --> N2
+        N --> N3
+        N --> N4
+    end
+    
+    subgraph "성능 지표"
+        Q1[처리 속도]
+        Q2[메모리 사용량]
+        Q3[CPU/GPU 활용률]
+        Q4[처리량]
+        Q5[오류율]
+        Q --> Q1
+        Q --> Q2
+        Q --> Q3
+        Q --> Q4
+        Q --> Q5
+    end

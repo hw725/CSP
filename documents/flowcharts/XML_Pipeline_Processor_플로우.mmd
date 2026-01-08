@@ -1,0 +1,70 @@
+---
+title: XML 파이프라인 프로세서 핵심 처리 엔진
+---
+flowchart TD
+    %% 고대비 색상 스타일 정의
+    classDef startEnd fill:#2e7d32,stroke:#1b5e20,stroke-width:3px,color:#ffffff,font-weight:bold
+    classDef process fill:#1976d2,stroke:#0d47a1,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef decision fill:#f57c00,stroke:#e65100,stroke-width:2px,color:#000000,font-weight:bold
+    classDef pa fill:#7b1fa2,stroke:#4a148c,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef sa fill:#558b2f,stroke:#2e7d32,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef config fill:#00796b,stroke:#004d40,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef analysis fill:#c2185b,stroke:#880e4f,stroke-width:2px,color:#ffffff,font-weight:bold
+    
+    A[🚀 프로세서 초기화]:::startEnd --> B[⚙️ 설정 로드]:::config
+    B --> C[🔧 GPU/CPU 모드 설정]:::config
+    C --> D[📦 모델 로드]:::process
+    
+    D --> E[🔄 처리 루프 시작]:::process
+    E --> F[📄 다음 XML 파일 로드]:::process
+    F --> G[🔍 XML 구조 파싱]:::process
+    
+    G --> H[📝 텍스트 단위 추출]:::process
+    H --> I[🔧 전처리 적용]:::process
+    I --> J{📋 처리 유형}:::decision
+    
+    J -->|PA 처리| K[📑 문단 정렬]:::pa
+    J -->|SA 처리| L[📝 문장 정렬]:::sa
+    J -->|둘 다| M[🔄 혼합 처리]:::process
+    
+    K --> N[📊 PA 정확도 계산]:::pa
+    L --> O[📊 SA 정확도 계산]:::sa
+    M --> P[📊 혼합 지표 계산]:::process
+    
+    N --> Q[📈 유사도 분석 적용]:::analysis
+    O --> Q
+    P --> Q
+    
+    Q --> R[📊 지표 생성]:::analysis
+    R --> S{📂 추가 파일?}:::decision
+    
+    S -->|Yes| F
+    S -->|No| T[Aggregate Results]
+    T --> U[Save Final Report]
+    U --> V[Cleanup Resources]
+    V --> W[End]
+    
+    subgraph "Model Types"
+        D1[Embedding Model]
+        D2[Alignment Model]
+        D3[Similarity Model]
+        D --> D1
+        D --> D2
+        D --> D3
+    end
+    
+    subgraph "Metrics Generated"
+        R1[Precision/Recall/F1]
+        R2[Similarity Scores]
+        R3[Performance Stats]
+        R4[Error Rates]
+        R --> R1
+        R --> R2
+        R --> R3
+        R --> R4
+    end
+
+    style A fill:#4caf50
+    style W fill:#f44336
+    style J fill:#ff9800
+    style T fill:#9c27b0

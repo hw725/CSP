@@ -7,26 +7,58 @@ services:
       dockerfile: Dockerfile
     container_name: csp-workspace
 
-    # GPU 지원
-    runtime: nvidia
-    environment:
-      - CUDA_VISIBLE_DEVICES=0
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-
-    # 볼륨 마운트
     volumes:
-      - .:/workspace
+      # 워크스페이스 마운트 (성능 최적화)
+      - .:/workspace:delegated
 
-    # 포트
-    ports:
-      - "8888:8888"
-      - "6006:6006"
+      # 캐시 볼륨들
+      - pip_cache:/root/.cache/pip:rw
+      - huggingface_cache:/root/.cache/huggingface:rw
+      - torch_cache:/root/.cache/torch:rw
 
-    # 작업 디렉토리
     working_dir: /workspace
 
-    # 컨테이너 유지
-    tty: true
+    environment:
+      - PYTHONPATH=/workspace
+      - CUDA_VISIBLE_DEVICES=0
+
+      # 한글/한자 지원 환경변수
+      - LANG=ko_KR.UTF-8
+      - LC_ALL=ko_KR.UTF-8
+      - LANGUAGE=ko_KR:ko
+      - PYTHONIOENCODING=utf-8
+
+      # GPU 최적화 환경변수들 (Dockerfile에서 상속)
+      - HF_HOME=/root/.cache/huggingface
+      - TRANSFORMERS_CACHE=/root/.cache/huggingface/transformers
+      - TORCH_HOME=/root/.cache/torch
+
     stdin_open: true
+    tty: true
+
+    # GPU 리소스 할당 (GPU 있을 때만)
+    deploy:
+      resources:
+        limits:
+          cpus: "8.0"
+          memory: 16G
+        reservations:
+          cpus: "4.0"
+          memory: 8G
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    # 공유 메모리 최적화
+    shm_size: 2gb
+    restart: unless-stopped
+
+# 캐시 볼륨들
+volumes:
+  pip_cache:
+    driver: local
+  huggingface_cache:
+    driver: local
+  torch_cache:
+    driver: local

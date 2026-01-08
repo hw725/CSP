@@ -10,7 +10,16 @@ import os
 import argparse
 import time
 import warnings
-import torch
+
+# torch은 Docker 환경에서만 필수입니다. 로컬(Windows)에서는 없을 수 있으므로 안전하게 처리합니다.
+try:
+    import torch  # type: ignore
+    TORCH_AVAILABLE = True
+except Exception:
+    TORCH_AVAILABLE = False
+    class _TorchShim:
+        pass
+    torch = _TorchShim()  # type: ignore
 
 # PyTorch 보안 경고 완전 비활성화
 os.environ['TORCH_FORCE_WEIGHTS_ONLY'] = 'False'
@@ -23,18 +32,20 @@ warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-# PyTorch 2.6 torch.load 호환성 설정
-if hasattr(torch.serialization, 'add_safe_globals'):
+# PyTorch 2.6 torch.load 호환성 설정 (torch가 있을 때만)
+if TORCH_AVAILABLE and hasattr(torch, 'serialization') and hasattr(torch.serialization, 'add_safe_globals'):
     try:
         # SuPar 모델을 위한 안전한 글로벌 추가
         from supar.utils.config import Config
         torch.serialization.add_safe_globals([Config])
-    except ImportError:
+    except Exception:
         pass
 
 # torch.load에 대한 추가 보안 경고 억제
 def suppress_torch_warnings():
-    """PyTorch 보안 경고를 완전히 억제"""
+    """PyTorch 보안 경고를 완전히 억제 (torch가 있을 때만)"""
+    if not TORCH_AVAILABLE:
+        return
     import logging
     logging.getLogger("torch").setLevel(logging.ERROR)
     logging.getLogger("transformers").setLevel(logging.ERROR)
@@ -47,6 +58,7 @@ def suppress_torch_warnings():
         return original_load(*args, **kwargs)
     torch.load = safe_load
 
+# torch가 있을 때만 경고 억제 활성화
 suppress_torch_warnings()
 
 # 프로젝트 루트와 현재 디렉토리를 Python 경로에 추가
@@ -61,8 +73,8 @@ def main():
     parser.add_argument('output_file', help='출력 Excel 파일 경로')
     
     # 선택적 인수들
-    parser.add_argument('--embedder', default='bge', choices=['bge', 'openai'],
-                       help='임베더 선택 (기본값: bge)')
+    parser.add_argument('--embedder', default='bge', choices=['bge', 'openai', 'none'],
+                       help='임베더 선택 (기본값: bge, OpenAI: --embedder openai, 순차분할: --embedder none)')
     parser.add_argument('--max-length', type=int, default=180,
                        help='최대 문장 길이 (기본값: 180)')
     parser.add_argument('--threshold', type=float, default=0.7,
@@ -71,6 +83,13 @@ def main():
                        help='OpenAI 모델명')
     parser.add_argument('--openai-api-key', 
                        help='OpenAI API 키')
+    
+    # 🚀 병렬 처리 옵션 추가
+    parser.add_argument('--max-workers', type=int, default=4,
+                       help='OpenAI API 병렬 워커 수 (기본: 4, OpenAI 전용)')
+    parser.add_argument('--batch-size', type=int, default=50,
+                       help='OpenAI API 배치 크기 (기본: 50, OpenAI 전용)')
+    
     parser.add_argument('--verbose', action='store_true',
                        help='상세 로그 출력')
     
@@ -86,6 +105,13 @@ def main():
         warnings.filterwarnings("ignore")
     
     print("🚀 PA (Paragraph Aligner) 시작")
+    print(f"⚙️ 설정: 임베더={args.embedder}, 병렬 워커={args.max_workers}, 배치 크기={args.batch_size}")
+    if args.embedder == 'openai':
+        print("🔥 OpenAI 병렬 처리 활성화")
+    elif args.embedder == 'none':
+        print("⚡ 순차 분할 모드 (임베더 미사용, 빠른 처리)")
+    else:
+        print("📊 BGE 임베더 사용 (기본)")
     print()
     
     # 하이브리드 토크나이저 초기화
@@ -127,6 +153,8 @@ def main():
             similarity_threshold=args.threshold,
             openai_model=args.openai_model,
             openai_api_key=args.openai_api_key,
+            max_workers=args.max_workers,  # 🚀 병렬 워커 수 전달
+            batch_size=args.batch_size,    # 🚀 배치 크기 전달
             verbose=args.verbose
         )
         

@@ -1,0 +1,57 @@
+---
+title: XML 파이프라인 전체 아키텍처
+---
+flowchart TB
+    %% 고대비 색상 스타일 정의
+    classDef entryPoint fill:#2e7d32,stroke:#1b5e20,stroke-width:3px,color:#ffffff,font-weight:bold
+    classDef coreProcess fill:#1976d2,stroke:#0d47a1,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef optimization fill:#f57c00,stroke:#e65100,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef support fill:#7b1fa2,stroke:#4a148c,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef output fill:#c2185b,stroke:#880e4f,stroke-width:3px,color:#ffffff,font-weight:bold
+    
+    subgraph EP ["🚀 진입점"]
+        A["xml_pipeline.bat/sh<br/>배치 실행 스크립트"]:::entryPoint
+        B["xml_pipeline_cli.py<br/>CLI 인터페이스"]:::entryPoint
+        C["run_fast.sh<br/>빠른 실행 스크립트"]:::entryPoint
+        D["docker_xml_smart.py<br/>스마트 도커 실행"]:::entryPoint
+    end
+    
+    subgraph CP ["⚙️ 핵심 처리"]
+        E["xml_pipeline_processor.py<br/>메인 파이프라인 처리기"]:::coreProcess
+        F["xml_unit_parser.py<br/>XML 단위 파서"]:::coreProcess
+        G["xml_advanced_accuracy.py<br/>고급 정확도 분석기"]:::coreProcess
+        H["xml_level_similarity.py<br/>계층별 유사도 분석기"]:::coreProcess
+    end
+    
+    subgraph OL ["🚀 최적화 계층"]
+        I["performance_optimizer.py<br/>성능 최적화기"]:::optimization
+        J["docker_gpu_optimizer.py<br/>도커 GPU 최적화기"]:::optimization
+        K["xml_optimization_patch.py<br/>XML 최적화 패치"]:::optimization
+    end
+    
+    subgraph SM ["🔧 지원 모듈"]
+        L["jti_code_mappings.py<br/>JTI 코드 매핑"]:::support
+        M["xml_file_browser.py<br/>XML 파일 브라우저"]:::support
+    end
+    
+    subgraph OUT ["📁 출력"]
+        N["처리된 XML 파일들<br/>정렬 및 분석 결과"]:::output
+        O["정확도 보고서<br/>성능 분석 결과"]:::output
+        P["유사도 분석<br/>계층별 매칭 결과"]:::output
+    end
+    
+    A --> B
+    C --> D
+    B --> E
+    D --> E
+    E --> F
+    E --> G
+    E --> H
+    I --> E
+    J --> D
+    K --> E
+    L --> F
+    M --> E
+    E --> N
+    G --> O
+    H --> P

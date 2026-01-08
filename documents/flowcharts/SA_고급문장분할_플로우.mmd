@@ -1,0 +1,72 @@
+---
+title: SA 고급 문장 분할 플로우
+---
+flowchart TD
+    %% 고대비 색상 스타일 정의
+    classDef startEnd fill:#2e7d32,stroke:#1b5e20,stroke-width:3px,color:#ffffff,font-weight:bold
+    classDef process fill:#1976d2,stroke:#0d47a1,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef decision fill:#f57c00,stroke:#e65100,stroke-width:2px,color:#000000,font-weight:bold
+    classDef parser fill:#558b2f,stroke:#2e7d32,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef embedder fill:#7b1fa2,stroke:#4a148c,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef validation fill:#00796b,stroke:#004d40,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef output fill:#c2185b,stroke:#880e4f,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef openai fill:#2e7d32,stroke:#1b5e20,stroke-width:2px,color:#ffffff,font-weight:bold
+    
+    A[🚀 고급 문장 분할 시작<br/>구문분석 + 하이브리드 임베딩]:::startEnd
+    
+    %% 구문분석기 초기화
+    PA[🏮 구문분석기 초기화<br/>SuPar-Kanbun 원문 + Stanza 번역문]:::parser
+    B[🤖 하이브리드 임베더 선택<br/>OpenAI vs BGE-M3 자동 전환]:::embedder
+    C[🔑 OpenAI 임베더 초기화<br/>text-embedding-3-large<br/>API 키 검증]:::openai
+    D[🧠 BGE-M3 임베더 초기화<br/>FlagModel 로컬 로드]:::embedder
+    
+    %% 텍스트 전처리 및 분할
+    E[📝 텍스트 전처리<br/>유니코드 정규화 + 공백 처리]:::process
+    F[🔄 구문분석 실행<br/>원문 한문 + 번역문 한국어]:::parser
+    G[🌳 구문 트리 추출<br/>의존 관계 + 구성 요소]:::parser
+    
+    %% 임베딩 기반 분할
+    H[🧩 임베딩 기반 분할<br/>의미 단위 경계 탐지]:::embedder
+    I[📊 유사도 계산<br/>연속 문장간 코사인 유사도]:::process
+    J[🎯 임계값 적용<br/>동적 임계값 조정]:::validation
+    
+    %% 구문분석 기반 분할
+    K[🏗️ 구문 경계 탐지<br/>절/구 단위 분할점]:::parser
+    L[🔗 의존관계 분석<br/>문장간 의미적 연결성]:::parser
+    
+    %% 하이브리드 분할
+    M[⚖️ 하이브리드 결합<br/>임베딩 + 구문분석 점수 융합]:::process
+    N[🎨 최적 분할점 선택<br/>가중 평균 기반 결정]:::validation
+    
+    %% 후처리 및 검증
+    O[✅ 분할 결과 검증<br/>최소/최대 길이 + 의미 완성도]:::validation
+    P[📋 분할 메타데이터 생성<br/>분할 근거 + 신뢰도 점수]:::output
+    Q[💾 결과 저장<br/>Excel + JSON 형식]:::output
+    R[🎯 고급 문장 분할 완료<br/>고품질 분할 결과 확보]:::startEnd
+    
+    A --> PA
+    PA --> B
+    B --> C
+    B --> D
+    C --> E
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+    I --> J
+    J --> K
+    K --> L
+    L --> M
+    M --> N
+    N --> O
+    O --> P
+    P --> Q
+    Q --> R
+    
+    %% 오류 처리
+    S[⚠️ 분석 실패<br/>백업 방법으로 전환]:::process
+    
+    F -.-> S
+    H -.-> S
+    S --> O

@@ -36,9 +36,11 @@ def process_paragraph_file(
     output_file, 
     embedder_name="bge", 
     max_length=150, 
-    similarity_threshold=0.7,  # 🔧 기본값 0.7로 상향 조정
+    similarity_threshold=0.7,
     openai_model=None,
     openai_api_key=None,
+    max_workers=4,      # 🚀 병렬 워커 수 추가
+    batch_size=50,      # 🚀 배치 크기 추가
     verbose=False,
     device="cpu"
 ):
@@ -67,12 +69,14 @@ def process_paragraph_file(
     total = len(df)
     
     # � 임베더 한 번만 초기화
-    print("�🔧 임베더 초기화 중...")
+    print("🔧 임베더 초기화 중...")
     embed_func = get_embedder_function(
         embedder_name, 
         device=device,
         openai_model=openai_model,
-        openai_api_key=openai_api_key
+        openai_api_key=openai_api_key,
+        max_workers=max_workers,
+        batch_size=batch_size
     )
     print("✅ 임베더 초기화 완료")
     
@@ -109,7 +113,9 @@ def process_paragraph_file(
                 src_paragraph,
                 embed_func,
                 similarity_threshold,
-                embedder_name=embedder_name  # 임베더 이름 전달
+                embedder_name=embedder_name,  # 임베더 이름 전달
+                max_workers=max_workers,
+                batch_size=batch_size
             )
             
             # 🆕 한글 토씨 힌트로 매칭 보정 (기존 로직은 보존)

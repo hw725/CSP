@@ -1,0 +1,82 @@
+---
+title: XML 고급 정확도 분석 모듈
+---
+flowchart TD
+    %% 고대비 색상 스타일 정의
+    classDef startEnd fill:#2e7d32,stroke:#1b5e20,stroke-width:3px,color:#ffffff,font-weight:bold
+    classDef process fill:#1976d2,stroke:#0d47a1,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef decision fill:#f57c00,stroke:#e65100,stroke-width:2px,color:#000000,font-weight:bold
+    classDef pa fill:#7b1fa2,stroke:#4a148c,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef sa fill:#558b2f,stroke:#2e7d32,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef metrics fill:#00796b,stroke:#004d40,stroke-width:2px,color:#ffffff,font-weight:bold
+    classDef analysis fill:#c2185b,stroke:#880e4f,stroke-width:2px,color:#ffffff,font-weight:bold
+    
+    A[📝 처리된 단위 입력]:::startEnd --> B[📊 지표 초기화]:::process
+    B --> C[🔧 평가 프레임워크 설정]:::process
+    
+    C --> D{📋 정확도 유형}:::decision
+    D -->|PA 정확도| E[📊 PA 지표 계산]:::pa
+    D -->|SA 정확도| F[📊 SA 지표 계산]:::sa
+    D -->|통합| G[📊 혼합 지표 계산]:::metrics
+    
+    E --> H[🎯 PA 정밀도 계산]:::pa
+    H --> I[📈 PA 재현율 계산]:::pa
+    I --> J[⚖️ PA F1 점수 계산]:::pa
+    
+    F --> K[🎯 SA 정렬 정확도]:::sa
+    K --> L[📈 SA 순서 정확도]:::sa
+    L --> M[📍 SA 위치 정확도]:::sa
+    
+    G --> N[🔄 교차검증 지표]:::metrics
+    N --> O[✅ 일관성 검사]:::analysis
+    
+    J --> P[📋 PA 결과 집계]:::pa
+    M --> Q[📋 SA 결과 집계]:::sa
+    O --> R[📋 혼합 결과 집계]:::metrics
+    
+    P --> S[📊 통계적 분석 적용]:::analysis
+    Q --> S
+    R --> S
+    
+    S --> T[Generate Accuracy Report]
+    T --> U[Visualize Results]
+    U --> V[Save Metrics]
+    V --> W[End]
+    
+    subgraph "PA Metrics Detail"
+        H1[True Positives]
+        H2[False Positives]
+        H3[False Negatives]
+        H4[Confidence Scores]
+        H --> H1
+        H --> H2
+        I --> H3
+        J --> H4
+    end
+    
+    subgraph "SA Metrics Detail"
+        K1[Alignment Quality]
+        K2[Sequence Preservation]
+        K3[Positional Accuracy]
+        K4[Semantic Consistency]
+        K --> K1
+        L --> K2
+        M --> K3
+        M --> K4
+    end
+    
+    subgraph "Statistical Analysis"
+        S1[Mean/Std Calculation]
+        S2[Confidence Intervals]
+        S3[Outlier Detection]
+        S4[Trend Analysis]
+        S --> S1
+        S --> S2
+        S --> S3
+        S --> S4
+    end
+
+    style A fill:#4caf50
+    style W fill:#f44336
+    style D fill:#ff9800
+    style T fill:#2196f3

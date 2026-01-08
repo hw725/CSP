@@ -65,27 +65,24 @@ class SafeFileProcessor:
             chunks = self._create_chunks(df)
             
             if not self.verbose:
-                # 기본 모드: 통합 진행률 시작
-                print(f"📊 SA 분할 시작: {len(df):,}개 행", flush=True)
+                # 기본 모드: 간단한 시작 메시지와 통합 진행률
+                print(f"📊 SA 처리 시작: {len(df):,}개 행")
                 
-                # 🔧 통합 진행률 막대 시작
+                # 🔧 깔끔한 통합 진행률 막대 시작  
                 try:
                     start_unified_progress(
                         total=len(df),
-                        description="🔄 SA 분할",
+                        description="🔄 SA 처리",
                         unit="행",
-                        bar_format='{desc}: {percentage:3.0f}%|{bar:50}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {postfix}',
-                        mininterval=0.1,
-                        maxinterval=1.0,
+                        mininterval=1.0,   # 1초마다 업데이트
+                        maxinterval=3.0,   # 최대 3초 간격
                     )
                     use_progress_bar = True
                 except Exception as e:
-                    # 통합 진행률 시작 실패 시 폴백
-                    logger.warning(f"통합 진행률 시작 실패: {e}")
+                    logger.warning(f"진행률 시작 실패: {e}")
                     use_progress_bar = False
             else:
-                # verbose 모드에서는 진행률 막대 없이
-                progress_bar = None
+                # verbose 모드에서는 진행률 막대 없이 상세 로그만
                 use_progress_bar = False
             
             for i, chunk in enumerate(chunks):
@@ -102,27 +99,25 @@ class SafeFileProcessor:
                 else:
                     self.error_count += len(chunk)
                 
-                # 🔧 행 단위 진행률 업데이트
+                # 🔧 청크 단위 진행률 업데이트 (조용하게)
                 if use_progress_bar:
                     try:
-                        # 현재 청크의 행 수만큼 진행률 업데이트
                         update_unified_progress(
                             n=len(chunk),
                             성공=self.processed_count,
                             실패=self.error_count
                         )
                     except:
-                        pass  # 업데이트 실패 시 무시
+                        pass
             
-            # 🔧 진행률 막대 정리
+            # 🔧 진행률 완료 처리
             if use_progress_bar:
                 try:
-                    # 최종 결과 정보와 함께 완료 메시지
                     if results:
                         result_count = len(pd.DataFrame(results)) if results else 0
-                        finish_unified_progress(f"SA 완료: {result_count:,}개 구문 생성")
+                        finish_unified_progress(f"완료: {result_count:,}개 구문")
                     else:
-                        finish_unified_progress("SA 완료 (결과 없음)")
+                        finish_unified_progress("완료 (결과 없음)")
                 except:
                     pass
             

@@ -17,53 +17,44 @@ import numpy as np
 import json
 import hashlib
 
-# OpenAI wrapper for direct access
+# OpenAI wrapper for direct access with parallel processing
 class OpenAIWrapper:
-    """OpenAI embedder wrapper - bypasses common module issues"""
-    def __init__(self):
+    """OpenAI embedder wrapper - uses common module with parallel processing"""
+    def __init__(self, max_workers=4, batch_size=100):
         try:
-            from openai import OpenAI
-            self.client = OpenAI()
-            self.cache_file = "/workspace/embeddings_cache_openai/openai_embeddings.json"
-            os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
-            self._load_cache()
+            # 패키지 경로로 안전하게 임포트
+            from common.embedders.openai_embedder import compute_embeddings_batch
+            self.compute_embeddings_batch = compute_embeddings_batch
+            self.max_workers = max_workers
+            self.batch_size = batch_size
+            logger.debug(f"✅ OpenAI 임베더 초기화 완료 (max_workers={max_workers}, batch_size={batch_size})")
         except Exception as e:
             raise ImportError(f"OpenAI 설정 실패: {e}")
     
-    def _load_cache(self):
-        try:
-            with open(self.cache_file, 'r', encoding='utf-8') as f:
-                self.cache = json.load(f)
-        except:
-            self.cache = {}
-    
-    def _save_cache(self):
-        with open(self.cache_file, 'w', encoding='utf-8') as f:
-            json.dump(self.cache, f, ensure_ascii=False, indent=2)
-    
-    def _get_cache_key(self, text):
-        return hashlib.md5(text.encode('utf-8')).hexdigest()
-    
-    def compute_embeddings_with_cache(self, texts, batch_size=8):
+    def compute_embeddings_with_cache(self, texts, batch_size=None):
         if isinstance(texts, str):
             texts = [texts]
+            return_single = True
+        else:
+            return_single = False
         
-        embeddings = []
-        for text in texts:
-            cache_key = self._get_cache_key(text)
-            if cache_key in self.cache:
-                embeddings.append(self.cache[cache_key])
+        actual_batch_size = batch_size if batch_size is not None else self.batch_size
+        
+        try:
+            embeddings = self.compute_embeddings_batch(
+                texts, 
+                model="text-embedding-3-large",
+                batch_size=actual_batch_size,  # 🚀 매개변수명 수정
+                max_workers=self.max_workers
+            )
+            
+            if return_single:
+                return np.array(embeddings[0])
             else:
-                response = self.client.embeddings.create(
-                    model="text-embedding-3-large",
-                    input=text
-                )
-                embedding = response.data[0].embedding
-                self.cache[cache_key] = embedding
-                embeddings.append(embedding)
-        
-        self._save_cache()
-        return np.array(embeddings)
+                return np.array(embeddings)
+        except Exception as e:
+            logger.error(f"OpenAI 임베딩 생성 실패: {e}")
+            raise
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +73,62 @@ except ImportError as e:
     # 폴백: 기본 split() 사용
 
 logger = logging.getLogger(__name__)
+
+# ===== SuPar-Kanbun 안전 로딩 준비 (Torch 2.6 weights_only 대비) =====
+def _prepare_supar_safe_loading():
+    """Torch 2.6의 안전 로딩 정책으로 인한 SuPar 체크포인트 로딩 실패를 완화.
+    supar.utils.config.Config 클래스를 안전 목록에 추가한다.
+    실패 시 조용히 무시(폴백 유지).
+    """
+    try:
+        # 지연 임포트: 환경에 없으면 조용히 패스
+        try:
+            import importlib  # 표준 라이브러리
+            torch_serialization = importlib.import_module('torch.serialization')
+            add_safe_globals = getattr(torch_serialization, 'add_safe_globals', None)
+            if callable(add_safe_globals):
+                # SuPar 관련 모듈의 클래스들을 폭넓게 허용 (특히 *Field, Transform/CoNLL 등)
+                try:
+                    import inspect
+                    module_names = [
+                        'supar.utils.config',
+                        'supar.utils.transform',
+                        'supar.utils.field',
+                        'supar.utils.vocab',
+                        'dill._dill',
+                    ]
+                    to_allow = []
+                    for mod_name in module_names:
+                        try:
+                            mod = importlib.import_module(mod_name)
+                        except Exception:
+                            continue
+                        for name, obj in vars(mod).items():
+                            try:
+                                # 클래스 및 함수 모두 허용 (dill._dill._load_type 등을 위해)
+                                if inspect.isclass(obj) or inspect.isfunction(obj):
+                                    # SuPar 관련: Field 계열, Transform/CoNLL 계열, Vocab/Vectors 등
+                                    # dill 관련: _load_type, _create_type 등
+                                    if (
+                                        'Field' in name or
+                                        name in {'Transform', 'CoNLL', 'CoNLLU', 'Vocab', 'Vectors', 'Config'} or
+                                        name.startswith('_load') or name.startswith('_create') or name.startswith('_import')
+                                    ):
+                                        to_allow.append(obj)
+                            except Exception:
+                                continue
+                    if to_allow:
+                        try:
+                            add_safe_globals(to_allow)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+        except Exception:
+            # torch가 없거나 구버전인 경우 무시
+            pass
+    except Exception:
+        pass
 
 def split_src_meaning_units(text: str, **kwargs) -> List[str]:
     """
@@ -168,32 +215,46 @@ def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_to
     try:
         # 설정된 임베더 가져오기 (CLI --embedder 옵션 반영)
         embedder_name = kwargs.get('embedder_name', kwargs.get('embedder', 'bge'))
+        max_workers = kwargs.get('max_workers', 4)
+        # CLI에서는 chunk_size 이름을 사용하므로 호환 처리
+        batch_size = kwargs.get('batch_size', kwargs.get('chunk_size', 100))
+        
+        # 임베더 없이 순차 분할만 사용하는 경우
+        if embedder_name.lower() == 'none':
+            logger.debug("⚡ 순차 분할 모드: 임베더 미사용으로 빠른 처리")
+            # 바로 순차 분할로 넘어감
+            raise Exception("순차 분할 모드 선택됨")
         
         if embedder_name.lower() == 'openai':
-            # OpenAI 직접 사용
-            embedder = OpenAIWrapper()
-            logger.debug(f"✅ OpenAI 임베더로 순서 보장 의미 매칭 시작")
+            # OpenAI 직접 사용 (병렬 처리 적용)
+            embedder = OpenAIWrapper(max_workers=max_workers, batch_size=batch_size)
+            logger.debug(f"✅ OpenAI 임베더로 순서 보장 의미 매칭 시작 (max_workers={max_workers})")
+            compute_embeddings_func = embedder.compute_embeddings_with_cache
         else:
-            # BGE 등 다른 임베더 사용
+            # BGE 등 다른 임베더 사용 - 함수 직접 가져오기
             from common.embedders import get_embedder
-            embedder = get_embedder(embedder_name)
+            compute_embeddings_func = get_embedder(embedder_name)
             logger.debug(f"✅ {embedder_name.upper()} 임베더로 순서 보장 의미 매칭 시작")
         
         # 원문 단위별 임베딩
-        src_embeddings = embedder.compute_embeddings_with_cache(
+        src_embeddings = compute_embeddings_func(
             src_units, 
-            batch_size=4
+            batch_size=batch_size
         )
         
         # 번역문 토큰들의 임베딩
-        tgt_embeddings = embedder.compute_embeddings_with_cache(
+        tgt_embeddings = compute_embeddings_func(
             tgt_tokens, 
-            batch_size=8
+            batch_size=batch_size
         )
         
-        # 🎯 순서 보장 Dynamic Programming
+        # 🎯 순서 보장 Dynamic Programming (가중치 파라미터 전달)
+        # DP에 원문 단위/텍스트 컨텍스트도 전달(구문 힌트용)
+        dp_kwargs = dict(kwargs)
+        dp_kwargs.setdefault('src_units', src_units)
+        dp_kwargs.setdefault('source_text', ' '.join(src_units))
         optimal_split = _find_optimal_split_dp_sequential(
-            src_embeddings, tgt_embeddings, tgt_tokens, N, T
+            src_embeddings, tgt_embeddings, tgt_tokens, N, T, **dp_kwargs
         )
         
         if optimal_split and len(optimal_split) == N:
@@ -201,7 +262,10 @@ def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_to
             return optimal_split
     
     except Exception as e:
-        logger.warning(f"⚠️ 임베더 순서 보장 매칭 실패, 순차 분할로 대체: {e}")
+        if embedder_name and embedder_name.lower() != 'none':
+            logger.warning(f"⚠️ 임베더 순서 보장 매칭 실패, 순차 분할로 대체: {e}")
+        else:
+            logger.debug("⚡ 순차 분할 모드로 진행")
     
     # ⚡ 폴백: 순차적 분할만 사용 (순서 무결성 보장)
     # 기본 모드: 평균 길이 기반 분할 (고어 패턴 보정 적용)
@@ -267,69 +331,197 @@ def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_to
         
         return result
 
-def _find_optimal_split_dp_sequential(src_embeddings, tgt_embeddings, tgt_tokens, N, T) -> List[str]:
-    """순서 보장 Dynamic Programming 분할 (의미 기반 경계 조정만)"""
-    
-    # 유사도 매트릭스 계산
+def _find_optimal_split_dp_sequential(
+    src_embeddings,
+    tgt_embeddings,
+    tgt_tokens,
+    N,
+    T,
+    **kwargs,
+) -> List[str]:
+    """
+    순서 보장 Dynamic Programming 분할 (의미 기반 경계 조정만)
+    - 가중치 파라미터(옵션, 기본은 기존 동작 유지):
+      dp_window: 예상 위치 대비 허용 창(정수, 기본 1)
+      distance_decay: 거리 감쇠 알파(실수, 기본 0.0 → 비활성)
+      boundary_bonus: 경계 보너스(실수, 기본 0.0)
+      particle_bonus: 토씨 경계 보너스(실수, 기본 0.0)
+      length_penalty: 기대 길이 대비 차이에 대한 패널티 알파(실수, 기본 0.0)
+      sim_gamma: 유사도 샤프닝 지수(실수, 기본 1.0)
+    """
+
+    # ===== 파라미터 로드 (기본값은 기존 동작 유지) =====
+    dp_window: int = int(kwargs.get('dp_window', 1))
+    distance_decay_alpha: float = float(kwargs.get('distance_decay', 0.0))
+    boundary_bonus: float = float(kwargs.get('boundary_bonus', 0.0))
+    particle_bonus: float = float(kwargs.get('particle_bonus', 0.0))
+    length_penalty_alpha: float = float(kwargs.get('length_penalty', 0.0))
+    sim_gamma: float = float(kwargs.get('sim_gamma', 1.0))
+
+    # ===== 경계 힌트 준비 =====
+    def _is_boundary_token(tok: str) -> bool:
+        if not tok:
+            return False
+        punct_ends = set(list(".!?;:。！？；、…·”’'\"」』》)]>))"))
+        return tok[-1] in punct_ends
+
+    def _is_particle_ending(tok: str) -> bool:
+        if not tok:
+            return False
+        particles = (
+            '은','는','이','가','을','를','에','에게','에서','으로','로','와','과','랑','하고','도','만','까지','부터',
+            '마다','처럼','보다','조차','마저','께','께서','이라','라','이라도','라도','이나','나','이라서','라서'
+        )
+        stripped = tok.rstrip(".,!?;:。！？；、…·”’'\"」』》)]>))")
+        for p in particles:
+            if stripped.endswith(p):
+                return True
+        return False
+
+    boundary_flags = [_is_boundary_token(t) for t in tgt_tokens]
+    particle_flags = [_is_particle_ending(t) for t in tgt_tokens]
+
+    # ===== 한국어/중국어 구문 힌트 기반 경계 (옵션) - 파싱 게이팅 준비 =====
+    comma_bonus = float(kwargs.get('comma_bonus', 0.0) or 0.0)
+    comma_mode = kwargs.get('comma_mode', 'soft')
+    syntax_hints = kwargs.get('syntax_hints', 'none')
+    syntax_when = kwargs.get('syntax_when', 'ambiguous')
+    # 강도 가중치를 위한 배열 (토큰 끝 경계 강도)
+    ko_boundary_token_strengths = [0.0] * T
+    src_boundary_indices = set()
+
+    # ===== 유사도 매트릭스 계산 =====
     similarity_matrix = np.zeros((T, N))
-    
     for t in range(T):
         for s in range(N):
             sim = np.dot(tgt_embeddings[t], src_embeddings[s]) / (
                 np.linalg.norm(tgt_embeddings[t]) * np.linalg.norm(src_embeddings[s]) + 1e-8
             )
-            similarity_matrix[t, s] = float(sim)
-    
-    # 🎯 순서 보장: 각 토큰은 자신의 순서 위치 ±1 범위에서만 매칭 가능
+            sim_val = float(sim)
+            if sim_gamma != 1.0:
+                sign = 1.0 if sim_val >= 0 else -1.0
+                sim_val = sign * (abs(sim_val) ** sim_gamma)
+            similarity_matrix[t, s] = sim_val
+
+    # 🎯 순서 보장 + 거리 감쇠
     enhanced_similarity = np.full_like(similarity_matrix, -1000.0)
-    
     for t in range(T):
-        # 토큰의 대략적인 위치 (균등 분할 기준)
         expected_unit = min(int(t * N / T), N - 1)
-        
-        # 인접 단위들에만 매칭 허용 (±1 범위)
-        for s in range(max(0, expected_unit - 1), min(N, expected_unit + 2)):
-            enhanced_similarity[t, s] = similarity_matrix[t, s]
-    
+        left = max(0, expected_unit - dp_window)
+        right = min(N, expected_unit + dp_window + 1)
+        for s in range(left, right):
+            val = similarity_matrix[t, s]
+            if distance_decay_alpha > 0:
+                dist = abs(s - expected_unit)
+                decay = np.exp(-distance_decay_alpha * dist)
+                val = val * decay
+            enhanced_similarity[t, s] = val
+
+    # ===== 파싱 모호성 판단 이후에 구문 힌트 계산 =====
+    def is_ambiguous(sim_mat: np.ndarray) -> bool:
+        try:
+            gaps = []
+            for tt in range(sim_mat.shape[0]):
+                row = sim_mat[tt]
+                vals = [v for v in row if v > -999]
+                if len(vals) >= 2:
+                    top2 = sorted(vals, reverse=True)[:2]
+                    gaps.append(top2[0] - top2[1])
+            if not gaps:
+                return False
+            avg_gap = sum(gaps) / len(gaps)
+            return avg_gap < 0.05
+        except Exception:
+            return False
+
+    allow_parse = (syntax_when == 'always') or (syntax_when == 'ambiguous' and is_ambiguous(enhanced_similarity))
+
+    # 한국어 경계 강도 계산 (Stanza 우선, 실패 시 콤마 휴리스틱) — syntax_hints가 ko/both일 때만
+    if allow_parse and syntax_hints in ('ko', 'both'):
+        try:
+            from common.new_parsers import (
+                get_korean_clause_offsets_with_strength,
+                get_korean_clause_boundary_commas,
+            )
+            # 토큰을 공백 없이 이어 붙여 문자 오프셋 공간으로 매핑
+            token_spans = []
+            offset = 0
+            joined = "".join(tgt_tokens)
+            for tok in tgt_tokens:
+                token_spans.append((offset, offset + len(tok)))
+                offset += len(tok)
+            # 강도 사전 조회 (실패/미가용 시 콤마 1.0 강도)
+            try:
+                strength_map = get_korean_clause_offsets_with_strength(joined)
+            except Exception:
+                offs = get_korean_clause_boundary_commas(joined, mode=comma_mode)
+                strength_map = {o: 1.0 for o in offs}
+            if strength_map:
+                for idx, (s_off, e_off) in enumerate(token_spans):
+                    # 경계는 토큰 끝 직전 문자 위치(e_off-1)
+                    if (e_off - 1) in strength_map:
+                        ko_boundary_token_strengths[idx] = max(
+                            ko_boundary_token_strengths[idx], float(strength_map[e_off - 1])
+                        )
+        except Exception:
+            pass
+
+    # 중국어 원문 단위 경계 (syntax_hints가 zh/both일 때만)
+    if allow_parse and syntax_hints in ('zh', 'both'):
+        try:
+            from common.new_parsers import get_chinese_unit_boundary_indices
+            src_boundary_indices = get_chinese_unit_boundary_indices(kwargs.get('src_units', []))
+        except Exception:
+            src_boundary_indices = set()
+
     # DP로 최적 분할 찾기
     dp = np.full((T + 1, N + 1), -np.inf)
     parent = np.full((T + 1, N + 1), -1, dtype=int)
-    
     dp[0][0] = 0
-    
+
     for i in range(1, T + 1):
         for j in range(1, min(i, N) + 1):
             for k in range(j - 1, i):
                 if dp[k][j - 1] == -np.inf:
                     continue
-                
-                # 유사도 점수 계산
-                unit_score = 0
+                unit_score = 0.0
                 token_count = i - k
-                
                 for t in range(k, i):
                     unit_score += enhanced_similarity[t, j - 1]
-                
                 if token_count > 0:
                     unit_score /= token_count
-                
+                if length_penalty_alpha > 0 and N > 0:
+                    expected_len = max(1, int(round(T / N)))
+                    diff = abs(token_count - expected_len)
+                    unit_score -= length_penalty_alpha * diff
+                end_tok_idx = i - 1
+                if 0 <= end_tok_idx < T:
+                    if boundary_bonus != 0.0 and boundary_flags[end_tok_idx]:
+                        unit_score += boundary_bonus
+                    if particle_bonus != 0.0 and particle_flags[end_tok_idx]:
+                        unit_score += particle_bonus
+                    # 한국어 경계 보너스: 강도 가중치 적용
+                    if comma_bonus != 0.0:
+                        strength = ko_boundary_token_strengths[end_tok_idx]
+                        if strength > 0.0:
+                            bonus = comma_bonus * strength
+                            # 양측 동시 지지(원문 경계와 현재 단위 경계 j 정렬) 시 강화
+                            if src_boundary_indices and (j in src_boundary_indices):
+                                bonus *= 1.5
+                            unit_score += bonus
                 new_score = dp[k][j - 1] + unit_score
-                
                 if new_score > dp[i][j]:
                     dp[i][j] = new_score
                     parent[i][j] = k
-    
-    # 백트래킹으로 분할 복원
+
     if dp[T][N] == -np.inf:
         return None
-    
+
     splits = []
     i, j = T, N
-    
     while j > 0:
         start = parent[i][j]
         end = i
-        
         if start >= 0:
             unit_tokens = tgt_tokens[start:end]
             splits.append(" ".join(unit_tokens))
@@ -337,9 +529,7 @@ def _find_optimal_split_dp_sequential(src_embeddings, tgt_embeddings, tgt_tokens
             j -= 1
         else:
             break
-    
     splits.reverse()
-    
     return splits if len(splits) == N else None
 
 def _split_tgt_by_src_units_simple(text: str, target_count: int) -> List[str]:
@@ -448,7 +638,8 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
     except Exception as e:
         logger.warning(f"SA 무결성 검증 실패: {e}")
 
-    logger.info(f"SA 처리 완료: {len(src_units)}개 단위, 시대: {period}")
+    # 🔧 기본 모드에서는 상세 로깅 제거, verbose에서만 출력
+    logger.debug(f"SA 처리 완료: {len(src_units)}개 단위, 시대: {period}")
     
     return result_rows
 
@@ -477,8 +668,7 @@ def align_translation_to_source(src_units: List[str], translation: str, use_sema
         **kwargs
     )
     
-    logger.debug(f"번역문 정렬: {len(src_units)}개 원문 → {len(aligned)}개 번역문")
-    
+    # 로깅 제거 - 너무 상세함
     return aligned
 
 def _distribute_words_evenly(words: List[str], target_count: int) -> List[str]:
@@ -545,6 +735,6 @@ def process_sa_alignment(src_text: str, translation: str, **kwargs) -> Dict[str,
         'metadata': metadata
     }
     
-    logger.info(f"SA 처리 완료: {metadata['source_count']}개 단위, 시대: {metadata['detected_period']}")
+    logger.debug(f"SA 처리 완료: {metadata['source_count']}개 단위, 시대: {metadata['detected_period']}")
     
     return result

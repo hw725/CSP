@@ -35,11 +35,14 @@ class UnifiedProgressManager:
         if self.progress_bar:
             self.progress_bar.close()
         
-        # 기본 설정
+        # 기본 설정 - 깔끔한 프로그레스 바
         default_kwargs = {
             'unit': '항목',
-            'ncols': 100,
-            'bar_format': '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}] {postfix}'
+            'ncols': 80,
+            'bar_format': '{desc}: {percentage:3.0f}%|{bar:30}| {n_fmt}/{total_fmt} [{elapsed}] {postfix}',
+            'mininterval': 0.5,  # 최소 업데이트 간격 (0.5초)
+            'maxinterval': 2.0,  # 최대 업데이트 간격 (2초)
+            'smoothing': 0.1     # 진행률 평활화
         }
         default_kwargs.update(kwargs)
         

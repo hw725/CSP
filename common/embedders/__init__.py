@@ -6,8 +6,8 @@ logger = logging.getLogger(__name__)
 
 # 안전한 임포트
 try:
-    from .openai import compute_embeddings_with_cache as openai_embedder
-    from .openai import compute_embeddings_with_cache
+    from .openai_embedder import compute_embeddings_with_cache as openai_embedder
+    from .openai_embedder import compute_embeddings_with_cache
 except ImportError as e:
     logger.error(f"OpenAI 임베더 임포트 실패: {e}")
     openai_embedder = None

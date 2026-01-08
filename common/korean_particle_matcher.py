@@ -198,7 +198,16 @@ class KoreanParticleMatcher:
             except Exception as e:
                 logger.warning(f"Kiwipiepy 분석 실패: {e}")
         
-        return []
+        # 폴백: 패턴 매칭으로 토씨 찾기
+        for category, particle_list in self.particles.items():
+            for particle in particle_list:
+                pos = text.find(particle)
+                if pos != -1:
+                    particles_found.append((particle, category, pos))
+        
+        # 위치순으로 정렬
+        particles_found.sort(key=lambda x: x[2])
+        return particles_found
 
     def calculate_particle_similarity(self, src_particles: List[Tuple[str, str, int]], 
                                     tgt_particles: List[Tuple[str, str, int]]) -> float:
@@ -378,15 +387,31 @@ class KoreanParticleMatcher:
     def _calculate_embedding_similarity(self, src_unit: str, tgt_unit: str) -> float:
         """임베딩 유사도 계산 (SA용)"""
         try:
-            # SikuBERT 임베딩 사용 - 기존 SA 시스템과 동일
+            # 실제 BGE 임베딩을 사용한 유사도 계산
+            from common.embedders import get_embedder
+            embedder = get_embedder('bge')
+            
+            # 임베딩 계산
+            src_embedding = embedder([src_unit], batch_size=1)[0]
+            tgt_embedding = embedder([tgt_unit], batch_size=1)[0]
+            
+            # 코사인 유사도 계산
             import numpy as np
-            # TODO: 실제 임베딩 시스템 연결 필요
-            # 현재는 임시로 0.5 반환
-            return 0.5
+            dot_product = np.dot(src_embedding, tgt_embedding)
+            norm_src = np.linalg.norm(src_embedding)
+            norm_tgt = np.linalg.norm(tgt_embedding)
+            
+            if norm_src == 0 or norm_tgt == 0:
+                return 0.0
+            
+            similarity = dot_product / (norm_src * norm_tgt)
+            return max(0.0, min(1.0, similarity))
                 
         except Exception as e:
             logger.warning(f"임베딩 유사도 계산 실패: {e}")
-            return 0.0
+            # 폴백: 간단한 문자열 유사도
+            from difflib import SequenceMatcher
+            return SequenceMatcher(None, src_unit, tgt_unit).ratio()
     
     def _assess_match_quality(self, similarity: float) -> str:
         """토씨 유사도 기반 매칭 품질 평가"""
@@ -473,6 +498,39 @@ class KoreanParticleMatcher:
             src_text = row_result.get('원문', '')
             tgt_text = row_result.get('번역문', '')
             
+            # 전체 문장의 토씨 분석
+            src_particles = self.extract_particles_from_text(src_text)
+            tgt_particles = self.extract_particles_from_text(tgt_text)
+            
+            # 토씨 유사도 계산
+            particle_similarity = self.calculate_particle_similarity(src_particles, tgt_particles)
+            
+            # 고어 패턴 분석
+            archaic_analysis = self.detect_archaic_patterns(tgt_text, mode='SA')
+            
+            # 결과에 토씨 정보 추가
+            enhanced_result = row_result.copy()
+            enhanced_result.update({
+                'particle_similarity': particle_similarity,
+                'src_particles_count': len(src_particles),
+                'tgt_particles_count': len(tgt_particles),
+                'archaic_score': archaic_analysis['structural_bonus'],
+                'archaic_confidence': archaic_analysis['confidence'],
+                'archaic_patterns_found': archaic_analysis['patterns_found'],
+                'particle_analysis': {
+                    'src_particles': src_particles,
+                    'tgt_particles': tgt_particles,
+                    'similarity': particle_similarity,
+                    'archaic_analysis': archaic_analysis
+                }
+            })
+            
+            return enhanced_result
+            
+        except Exception as e:
+            logger.warning(f"SA 행 결과 토씨 분석 실패: {e}")
+            return row_result
+            
             # 토씨 매칭 정보 추가
             particle_info = self.enhance_sa_single_units(src_text, tgt_text)
             
@@ -540,7 +598,7 @@ class KoreanParticleMatcher:
                 analysis['particles_by_category'][category] = []
             analysis['particles_by_category'][category].append(particle)
             
-            # 고어 어미 분석
+            # 고어 패턴 카운트
             if category.startswith('고어_'):
                 archaic_count += 1
                 if category not in analysis['archaic_analysis']['archaic_types']:
@@ -551,16 +609,14 @@ class KoreanParticleMatcher:
         analysis['archaic_analysis']['has_archaic_endings'] = archaic_count > 0
         analysis['archaic_analysis']['archaic_count'] = archaic_count
         
-        # 번역 문체 판별
+        # 번역 스타일 판정
         if archaic_count >= 3:
-            analysis['archaic_analysis']['translation_style'] = '고어체_번역'
+            analysis['archaic_analysis']['translation_style'] = 'classical'
         elif archaic_count >= 1:
-            analysis['archaic_analysis']['translation_style'] = '혼합체_번역'
-        elif any(p in ['도다', '노라', '이니라'] for p, _, _ in particles):
-            analysis['archaic_analysis']['translation_style'] = '준고어체_번역'
+            analysis['archaic_analysis']['translation_style'] = 'mixed'
         else:
-            analysis['archaic_analysis']['translation_style'] = '현대어_번역'
-        
+            analysis['archaic_analysis']['translation_style'] = 'modern'
+            
         return analysis
     
     def is_archaic_translation(self, text: str) -> bool:
@@ -573,22 +629,24 @@ class KoreanParticleMatcher:
         Returns:
             bool: 고어체 번역 여부
         """
-        # 🆕 common 모듈의 고어 패턴 감지기 사용
-        result = self.detect_archaic_patterns(text, mode='PA')
-        return result['confidence'] in ['high', 'medium']
+        analysis = self.analyze_particle_patterns(text)
+        archaic_analysis = analysis['archaic_analysis']
+        
+        return archaic_analysis['translation_style'] in ['classical', 'mixed']
     
     def get_archaic_score(self, text: str) -> float:
         """
-        텍스트의 고어도(古語度) 점수 계산 (common 모듈 활용)
+        텍스트의 고어 점수 반환 (0.0-1.0)
         
         Args:
             text: 분석할 텍스트
             
         Returns:
-            float: 고어 구조적 보너스 점수
+            float: 고어 점수 (높을수록 고어체)
         """
-        # 🆕 common 모듈의 고어 패턴 감지기 사용
-        return self.get_archaic_bonus(text, mode='PA')
+        archaic_analysis = self.detect_archaic_patterns(text, mode='SA')
+        return archaic_analysis['structural_bonus']
+
 
 # 🆕 싱글톤 접근 함수
 def get_korean_particle_matcher():
@@ -659,16 +717,8 @@ def get_archaic_bonus(text: str, mode: str = 'SA') -> float:
 
 def detect_archaic_patterns(text: str, mode: str = 'SA') -> Dict[str, Any]:
     """고어 패턴 감지 (외부 호출용)"""
-    return korean_particle_matcher.detect_archaic_patterns(text, mode)
-
-
-# 🆕 싱글톤 접근 함수
-def get_korean_particle_matcher():
-    """싱글톤 KoreanParticleMatcher 인스턴스 반환 (재사용)"""
-    global _korean_particle_matcher_instance
-    if _korean_particle_matcher_instance is None:
-        _korean_particle_matcher_instance = KoreanParticleMatcher()
-    return _korean_particle_matcher_instance
+    matcher = get_korean_particle_matcher()
+    return matcher.detect_archaic_patterns(text, mode)
 
 
 # 싱글톤 인스턴스 생성 (재사용)

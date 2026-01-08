@@ -446,7 +446,15 @@ def contains_chinese(text: str) -> bool:
     chinese_count = len(regex.findall(r'\p{Han}', text))
     return chinese_count > len(text) * 0.3
 
-def split_source_by_whitespace_and_align(source: str, target_count: int, target_sentences: List[str] = None, embedder_name: str = "bge", embedder_func=None) -> List[str]:
+def split_source_by_whitespace_and_align(
+    source: str,
+    target_count: int,
+    target_sentences: List[str] = None,
+    embedder_name: str = "bge",
+    embedder_func=None,
+    max_workers: int = 4,
+    batch_size: int = 100,
+) -> List[str]:
     """
     원문(한문) 분할: 어절 경계에서만 분할, 어절 내부 절대 분할 금지!
     

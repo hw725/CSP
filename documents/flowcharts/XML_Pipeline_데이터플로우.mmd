@@ -1,0 +1,55 @@
+---
+title: XML Pipeline 전체 데이터 플로우
+---
+sequenceDiagram
+    participant CLI as xml_pipeline_cli.py
+    participant PROC as xml_pipeline_processor.py
+    participant PARSER as xml_unit_parser.py
+    participant ACC as xml_advanced_accuracy.py
+    participant SIM as xml_level_similarity.py
+    participant OPT as performance_optimizer.py
+    participant DOCKER as docker_xml_smart.py
+    participant BROWSER as xml_file_browser.py
+    
+    Note over CLI: 사용자 명령어 실행
+    CLI->>BROWSER: 파일 목록 요청
+    BROWSER-->>CLI: XML 파일 리스트 반환
+    
+    CLI->>OPT: 성능 최적화 설정 요청
+    OPT-->>CLI: 최적화된 설정 반환
+    
+    CLI->>PROC: 프로세서 초기화
+    PROC->>OPT: 시스템 리소스 확인
+    OPT-->>PROC: 리소스 정보 및 설정
+    
+    Note over PROC: 파일 처리 루프 시작
+    loop 각 XML 파일에 대해
+        PROC->>PARSER: XML 파싱 요청
+        PARSER-->>PROC: 파싱된 유닛 반환
+        
+        PROC->>ACC: 정확도 계산 요청
+        ACC->>PARSER: 유닛 데이터 접근
+        ACC-->>PROC: 정확도 메트릭 반환
+        
+        PROC->>SIM: 유사도 계산 요청
+        SIM->>PARSER: 유닛 데이터 접근
+        SIM-->>PROC: 유사도 점수 반환
+        
+        PROC->>PROC: 결과 집계 및 저장
+        
+        Note over OPT: 성능 모니터링
+        OPT->>PROC: 성능 체크
+        PROC-->>OPT: 현재 상태 보고
+    end
+    
+    Note over PROC: 최종 결과 생성
+    PROC-->>CLI: 처리 완료 및 결과 반환
+    CLI->>CLI: 보고서 생성
+    
+    Note over CLI: Docker 모드인 경우
+    alt Docker 실행 모드
+        CLI->>DOCKER: Docker 컨테이너 실행
+        DOCKER->>PROC: 컨테이너 내에서 처리 실행
+        PROC-->>DOCKER: 처리 결과
+        DOCKER-->>CLI: 최종 결과 반환
+    end
