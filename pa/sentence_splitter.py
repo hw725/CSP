@@ -1,6 +1,11 @@
 """PA 문장 분할기 - SuPar-Kanbun & Stanza 기반 (spaCy 대체)"""
-from typing import List, Tuple
-import torch
+from typing import Any, Dict, List, Tuple
+try:
+    import torch  # type: ignore
+    TORCH_AVAILABLE = True
+except Exception:
+    torch = None  # type: ignore
+    TORCH_AVAILABLE = False
 import os
 import json
 import hashlib
@@ -15,11 +20,13 @@ except Exception:
     refine_boundaries_with_llm = None
 
 # BGE Embedder import (의미 기반 경계 감지용)
+# NOTE: /workspace/common 을 sys.path 최상단에 넣으면, HF의 `tokenizers` 패키지보다
+# 로컬 `common/tokenizers`가 우선되어 transformers 내부 import가 깨질 수 있다.
+# (Docker에서 PretrainedConfig circular import로 표면화)
 try:
-    sys.path.insert(0, str(Path(__file__).parent.parent / "common"))
-    from embedders import get_embedding_manager
+    from common.embedders import get_embedding_manager
     BGE_AVAILABLE = True
-except ImportError:
+except Exception:
     BGE_AVAILABLE = False
 
 # OpenAI wrapper 클래스 (SA와 동일)
@@ -161,11 +168,17 @@ try:
         split_target_with_stanza,
         fallback_split_by_punctuation,
         SUPAR_AVAILABLE,
-        STANZA_AVAILABLE
+        STANZA_AVAILABLE,
+        KANBUN_AVAILABLE,
+        STANZA_MODULE_AVAILABLE
     )
-    print("✅ PA: SuPar-Kanbun & Stanza 파서 로드됨")
-except ImportError as e:
-    print(f"⚠️ PA: 새 파서 로드 실패, 폴백 모드 (정상): {e}")
+    print(
+        "✅ PA: 새 파서 모듈 임포트 완료 "
+        f"(Kanbun module: {KANBUN_AVAILABLE}, Stanza module: {STANZA_MODULE_AVAILABLE}, "
+        f"pipelines created(lazy init): supar={SUPAR_AVAILABLE}, stanza={STANZA_AVAILABLE})"
+    )
+except Exception as e:
+    print(f"⚠️ PA: 새 파서 로드 실패, 폴백 모드: {e}")
     SUPAR_AVAILABLE = False
     STANZA_AVAILABLE = False
     
@@ -202,7 +215,7 @@ try:
     # 🆕 하이브리드 한국어 토크나이저 초기화
     hybrid_korean_tokenizer = get_hybrid_korean_tokenizer()
     
-    print("✅ PA: 하이브리드 토크나이저 초기화 완료 (중국어: SikuBERT, 한국어: RoBERTa-Hanja+Kiwipiepy)")
+    # 로그는 pa/main.py에서만 출력한다(여기서 중복 출력 금지).
     
 except Exception as e:
     siku_tokenizer = None
@@ -333,7 +346,7 @@ def preprocess_with_siku_tokenization(text: str) -> str:
     """호환성을 위한 래퍼 - 하이브리드 토크나이저 우선 사용"""
     return preprocess_with_hybrid_tokenization(text)
 
-def split_target_sentences_advanced(text: str, max_length: int = 150, splitter: str = "punctuation", use_siku_preprocessing: bool = True) -> List[str]:
+def split_target_sentences_advanced(text: str, max_length: int = 200, splitter: str = "punctuation", use_siku_preprocessing: bool = True) -> List[str]:
     """
     번역문 분할 - 종결 구두점 우선, 구두점 없으면 의미 기반 경계 감지
     
@@ -368,28 +381,297 @@ def split_target_sentences_advanced(text: str, max_length: int = 150, splitter: 
     # 인용 표지 병합
     sentences = merge_quotation_markers_in_list(sentences)
 
-    # 4) 너무 긴 문장만 예외적으로 콤마에서 1회 분할 (괄호/브래킷 내부 제외)
+    # 🗣️ 화자+발화 병합: 구두점으로 잘린 "화자(발화동사)" + "발화내용"을 결합
+    # - 예: "공자가 말했다." + "…" → 하나로 병합
+    # - 번역문 분할은 rule-based가 정답이라는 전제 하에, 과도한 병합을 피하려고 매우 보수적으로 적용한다.
+    def merge_speaker_utterance_pairs(segs: List[str]) -> List[str]:
+        if len(segs) <= 1:
+            return segs
+
+        # 화자/발화 도입부로 끝나는 짧은 세그먼트 패턴
+        # (구두점으로 문장 분할이 발생한 케이스만 합치기 위함)
+        speaker_end = re.compile(
+            r"(?:"  # 끝이 이런 형태면 다음 세그먼트가 발화 내용일 가능성이 높음
+            r"(?:말(?:했|하였)다|말(?:하|했)다|말하였다|이르(?:렀)?다|이르되|대답하였다|답하였다|묻(?:었)?다|문(?:었)?다)"  # 한국어 발화동사
+            r"|(?:曰|云|言曰|問曰|答曰)"  # 한문 발화 표지
+            r")"  # 동사/표지
+            r"\s*[.。!?]?$"  # 종결부호(있을 수도/없을 수도)
+        )
+
+        opening_quote = re.compile(r"^[\s\"'“”‘’「『《〈【\(\[]")
+
+        merged: List[str] = []
+        i = 0
+        while i < len(segs):
+            cur = segs[i].strip()
+            if not cur:
+                i += 1
+                continue
+
+            if i < len(segs) - 1:
+                nxt = segs[i + 1].strip()
+                if nxt and len(cur) <= 60 and speaker_end.search(cur):
+                    # 다음 세그가 따옴표/괄호 시작이거나, 비교적 긴 발화내용이면 병합
+                    if opening_quote.match(nxt) or len(nxt) >= 20:
+                        merged.append((cur.rstrip() + " " + nxt.lstrip()).strip())
+                        i += 2
+                        continue
+
+            merged.append(cur)
+            i += 1
+
+        return merged
+
+    sentences = merge_speaker_utterance_pairs(sentences)
+
+    # 📌 제목형 접두 분리: gold가 '...차자(箚子)' / '...장(狀)' 등을 단독 문장으로 두는 케이스 대응
+    # - 예: "...차자(箚子) 충성...이다." -> "...차자(箚子)" + "충성...이다."
+    def split_title_like_prefixes(segs: List[str]) -> List[str]:
+        if not segs:
+            return segs
+
+        # 너무 공격적인 분할을 피하기 위해 괄호 포함 표지만 대상으로 한다.
+        title_pat = re.compile(
+            r"^(?P<prefix>.{0,120}?(?:차자\(箚子\)|장\(狀\)|표\(表\)|서\(書\)|론\(論\)|기\(記\)|설\(說\)))\s+(?P<rest>.+)$"
+        )
+
+        out: List[str] = []
+        for s in segs:
+            s = s.strip()
+            if not s:
+                continue
+            m = title_pat.match(s)
+            if not m:
+                out.append(s)
+                continue
+
+            prefix = m.group("prefix").strip()
+            rest = m.group("rest").strip()
+
+            # prefix가 너무 짧거나, rest가 사실상 없으면 분할하지 않는다.
+            if len(prefix) < 12 or len(rest) < 8:
+                out.append(s)
+                continue
+
+            out.append(prefix)
+            out.append(rest)
+
+        return out
+
+    sentences = split_title_like_prefixes(sentences)
+
+    # 📌 〈...〉 열거 블록 접두 분리: 서술부 + 열거부를 gold가 분리하는 케이스 대응
+    # - 예: "...등을 더하여 〈길례...〉 ...이다." -> "...등을 더하여" + "〈길례...〉 ...이다."
+    def split_angle_bracket_list_prefixes(segs: List[str]) -> List[str]:
+        if not segs:
+            return segs
+
+        # 너무 공격적인 분할을 피하기 위해 트리거(더하여/더해/추가하여) + 〈 로만 동작시킨다.
+        trigger_end = re.compile(r"(?:더하여|더해|추가하여|보태어)\s*$")
+
+        out: List[str] = []
+        for s in segs:
+            s = s.strip()
+            if not s:
+                continue
+
+            idx = s.find("〈")
+            if idx <= 0:
+                out.append(s)
+                continue
+
+            left = s[:idx].rstrip()
+            right = s[idx:].lstrip()
+            if len(left) < 20 or len(right) < 30:
+                out.append(s)
+                continue
+
+            # left가 트리거로 끝나지 않으면 분리하지 않는다.
+            if not trigger_end.search(left):
+                out.append(s)
+                continue
+
+            out.append(left)
+            out.append(right)
+
+        return out
+
+    sentences = split_angle_bracket_list_prefixes(sentences)
+
+    # 🗣️ 인용 연속 병합: 닫는 따옴표 뒤 "라/고/라고 ..."가 이어지는 경우, 종결부호 분할을 되돌린다.
+    # - 예: "...못 된다. ”" + "라 했을 것입니다." -> 하나로 병합
+    # - 예: "...없다. ”" + "라 하니, ..." / "고 하니, ..." / "라고 하니, ..." -> 하나로 병합
+    def merge_quote_ra_continuations(segs: List[str]) -> List[str]:
+        if len(segs) <= 1:
+            return segs
+
+        closers = set([
+            '"', "'",
+            "\u201D", "\u2019",  # ” ’
+            "\u300D", "\u300F",  # 」 』
+            "\u300B", "\u3009",  # 》 〉
+        ])
+
+        # 일부 전처리/토크나이징 경로에서 따옴표가 제거될 수 있어,
+        # 닫는따옴표가 아니라 종결부호로 끝난 경우도 병합 트리거로 허용한다.
+        end_punct = set([".", "!", "?", "。", "！", "？"])
+
+        # 다음 세그가 '라/고/라고 ...'로 시작하면, 앞 세그와 합쳐지는 경우가 많다.
+        # - 닫는 따옴표가 먼저 나오고 이어지는 경우가 많아서 leading closers를 허용
+        quote_cont_start = re.compile(
+            r"^[\s\"\'\u201D\u2019\u300D\u300F\u300B\u3009]*"
+            r"(?:라|고|라고)\s*"
+            r"(?:하고|하니|하되|하였으|하였을|하였|한다고|한다|했다|했을|했으|했는|했|하)"
+            r"(?=\s|[\.,，。!?]|$)"
+        )
+
+        # 폴백: 패턴이 약간 변형되더라도(예: 조사/공백) '라/고/라고'로 시작하면 병합
+        quote_cont_fallback = re.compile(
+            r"^[\s\"\'\u201D\u2019\u300D\u300F\u300B\u3009]*(?:라|고|라고)\b"
+        )
+
+        merged: List[str] = []
+        i = 0
+        while i < len(segs):
+            cur = segs[i].strip()
+            if not cur:
+                i += 1
+                continue
+            if i < len(segs) - 1:
+                nxt = segs[i + 1].strip()
+                if nxt and (quote_cont_start.match(nxt) or quote_cont_fallback.match(nxt)):
+                    # 앞 세그가 닫는 따옴표로 끝나거나, 닫는 따옴표가 문장 끝에 붙어있으면 병합
+                    cur_tail = cur.rstrip()
+                    if cur_tail and (cur_tail[-1] in closers or cur_tail[-1] in end_punct):
+                        merged.append((cur_tail + nxt).strip())
+                        i += 2
+                        continue
+            merged.append(cur)
+            i += 1
+
+        return merged
+
+    sentences = merge_quote_ra_continuations(sentences)
+
+    # 4) 너무 긴 문장만 예외적으로 콤마에서 분할 (괄호/브래킷 내부 제외)
+    # - 과거 "첫 콤마 1회" 분할은 (1) '뿐 아니라,' 같은 고정 연결 표현에서 과분할,
+    #   (2) 분할 지점이 gold와 다르게 선택되어 tgt_exact 불일치를 만드는 사례가 있었다.
+    # - 따라서 후보 콤마(, / ，) 중 "균형"이 좋은 지점을 고르고, 필요시 재귀적으로 추가 분할한다.
     def split_long_by_comma_outside_brackets(s: str, limit: int) -> List[str]:
+        s = s.strip()
         if len(s) <= limit:
             return [s]
-        # 괄호/브래킷 내부 콤마는 무시
+
+        # 분할 금지 패턴(연결 표현): "...뿐 아니라, ..." 같은 구문은 한 문장으로 취급되는 경우가 많다.
+        # 공백/개행이 끼어도 매칭되도록 whitespace 제거 버전으로 검사.
+        def _norm_ws(x: str) -> str:
+            return re.sub(r"\s+", "", x)
+
+        def _strip_trailing_commas(x: str) -> str:
+            return re.sub(r"[，,]+\s*$", "", x)
+
+        def _is_forbidden_left(left_with_comma: str) -> bool:
+            base = _strip_trailing_commas(left_with_comma)
+            nl = _norm_ws(base)
+            return (
+                nl.endswith("뿐아니라")
+                or nl.endswith("뿐만아니라")
+                or nl.endswith("아니라")
+            )
+
+        # 괄호/브래킷 내부 콤마는 무시하며 후보 수집
         level = 0
-        split_pos = -1
+        comma_positions: list[int] = []
         for i, ch in enumerate(s):
-            if ch in '([':
+            if ch in "([{":
                 level += 1
-            elif ch in ')]' and level > 0:
+            elif ch in ")]}" and level > 0:
                 level -= 1
-            elif ch == ',' and level == 0:
-                split_pos = i
-                break
-        if split_pos > 0:
-            left = s[:split_pos].strip()
-            right = s[split_pos+1:].strip()
-            # 비병렬 콤마 추정: 좌/우 구간이 모두 충분히 길고, 좌측이 종결구두점으로 끝나지 않는 경우
-            if len(left) > limit*0.4 and len(right) > limit*0.4 and (not re.search(r'[。！？.!?]$', left)):
-                return [left, right]
-        return [s]
+            elif level == 0 and ch in {",", "，"}:
+                comma_positions.append(i)
+
+        if not comma_positions:
+            return [s]
+
+        def _pick_best(require_min_frac: bool) -> tuple[float, int, str, str] | None:
+            best: tuple[float, int, str, str] | None = None
+
+            # 콤마 뒤가 "새 문장/새 절"처럼 시작하는 경우를 선호한다.
+            discourse_start = re.compile(
+                r"^(?:또한|그러나|하지만|그런데|이에|따라서|그러므로|그렇다면|즉|즉시|예컨대|혹자|대저|만약|지금|이렇게|그렇게)\b"
+            )
+            proper_noun_paren = re.compile(r"^[가-힣]{2,10}\s*\(")
+            # 콤마 뒤가 '새 주어/새 절'처럼 시작하는 경우를 강하게 우대
+            # - 예: 전사공(錢思公)이 / 그가 / 이는 / 이것이 / 이러한 / 어떤 사람이 ...
+            right_subject_start = re.compile(
+                r"^(?:"
+                r"[가-힣]{2,12}\s*\([^\)]{1,20}\)\s*(?:은|는|이|가)\b"
+                r"|[가-힣]{2,12}\s*(?:은|는|이|가)\b"
+                r"|(?:그는|그가|그것이|이는|이것은)\b"
+                r"|(?:어떤\s+사람|어떤\s+자|한\s+사람|사람이|사람은)\b"
+                r")"
+            )
+            left_clause_end = re.compile(
+                r"(?:하였고|했고|하며|하면서|하니|하였으니|했으니|하였지만|했지만|라\s*하니|라\s*했다|라고\s*하였다)$"
+            )
+
+            def _bonus(left_base: str, right: str) -> float:
+                b = 0.0
+                r0 = right.lstrip()
+                lb = left_base.rstrip()
+                if discourse_start.match(r0):
+                    b += 25.0
+                if proper_noun_paren.match(r0):
+                    b += 18.0
+                if right_subject_start.match(r0):
+                    b += 22.0
+                if left_clause_end.search(lb):
+                    b += 10.0
+                return b
+
+            for pos in comma_positions:
+                # gold/기존 데이터와의 정합을 위해 콤마 자체는 좌측에 포함시킨다.
+                left = s[: pos + 1].strip()
+                right = s[pos + 1 :].strip()
+                if not left or not right:
+                    continue
+                left_base = _strip_trailing_commas(left)
+                # 특정 표현은 gold에서 붙여 쓰는 경향이 강하므로 과분할 방지
+                # - 예: "...만드니, 이것이 정관례이다." 는 한 문장으로 유지되는 경우가 많다.
+                r0 = right.lstrip()
+                if r0.startswith("이것이 정관례"):
+                    continue
+                if r0.startswith("이것이") and re.sub(r"\s+", "", left_base).endswith("만드니"):
+                    continue
+                if re.search(r"[。！？.!?]$", left_base):
+                    continue
+                if _is_forbidden_left(left):
+                    continue
+
+                # 너무 짧은 조각을 피한다 (과분할 방지)
+                if require_min_frac:
+                    if len(left_base) < limit * 0.35 or len(right) < limit * 0.35:
+                        continue
+
+                # 균형 점수: 분할 후 가장 긴 조각 길이를 최소화
+                # - 기본은 가장 긴 조각을 최소화
+                # - 단, 콤마 뒤가 새 절처럼 시작하는 지점은 약간 우대(=score 감소)
+                score = max(len(left_base), len(right)) - _bonus(left_base, right)
+                if best is None or score < best[0]:
+                    best = (score, pos, left, right)
+            return best
+
+        # 1차(엄격): 기존과 동일한 제약
+        best = _pick_best(require_min_frac=True)
+        # 2차(완화): 제약 때문에 split 자체가 불가능한 케이스를 방지
+        if best is None:
+            best = _pick_best(require_min_frac=False)
+        if best is None:
+            return [s]
+
+        _, _, left, right = best
+        # 재귀적으로 추가 분할 (각 조각이 limit 이하가 되거나 더 이상 분할 불가할 때까지)
+        return split_long_by_comma_outside_brackets(left, limit) + split_long_by_comma_outside_brackets(right, limit)
 
     adjusted = []
     for s in sentences:
@@ -410,9 +692,31 @@ def split_target_sentences_advanced(text: str, max_length: int = 150, splitter: 
         # 닫는 따옴표 세트 (문장 시작 검사용)
         closing_quotes = set([
             "\"", "'",
-            "\u201D", "\u2019",
-            "\u300D", "\u300F",
+            "\u201D", "\u2019",            # ” ’
+            "\u300D", "\u300F",            # 」 』
+            "\u300B", "\u3009",            # 》 〉
+            "\u3011", "\u3015",            # 】 〕
         ])
+
+        # 따옴표 닫힘 뒤에 붙는 '후행 서술'은 같은 문장으로 취급해야 함.
+        # 예) "...". ”는격이니, ... / "...". ”하였습니다.
+        # - 실제 데이터에서 종결부호(., 。) 뒤 공백으로 분할되면서 ‘닫는 따옴표+후행구문’이 분리되는 현상이 발생
+        tail_after_quote_prefix = re.compile(
+            r"^(?:"
+            # (1) 인용조사 + 발화동사 (라고/고/라 ... 하니/했다/말했다)류
+            r"(?:고|라|[이]?라?고|하고|며|면서)\s*(?:하|말(?:하|했)|말씀(?:하|했)|명(?:하|했)|이르(?:렀)?|대답(?:하|했)|답(?:하|했)|묻|문|물|여쭙|아뢰|전(?:하|했)|칭(?:하|했)|부르|외치)"
+            r"(?:셨|ㅆ|시었|시어|시는|시ㄴ|시ㄹ|시|었|았|였|는|ㄴ|ㄹ|을)?"
+            r"(?:다|ㄴ다|는다|습니다|ㅂ니다|까|ㄹ까|을까|느냐|ㄴ가|는가|라|거라|소|오|어라|아라|니|으니)"
+            r"|"
+            # (2) 인용조사 없이 바로 발화동사로 이어지는 케이스: ”하였다/”하였습니다
+            r"(?:하|말(?:하|했)|말씀(?:하|했)|명(?:하|했)|이르(?:렀)?|대답(?:하|했)|답(?:하|했)|묻|문|물|여쭙|아뢰|전(?:하|했)|칭(?:하|했)|부르|외치)"
+            r"(?:셨|ㅆ|시었|시어|시는|시ㄴ|시ㄹ|시|었|았|였|는|ㄴ|ㄹ|을)?"
+            r"(?:다|ㄴ다|는다|습니다|ㅂ니다|까|ㄹ까|을까|느냐|ㄴ가|는가|라|거라|소|오|어라|아라|니|으니)"
+            r"|"
+            # (3) 격/정의/설명류 후행구문: ”는격이니, ”라는 뜻이다 등
+            r"(?:는|란|라는|이라는|이라|이며|이고|이요|이다|이었다|이니|이므로|라서|라며|며|면서|하고|이라고|라고)"
+            r")"
+        )
         
         merged: List[str] = []
         for seg in segs:
@@ -436,22 +740,71 @@ def split_target_sentences_advanced(text: str, max_length: int = 150, splitter: 
                     i += 1
                 leading = s[:i]
                 remaining = s[i:].lstrip()
-                
+
                 # 이전 문장에 닫는 따옴표 붙이기
-                merged[-1] = merged[-1].rstrip() + leading
-                
-                # 남은 텍스트가 있으면 현재 문장으로
+                # - 종결부호 뒤 공백으로 분할된 케이스를 고려해, quote 앞에 한 칸을 복원
+                prev = merged[-1].rstrip()
+                merged[-1] = (prev + " " + leading).rstrip()
+
+                # 남은 텍스트가 '후행 서술'이면 문장 경계를 만들지 않고 통째로 병합
                 if remaining:
-                    merged.append(remaining)
+                    if tail_after_quote_prefix.match(remaining):
+                        merged[-1] = (merged[-1] + remaining).strip()
+                    else:
+                        merged.append(remaining)
             else:
                 merged.append(s)
         
         return merged
 
     adjusted = merge_lonely_closers(adjusted)
-    
+
+    # merge_lonely_closers 단계에서 생성될 수 있는
+    # "… ”" + "라/고/라고 …" 형태의 경계를 다시 흡수
+    adjusted = merge_quote_ra_continuations(adjusted)
+
     # 최종 반환 전 인용 표지 병합 (여러 단계 처리 후 재병합)
     adjusted = merge_quotation_markers_in_list(adjusted)
+
+    # 위 단계에서 추가한 화자+발화 병합을 최종 결과에도 한 번 더 적용
+    adjusted = merge_speaker_utterance_pairs(adjusted)
+
+    # 🔧 선두 구두점 이동: 다음 문장/절 선두로 넘어간 구두점을 이전 문장 끝으로 되돌린다.
+    # - mismatch subtype: before_sentence_punct / before_clause_punct 케이스 완화
+    # - 예: "… 있었소|.내가 …" → "… 있었소." + "내가 …"
+    def shift_leading_punct_to_prev(segs: List[str]) -> List[str]:
+        if len(segs) <= 1:
+            return segs
+
+        # 종결/절 구두점 + 생략부호 변종 + 닫는 괄호/따옴표 변종(일부는 merge_lonely_closers가 처리하나, 여기서는 포괄)
+        lead_punct = set(".!?。！？…") | set(",;:，；：、") | set("…⋯‥︙")
+        lead_punct |= set(")）]】}」』〉》”’\"'" ) | set(["］", "｝", "〕"])
+
+        out: List[str] = []
+        for seg in segs:
+            s = str(seg).strip()
+            if not s:
+                continue
+
+            if out:
+                s0 = s.lstrip()
+                if s0 and s0[0] in lead_punct:
+                    i = 0
+                    while i < len(s0) and s0[i] in lead_punct:
+                        i += 1
+                    leading = s0[:i]
+                    remaining = s0[i:].lstrip()
+
+                    out[-1] = out[-1].rstrip() + leading
+                    if remaining:
+                        out.append(remaining)
+                    continue
+
+            out.append(s)
+
+        return out
+
+    adjusted = shift_leading_punct_to_prev(adjusted)
 
     if refine_boundaries_with_llm:
         try:
@@ -503,7 +856,22 @@ def merge_quotation_markers_in_list(sentences: List[str]) -> List[str]:
     quotation_particles = r'(고|[이]?라?고|하고|며|면서)'
     
     # 발화 동사 어간 (인용 표지에 자주 쓰이는 동사들)
-    speech_verbs = r'(하|말하|말씀하|명하|이르|대답하|답하|묻|문|여쭙|아뢰|전하|칭하|부르|외치)'
+    # - 축약형("말했다"=말했-, "답했다"=답했-)까지 포괄하도록 보강
+    # - 너무 광범위한 매칭을 피하기 위해 발화 관련 어근만 허용
+    speech_verbs = r'(?:'
+    speech_verbs += r'하'
+    speech_verbs += r'|말(?:하|했)'
+    speech_verbs += r'|말씀(?:하|했)'
+    speech_verbs += r'|명(?:하|했)'
+    speech_verbs += r'|이르(?:렀)?'
+    speech_verbs += r'|대답(?:하|했)'
+    speech_verbs += r'|답(?:하|했)'
+    speech_verbs += r'|묻|문|물'
+    speech_verbs += r'|여쭙|아뢰'
+    speech_verbs += r'|전(?:하|했)'
+    speech_verbs += r'|칭(?:하|했)'
+    speech_verbs += r'|부르|외치'
+    speech_verbs += r')'
     
     # 존칭+시제 통합 패턴 (축약형 포함)
     # "시었다" → "셨다", "시었" → "셨", "시어" → "셔" 등
@@ -513,7 +881,8 @@ def merge_quotation_markers_in_list(sentences: List[str]) -> List[str]:
     endings = r'(다|ㄴ다|는다|습니다|ㅂ니다|까|ㄹ까|을까|느냐|ㄴ가|는가|라|거라|소|오|어라|아라|니|으니)'
     
     # 따옴표(닫는 따옴표)와 종결 부호 (선택적)
-    closing_quote = r'["”’]?'  # ”, ’, " 등 허용
+    # - 실제 데이터에서 자주 나오는 동아시아 따옴표/괄호 닫힘 기호까지 포함
+    closing_quote = r'["\'”’」』》〉】〕\)\]\}]?'
     punctuation = r'[\.。?!,，]?'  # 마침표/물음표/쉼표 허용
 
     # 마커 1개 조각: (선행 닫는 따옴표) + 인용조사 + 동사(시제/존칭) + 종결어미 + (부호/닫는 따옴표)
@@ -521,7 +890,7 @@ def merge_quotation_markers_in_list(sentences: List[str]) -> List[str]:
         closing_quote +               # 문장 시작에 붙을 수 있는 닫는 따옴표
         r'\s*' +
         quotation_particles +
-        r'\s+' +
+        r'\s*' +
         speech_verbs +
         honorific_tense +
         endings +
@@ -534,6 +903,15 @@ def merge_quotation_markers_in_list(sentences: List[str]) -> List[str]:
 
     # 전체 패턴: 마커 조각이 1회 이상 연쇄된 문장 전체
     quotation_marker_pattern = r'^\s*(?:' + marker_chunk + r')+$'
+
+    # 비종결(관형/명사절) 인용 구문도 병합
+    # 예: "...". '고 하는 것입니다.' / "...". '라고 하는 바는 ...'
+    # - '고 하다'가 종결(다/습니다) 대신 관형형(는/던)으로 끝나는 형태
+    relative_quote_tail_pattern = (
+        r'^\s*' + closing_quote + r'\s*'
+        r'(?:고|[이]?라?고|하고|며|면서)\s*'
+        r'하(?:는|던)\b'
+    )
     
     # 반복 병합 (중첩 인용 처리)
     changed = True
@@ -550,7 +928,7 @@ def merge_quotation_markers_in_list(sentences: List[str]) -> List[str]:
             j = i + 1
             while j < len(sentences):
                 next_sent = sentences[j]
-                if re.match(quotation_marker_pattern, next_sent, re.IGNORECASE):
+                if re.match(quotation_marker_pattern, next_sent, re.IGNORECASE) or re.match(relative_quote_tail_pattern, next_sent, re.IGNORECASE):
                     accumulated_markers.append(next_sent)
                     j += 1
                     changed = True
@@ -569,7 +947,7 @@ def merge_quotation_markers_in_list(sentences: List[str]) -> List[str]:
         sentences = merged
 
     # 🎯 인용 표지가 문장 맨 앞에 붙은 경우도 앞 문장으로 당겨 붙이기
-    marker_prefix_regex = re.compile(r'^\s*' + marker_chunk, re.IGNORECASE)
+    marker_prefix_regex = re.compile(r'^\s*(?:' + marker_chunk + r'|' + relative_quote_tail_pattern + r')', re.IGNORECASE)
     merged_prefix = []
     for idx, seg in enumerate(sentences):
         if idx > 0 and seg and marker_prefix_regex.match(seg):
@@ -578,7 +956,35 @@ def merge_quotation_markers_in_list(sentences: List[str]) -> List[str]:
         else:
             merged_prefix.append(seg)
 
-    return merged_prefix
+    # 🧷 닫는 따옴표/괄호 + (라/고/라고 ...) 연속 병합 (new parser 경로 보호)
+    # - 예: "...없다. ”" + "고 대답한다." / "라고 하니," 등
+    # - Stanza/파서가 종결부호를 보고 공백 없이도 경계를 넣는 경우가 있어 후처리로 흡수한다.
+    closers_tail = set(['"', "'", '\u201D', '\u2019', '\u300D', '\u300F', '\u300B', '\u3009', '】', '〕', ')', '）', ']', '】', '}', '」', '』', '〉', '》'])
+    end_punct_tail = set(['.', '!', '?', '。', '！', '？'])
+    quote_cont_fallback = re.compile(
+        r"^[\s\"\'\u201D\u2019\u300D\u300F\u300B\u3009]*"
+        r"(?:라|고|라고)\b"
+    )
+
+    merged2: List[str] = []
+    i = 0
+    while i < len(merged_prefix):
+        cur = merged_prefix[i].strip()
+        if not cur:
+            i += 1
+            continue
+        if i < len(merged_prefix) - 1:
+            nxt = merged_prefix[i + 1].strip()
+            if nxt and quote_cont_fallback.match(nxt):
+                tail = cur.rstrip()
+                if tail and (tail[-1] in closers_tail or tail[-1] in end_punct_tail):
+                    merged2.append((tail + nxt).strip())
+                    i += 2
+                    continue
+        merged2.append(cur)
+        i += 1
+
+    return merged2
 
 def split_with_smart_punctuation_rules(text: str) -> List[str]:
     """중국고전 문장 분할 패턴 강화 + 의미 기반 경계 감지"""
@@ -820,8 +1226,10 @@ def split_source_by_whitespace_and_align(
     target_sentences: List[str] = None,
     embedder_name: str = "bge",
     embedder_func=None,
+    enable_src_marker_whitespace_dp_bonus: bool = False,
     max_workers: int = 4,
     batch_size: int = 100,
+    debug_meta_out: Dict[str, Any] | None = None,
 ) -> List[str]:
     """
     원문(한문) 분할: 어절 경계에서만 분할, 어절 내부 절대 분할 금지!
@@ -945,7 +1353,8 @@ def split_source_by_whitespace_and_align(
         return working_source[start_char:end_char]
     
     # 🎯 Augmented 어절 생성 (임베딩 계산용만)
-    source_augmented = augment_source_hanja(masked_source)
+    # working_source 기준으로 augmentation (원본 텍스트는 최종 슬라이스로만 사용)
+    source_augmented = augment_source_hanja(working_source)
     words_aug = source_augmented.split()
     
     # 1. 어절 단위로 분할 (공백 기준, 어절 내부 절대 분할 금지!)
@@ -964,8 +1373,10 @@ def split_source_by_whitespace_and_align(
         return restore_brackets_in_chunks(result, bracket_insertions)
     
     # 1-1. PA 원문에 의미 기반 경계 감지 적용 (어절 경계만 지키면서 문장 단위로)
-    # 구두점이 명확하지 않으면 BGE 임베딩으로 의미 변화 지점 감지
-    if len(words_original) > 10 and BGE_AVAILABLE:  # 어절 10개 이상이면 의미 분석
+    # ⚠️ 번역문 문장들이 주어진 경우(target_sentences), 목표는 "정확히 target_count개"이므로
+    # 개수가 가변적인 의미 경계 탐지 결과를 그대로 반환하면 빈 세그먼트 패딩이 발생할 수 있다.
+    # 따라서 target_sentences가 없을 때만 보조적으로 사용한다.
+    if (not target_sentences) and len(words_original) > 10 and BGE_AVAILABLE:  # 어절 10개 이상이면 의미 분석
         try:
             # 어절을 공백으로 재조합
             reconstructed_text = ' '.join(words_original)
@@ -1011,6 +1422,8 @@ def split_source_by_whitespace_and_align(
                         segment = slice_segment_by_word_index(word_start, word_end)
                         result.append(segment)
                 
+                # 이 경로는 target_sentences가 없을 때만 사용하지만,
+                # 그래도 빈/부분 결과를 그대로 반환하지 않도록 최소한의 가드
                 if len(result) > 0:
                     print(f"✅ PA 원문 의미 기반 분할: {len(result)}개 어절 그룹")
                     return restore_brackets_in_chunks(result, bracket_insertions)
@@ -1020,370 +1433,370 @@ def split_source_by_whitespace_and_align(
     # 2. 임베딩 기반 의미적 분할 (어절 경계에서만!)
     if target_sentences and len(target_sentences) > 0:
         try:
-            # 외부에서 전달된 임베더 함수가 있으면 우선 사용
-            if embedder_func:
-                embed_func = embedder_func
-                target_embeddings = embed_func(target_sentences)
-                print(f"✅ 외부 임베더 함수 사용 ({embedder_name})")
-            
-            # OpenAI 임베더 사용
-            elif embedder_name == "openai":
-                # 외부에서 전달된 임베더 함수를 사용해야 함
-                if not embedder_func:
-                    print("⚠️ OpenAI 임베더 함수가 전달되지 않았습니다. BGE로 폴백합니다.")
-                    embedder_name = "bge"  # BGE로 폴백
-                else:
+            def _as_vector(x):
+                # embedder가 list/np.ndarray 등 무엇을 반환하든 1D numpy로 정리
+                if x is None:
+                    return None
+                arr = np.asarray(x)
+                if arr.ndim == 1:
+                    return arr
+                # 예상 밖 형태면 평탄화
+                return arr.reshape(-1)
+
+            def _cosine(a, b) -> float:
+                a = _as_vector(a)
+                b = _as_vector(b)
+                if a is None or b is None:
+                    return 0.0
+                an = float(np.linalg.norm(a))
+                bn = float(np.linalg.norm(b))
+                if an <= 1e-8 or bn <= 1e-8:
+                    return 0.0
+                return float(np.dot(a, b) / (an * bn))
+
+            _ending_bonus_strong = [
+                '이어늘', '하니', '하매', '하자', '하더니', '이니', '이라', '하되', '하노라'
+            ]
+            _ending_bonus_weak = ['니', '라', '다', '고', '며']
+
+            def _marker_end_bonus(last_word: str) -> float:
+                """현토(한글 marker) 패턴 기반의 아주 약한 경계 보너스.
+
+                - 어절 끝에 한글이 1~2자 붙고, 그 직전 문자가 CJK(한자)면 marker로 간주
+                  예: “也에”, “之者가” 등
+                - DP 경계 선택 tie-break 수준으로만 사용
+                """
+
+                if not enable_src_marker_whitespace_dp_bonus:
+                    return 0.0
+
+                w = (last_word or '').strip()
+                if not w:
+                    return 0.0
+
+                # trailing punctuation/quotes/brackets 제거
+                w = w.rstrip("\"'”’」』》〉】〕)\]\}.,，。?!;:·、")
+                if not w:
+                    return 0.0
+
+                def is_hangul(ch: str) -> bool:
+                    o = ord(ch)
+                    return 0xAC00 <= o <= 0xD7A3
+
+                def is_cjk(ch: str) -> bool:
+                    o = ord(ch)
+                    return (
+                        0x4E00 <= o <= 0x9FFF
+                        or 0x3400 <= o <= 0x4DBF
+                        or 0xF900 <= o <= 0xFAFF
+                    )
+
+                end = len(w)
+                start = end - 1
+                if start < 0 or not is_hangul(w[start]):
+                    return 0.0
+
+                while start >= 0 and is_hangul(w[start]):
+                    start -= 1
+                start += 1
+
+                mlen = end - start
+                if mlen <= 0:
+                    return 0.0
+
+                prev = start - 1
+                if prev < 0 or not is_cjk(w[prev]):
+                    return 0.0
+
+                # 3자 이상은 현토라 보기 어려워 제외
+                if mlen >= 3:
+                    return 0.010
+                if mlen == 2:
+                    return 0.008
+                return 0.003
+
+            def _boundary_end_bonus(last_word: str) -> float:
+                w = (last_word or '').strip()
+                if not w:
+                    return 0.0
+                # 구두점 종결
+                if re.search(r"[。？！.!?]$", w):
+                    return 0.12
+                for suf in _ending_bonus_strong:
+                    if w.endswith(suf):
+                        return 0.18
+                for suf in _ending_bonus_weak:
+                    if w.endswith(suf):
+                        return 0.06
+                return 0.0
+
+            def _build_candidate_cuts(words: List[str]) -> List[int]:
+                # 어절 인덱스(0..W) 중 후보 컷 생성
+                W = len(words)
+                cuts = {0, W}
+
+                for i, w in enumerate(words, start=1):
+                    if _boundary_end_bonus(w) > 0:
+                        cuts.add(i)
+                    # marker 단서도 후보 컷으로 추가(ON일 때만)
+                    if enable_src_marker_whitespace_dp_bonus and _marker_end_bonus(w) > 0:
+                        cuts.add(i)
+
+                # 너무 후보가 적으면 주기적으로 추가 (의미 DP가 완전히 무력화되는 것 방지)
+                step = 2 if W >= 30 else 1
+                for i in range(0, W + 1, step):
+                    cuts.add(i)
+
+                cuts = sorted(cuts)
+                # 여전히 부족하면 전체 컷 허용
+                if len(cuts) < target_count + 1:
+                    cuts = list(range(0, W + 1))
+                return cuts
+
+            # 임베더 준비(실패 시 하이브리드로 폴백). 이 블록 실패는 분할 전체 실패가 아니다.
+            try:
+                if debug_meta_out is not None:
+                    debug_meta_out.clear()
+                    debug_meta_out["enabled_marker_bonus"] = bool(enable_src_marker_whitespace_dp_bonus)
+                # 외부에서 전달된 임베더 함수가 있으면 우선 사용
+                if embedder_func:
                     embed_func = embedder_func
                     target_embeddings = embed_func(target_sentences)
-                    print("✅ OpenAI 임베딩 사용 (외부 함수)")
-            
-            # BGE 임베더 사용 (기본값 또는 OpenAI 실패시 폴백)
-            if embedder_name == "bge":
-                from common.embedders.bge import get_embedding_manager
-                
-                embedder = get_embedding_manager()
-                # PA에서도 SA와 동일한 안정적 멀티벡터 설정을 공유하므로, 용도를 명확히 표기
-                print("✅ BGE-M3 Multi-Vector 임베딩 사용 (PA 분할용, 작은 배치)")
-                
-                # SA 방식: 작은 배치 크기 + Multi-vector로 안전하게 처리
-                target_embeddings = embedder.compute_embeddings_with_cache(
-                    target_sentences, 
-                    batch_size=4, 
-                    use_multi_vector=True
-                )
-                
-                def bge_embed_source(texts):
-                    # PA에서도 SA처럼 작은 배치 + Multi-vector로 처리
-                    return embedder.compute_embeddings_with_cache(
-                        texts, 
-                        batch_size=4, 
+                    print(f"✅ 외부 임베더 함수 사용 ({embedder_name})")
+                    if debug_meta_out is not None:
+                        debug_meta_out["embedder_used"] = f"external({embedder_name})"
+
+                # OpenAI 임베더 사용
+                elif embedder_name == "openai":
+                    # 외부에서 전달된 임베더 함수를 사용해야 함
+                    if not embedder_func:
+                        print("⚠️ OpenAI 임베더 함수가 전달되지 않았습니다. BGE로 폴백합니다.")
+                        embedder_name = "bge"  # BGE로 폴백
+                    else:
+                        embed_func = embedder_func
+                        target_embeddings = embed_func(target_sentences)
+                        print("✅ OpenAI 임베딩 사용 (외부 함수)")
+                        if debug_meta_out is not None:
+                            debug_meta_out["embedder_used"] = "openai_external"
+
+                # BGE 임베더 사용 (기본값 또는 OpenAI 실패시 폴백)
+                if embedder_name == "bge":
+                    from common.embedders.bge import get_embedding_manager
+
+                    embedder = get_embedding_manager()
+                    # PA에서도 SA와 동일한 안정적 멀티벡터 설정을 공유하므로, 용도를 명확히 표기
+                    print("✅ BGE-M3 Multi-Vector 임베딩 사용 (PA 분할용, 작은 배치)")
+
+                    # SA 방식: 작은 배치 크기 + Multi-vector로 안전하게 처리
+                    target_embeddings = embedder.compute_embeddings_with_cache(
+                        target_sentences,
+                        batch_size=4,
                         use_multi_vector=True
                     )
-                
-                embed_func = bge_embed_source
-                
-        except Exception as e:
-            print(f"⚠️ 임베딩 실패, 하이브리드로 폴백: {e}")
-            # 폴백: 하이브리드 임베딩
-            from common.tokenizers import siku_get_embeddings
-            from common.tokenizers import get_roberta_hanja_tokenizer
-            import numpy as np
-            
-            print("✅ 하이브리드 임베딩 폴백 (원문:SikuBERT + 번역문:RoBERTa)")
-            
-            roberta_tokenizer = get_roberta_hanja_tokenizer()
-            
-            def get_roberta_embeddings(texts, batch_size=32):
-                embeddings = []
-                for text in texts:
-                    emb = roberta_tokenizer.get_embeddings(text)
-                    embeddings.append(emb.cpu().numpy())
-                return np.array(embeddings)
-            
-            target_embeddings = get_roberta_embeddings(target_sentences, batch_size=32)
-            
-            def hybrid_embed_source(texts):
-                return siku_get_embeddings(texts, batch_size=32)
-            
-            embed_func = hybrid_embed_source
-            
-            # 어절 경계 기반 스팬 임베딩 계산 (augmented 사용!)
-            N, W = target_count, len(words_aug)
+
+                    def bge_embed_source(texts):
+                        # PA에서도 SA처럼 작은 배치 + Multi-vector로 처리
+                        return embedder.compute_embeddings_with_cache(
+                            texts,
+                            batch_size=4,
+                            use_multi_vector=True
+                        )
+
+                    embed_func = bge_embed_source
+                    if debug_meta_out is not None:
+                        debug_meta_out["embedder_used"] = "bge_m3_multivector"
+
+            except Exception as e:
+                print(f"⚠️ 임베딩 실패, 하이브리드로 폴백: {e}")
+                from common.tokenizers import siku_get_embeddings
+                from common.tokenizers import get_roberta_hanja_tokenizer
+
+                print("✅ 하이브리드 임베딩 폴백 (원문:SikuBERT + 번역문:RoBERTa)")
+
+                roberta_tokenizer = get_roberta_hanja_tokenizer()
+
+                def get_roberta_embeddings(texts, batch_size=32):
+                    embeddings = []
+                    for text in texts:
+                        emb = roberta_tokenizer.get_embeddings(text)
+                        embeddings.append(emb.cpu().numpy())
+                    return np.array(embeddings)
+
+                target_embeddings = get_roberta_embeddings(target_sentences, batch_size=32)
+
+                def hybrid_embed_source(texts):
+                    return siku_get_embeddings(texts, batch_size=32)
+
+                embed_func = hybrid_embed_source
+                if debug_meta_out is not None:
+                    debug_meta_out["embedder_used"] = "hybrid_fallback"
+                    debug_meta_out["embedder_fallback_error"] = str(e)
+
+            # === 실제 DP 분할 (BGE 성공 경로에서도 수행) ===
+            N = target_count
+            W = len(words_original)
+            if W <= 0:
+                return restore_brackets_in_chunks([''] * target_count, bracket_insertions)
+
+            cuts = _build_candidate_cuts(words_original)
+            if debug_meta_out is not None:
+                try:
+                    debug_meta_out["words_count"] = int(len(words_original))
+                    debug_meta_out["cuts_count"] = int(len(cuts))
+                    debug_meta_out["boundary_hint_words"] = int(sum(1 for w in words_original if _boundary_end_bonus(w) > 0))
+                    if enable_src_marker_whitespace_dp_bonus:
+                        debug_meta_out["marker_hint_words"] = int(sum(1 for w in words_original if _marker_end_bonus(w) > 0))
+                    else:
+                        debug_meta_out["marker_hint_words"] = 0
+                except Exception:
+                    pass
+
+            # span 임베딩 캐시: 후보 컷 쌍만 계산 (과도한 O(W^2) 방지)
+            max_words_per_span = max(5, int((W / max(1, N)) * 3))
+            span_keys = []
+            span_texts = []
+
+            for a_pos, a in enumerate(cuts[:-1]):
+                for b in cuts[a_pos + 1:]:
+                    if b <= a:
+                        continue
+                    if (b - a) > max_words_per_span:
+                        continue
+                    seg_raw = slice_segment_by_word_index(a, b)
+                    seg_aug = augment_source_hanja(seg_raw)
+                    seg_aug = ' '.join(seg_aug.split())
+                    if not seg_aug:
+                        continue
+                    span_keys.append((a, b))
+                    span_texts.append(seg_aug)
+
             span_cache = {}
-            
-            # 어절 단위로 스팬 생성 (어절 내부 분할 금지!)
-            for i in range(W):
-                for j in range(i + 1, W + 1):
-                    span_words_aug = words_aug[i:j]
-                    span_text = ' '.join(span_words_aug).strip()
-                    if span_text:
-                        try:
-                            span_emb = embed_func([span_text])[0]
-                            span_cache[(i, j)] = span_emb
-                        except:
-                            continue
-            
-            # DP로 최적 분할점 찾기 (어절 경계만)
-            import numpy as np
-            dp = np.full((N+1, W+1), -np.inf)
-            back = np.zeros((N+1, W+1), dtype=int)
+            if span_texts:
+                try:
+                    span_embs = embed_func(span_texts)
+                    for key, emb in zip(span_keys, span_embs):
+                        span_cache[key] = _as_vector(emb)
+                except Exception:
+                    span_cache = {}
+
+            dp = np.full((N + 1, len(cuts)), -np.inf)
+            back = np.full((N + 1, len(cuts)), -1, dtype=int)
             dp[0, 0] = 0.0
-            
-            # DP로 어절 경계에서만 최적 분할 찾기 (강제 분할점 고려)
-            for i in range(1, N+1):
-                target_emb = target_embeddings[i-1]
-                target_norm = np.linalg.norm(target_emb)
-                
-                for j in range(i, W-(N-i)+1):
-                    for k in range(i-1, j):
-                        if (k, j) not in span_cache:
+
+            target_vecs = [_as_vector(e) for e in target_embeddings]
+
+            for i in range(1, N + 1):
+                tgt = target_vecs[i - 1]
+                for j_pos in range(1, len(cuts)):
+                    j = cuts[j_pos]
+                    # 남은 구간에 최소 1어절씩 배분 가능해야 함
+                    remaining_segments = N - i
+                    remaining_words = W - j
+                    if remaining_words < remaining_segments:
+                        continue
+
+                    for k_pos in range(0, j_pos):
+                        k = cuts[k_pos]
+                        if (j - k) <= 0:
                             continue
-                        
-                        span_emb = span_cache[(k, j)]
-                        span_norm = np.linalg.norm(span_emb)
-                        
-                        # 🔥 BGE-M3 임베딩 정규화 및 유사도 계산
-                        if target_norm > 1e-8 and span_norm > 1e-8:
-                            # 임베딩 정규화 (BGE-M3 추가 정규화)
-                            target_emb_norm = target_emb / target_norm
-                            span_emb_norm = span_emb / span_norm
-                            
-                            # 정규화된 코사인 유사도
-                            base_cosine = float(np.dot(target_emb_norm, span_emb_norm))
-                            
-                            # 🎯 BGE-M3 유사도 기준 (현실적인 범위로 조정)
-                            if base_cosine > 0.15:  # 0.15 이상 = 강한 매칭
-                                embedding_sim = base_cosine * 5.0 + 0.5  # 강한 가중치
-                                print(f"🎯 강신뢰 매칭: {' '.join(words_original[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 5.0")
-                            elif base_cosine > 0.10:  # 0.10-0.15 = 좋은 매칭  
-                                embedding_sim = base_cosine * 4.0 + 0.3  # 좋은 가중치
-                                print(f"🔍 중강신뢰 매칭: {' '.join(words_original[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 4.0")
-                            elif base_cosine > 0.05:  # 0.05-0.10 = 보통 매칭
-                                embedding_sim = base_cosine * 3.0 + 0.2  # 보통 가중치
-                                print(f"🔍 중신뢰 매칭: {' '.join(words_original[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 3.0")
-                            elif base_cosine > 0.01:  # 0.01-0.05 = 약한 매칭
-                                embedding_sim = base_cosine * 2.0 + 0.1  # 약한 가중치
-                                print(f"⚠️ 저신뢰 매칭: {' '.join(words_original[k:j])[:15]}... -> 유사도 {base_cosine:.3f} * 2.0")
-                            elif base_cosine > -0.05:  # -0.05-0.01 = 매우 약한 매칭
-                                embedding_sim = base_cosine + 0.05  # 최소 보상
-                                print(f"❌ 부정매칭: {' '.join(words_original[k:j])[:15]}... -> 유사도 {base_cosine:.3f} + 0.05")
-                            else:
-                                embedding_sim = base_cosine * 0.2  # 임계값 이하는 페널티
-                                print(f"❌ 부정매칭: {span_text[:15]}... -> 유사도 {base_cosine:.3f} * 0.2")
-                        else:
-                            embedding_sim = 0.0
-                        
-                        # 🔥 구조적 가중치 대폭 강화 (의미+구조 균형)
-                        span_words = words_original[k:j]
-                        span_text = ' '.join(span_words).strip()
-                        structural_bonus = 0.0
-                        
-                        # 🎯 실제 파서 기반 구조 분석
-                        try:
-                            from common.new_parsers import SUPAR_AVAILABLE, supar_parser
-                            
-                            if SUPAR_AVAILABLE and 'supar_parser' in globals():
-                                # SuPar로 실제 구문 분석
-                                parsed_result = supar_parser.predict([span_text], verbose=False)
-                                
-                                # 구문 트리에서 대구 구조 감지
-                                if len(parsed_result.sentences) > 0:
-                                    sentence = parsed_result.sentences[0]
-                                    
-                                    # 병렬 구조 감지
-                                    pos_sequence = [word.upos for word in sentence.words]
-                                    
-                                    # 대구 패턴 감지 (품사 반복)
-                                    if len(pos_sequence) >= 6:
-                                        mid = len(pos_sequence) // 2
-                                        first_half = pos_sequence[:mid]
-                                        second_half = pos_sequence[mid:mid*2] if mid*2 <= len(pos_sequence) else pos_sequence[mid:]
-                                        
-                                        if len(first_half) == len(second_half):
-                                            similarity = sum(1 for a, b in zip(first_half, second_half) if a == b) / len(first_half)
-                                            if similarity > 0.5:
-                                                structural_bonus = 0.5  # 실제 대구 구조
-                                                print(f"🔥 파서 기반 대구 감지: '{span_text[:15]}...' -> +{structural_bonus}")
-                                            else:
-                                                structural_bonus = 0.2
-                                        else:
-                                            structural_bonus = 0.1
-                                    else:
-                                        structural_bonus = 0.1
-                                else:
-                                    structural_bonus = 0.0
-                            else:
-                                # 폴백: 기존 하드코딩 방식
-                                if '이요' in span_text and span_text.endswith('니'):
-                                    structural_bonus = 0.4  # 대구 구조 확실성 -> 강력한 보너스
-                                    print(f"🔥 대구 구조 강화: '{span_text[:15]}...' -> +{structural_bonus}")
-                                elif span_text.endswith('니') and len(span_text) > 10:
-                                    structural_bonus = 0.2  # 긴 문장의 '니' 종결 -> 중간 보너스
-                                elif span_text.endswith('이요') and len(span_text) > 8:
-                                    structural_bonus = 0.15  # '이요' 종결 -> 소폭 보너스
-                                elif span_text.endswith('라') or span_text.endswith('다'):
-                                    structural_bonus = 0.1  # 일반 종결 -> 최소 보너스
-                                else:
-                                    structural_bonus = 0.0
-                                    
-                        except Exception as e:
-                            print(f"⚠️ 구조 분석 실패, 폴백 사용: {e}")
-                            # 폴백: 기존 하드코딩 방식
-                            if '이요' in span_text and span_text.endswith('니'):
-                                structural_bonus = 0.4  # 대구 구조 확실성 -> 강력한 보너스
-                                print(f"🔥 대구 구조 강화: '{span_text[:15]}...' -> +{structural_bonus}")
-                            elif span_text.endswith('니') and len(span_text) > 10:
-                                structural_bonus = 0.2  # 긴 문장의 '니' 종결 -> 중간 보너스
-                            elif span_text.endswith('이요') and len(span_text) > 8:
-                                structural_bonus = 0.15  # '이요' 종결 -> 소폭 보너스
-                            elif span_text.endswith('라') or span_text.endswith('다'):
-                                structural_bonus = 0.1  # 일반 종결 -> 최소 보너스
-                            else:
-                                structural_bonus = 0.0
-                        
-                        # 🆕 의미+구조 균형: 토씨 매칭은 생략
-                        particle_bonus = 0.0
-                        
-                        # 최종 점수 계산
-                        final_sim = embedding_sim + structural_bonus + particle_bonus
-                        
-                        # 🔥 구조적 확실성 exponential 보너스
-                        if structural_bonus >= 0.4:  # 대구 구조 확실성
-                            structural_certainty_bonus = structural_bonus * 2.0  # 구조 확실성 2배 증폭
-                            final_sim += structural_certainty_bonus
-                            print(f"🚀 구조 확실성 보너스: +{structural_certainty_bonus:.2f}")
-                        elif final_sim > 0.8:  # 의미적 고신뢰
-                            quality_bonus = (final_sim - 0.8) * 1.5  # 의미 확실성 보너스
-                            final_sim += quality_bonus
-                        
-                        # DP 점수 계산
-                        score = dp[i-1, k] + final_sim
-                        
-                        if score > dp[i, j]:
-                            dp[i, j] = score
-                            back[i, j] = k
-            
-            # 최고 점수를 가진 분할 찾기 + 미세 조정
-            max_score = dp[N, W]
-            if max_score == -np.inf:
-                # DP 실패시 폴백
+                        if dp[i - 1, k_pos] == -np.inf:
+                            continue
+                        if (j - k) > max_words_per_span:
+                            continue
+
+                        span_vec = span_cache.get((k, j))
+                        if span_vec is None:
+                            # 캐시 미존재 시 즉시 임베딩(드물게)
+                            try:
+                                seg_raw = slice_segment_by_word_index(k, j)
+                                seg_aug = augment_source_hanja(seg_raw)
+                                seg_aug = ' '.join(seg_aug.split())
+                                if not seg_aug:
+                                    continue
+                                span_vec = _as_vector(embed_func([seg_aug])[0])
+                                span_cache[(k, j)] = span_vec
+                            except Exception:
+                                continue
+
+                        sim = _cosine(span_vec, tgt)
+                        bonus = _boundary_end_bonus(words_original[j - 1]) if j - 1 < len(words_original) else 0.0
+                        if enable_src_marker_whitespace_dp_bonus and (j - 1) < len(words_original):
+                            bonus += _marker_end_bonus(words_original[j - 1])
+                        score = dp[i - 1, k_pos] + sim + bonus
+                        if score > dp[i, j_pos]:
+                            dp[i, j_pos] = score
+                            back[i, j_pos] = k_pos
+
+            # 마지막 컷은 W여야 하는데 cuts에 포함되어 있음
+            end_pos = cuts.index(W) if W in cuts else (len(cuts) - 1)
+            if dp[N, end_pos] == -np.inf:
                 raise Exception("DP failed to find valid split")
-            
-            # 현재 최적해
-            cuts = [W]
-            curr = W
+
+            # 역추적
+            cut_positions = [end_pos]
+            curr_pos = end_pos
             for i in range(N, 0, -1):
-                prev = back[i, curr]
-                cuts.append(prev)
-                curr = prev
-            cuts = cuts[::-1]
-            
-            current_result = []
+                prev_pos = back[i, curr_pos]
+                if prev_pos < 0:
+                    raise Exception("DP backtrack failed")
+                cut_positions.append(prev_pos)
+                curr_pos = prev_pos
+            cut_positions.reverse()
+
+            word_cuts = [cuts[p] for p in cut_positions]
+            if len(word_cuts) != N + 1:
+                raise Exception("Invalid cut reconstruction")
+
+            result = []
             for i in range(N):
-                chunk = slice_segment_by_word_index(cuts[i], cuts[i+1])
-                current_result.append(chunk)
-            
-            # 추가 후보들 시도 (다중 스케일 분할점 조정)
-            candidate_results = [current_result]
-            
-            # 1단계: ±1 어절 조정
-            for shift in [-1, 1]:
+                result.append(slice_segment_by_word_index(word_cuts[i], word_cuts[i + 1]))
+            while len(result) < target_count:
+                result.append('')
+
+            # 선택된 경계에서 실제로 어떤 보너스/유사도가 더해졌는지 요약(=기여도)
+            if debug_meta_out is not None:
                 try:
-                    adjusted_cuts = cuts.copy()
-                    for i in range(1, len(adjusted_cuts)-1):  # 첫번째와 마지막 제외
-                        new_cut = adjusted_cuts[i] + shift
-                        if new_cut > adjusted_cuts[i-1] and new_cut < adjusted_cuts[i+1]:
-                            adjusted_cuts[i] = new_cut
-                    
-                    adjusted_result = []
+                    boundary_bonus_sum = 0.0
+                    marker_bonus_sum = 0.0
+                    boundary_bonus_hits = 0
+                    marker_bonus_hits = 0
+                    sim_sum = 0.0
+                    sim_cnt = 0
+
                     for i in range(N):
-                        if i < len(adjusted_cuts)-1:
-                            chunk = slice_segment_by_word_index(adjusted_cuts[i], adjusted_cuts[i+1])
-                            adjusted_result.append(chunk)
-                    
-                    if len(adjusted_result) == N:
-                        candidate_results.append(adjusted_result)
-                except:
-                    continue
-            
-            # 2단계: ±2 어절 조정 (더 큰 변화)
-            for shift in [-2, 2]:
-                try:
-                    adjusted_cuts = cuts.copy()
-                    for i in range(1, len(adjusted_cuts)-1):
-                        new_cut = adjusted_cuts[i] + shift
-                        if new_cut > adjusted_cuts[i-1] + 1 and new_cut < adjusted_cuts[i+1] - 1:
-                            adjusted_cuts[i] = new_cut
-                    
-                    adjusted_result = []
-                    for i in range(N):
-                        if i < len(adjusted_cuts)-1:
-                            chunk = slice_segment_by_word_index(adjusted_cuts[i], adjusted_cuts[i+1])
-                            adjusted_result.append(chunk)
-                    
-                    if len(adjusted_result) == N:
-                        candidate_results.append(adjusted_result)
-                except:
-                    continue
-            
-            # 길이 기반 분할도 후보에 추가
-            try:
-                target_lengths = [len(s) for s in target_sentences]
-                total_target_length = sum(target_lengths)
-                if total_target_length > 0:
-                    length_ratios = [l / total_target_length for l in target_lengths]
-                    
-                    length_result = []
-                    start = 0
-                    for i, ratio in enumerate(length_ratios):
-                        # 비율에 따라 어절 수 할당 (최소 1개)
-                        allocated_words = max(1, int(len(words_original) * ratio))
-                        end = min(start + allocated_words, len(words_original))
-                        
-                        # 마지막 구간은 남은 모든 어절 포함
-                        if i == len(length_ratios) - 1:
-                            end = len(words_original)
-                        
-                        if start < end:
-                            length_result.append(slice_segment_by_word_index(start, end))
-                        else:
-                            length_result.append('')
-                        start = end
-                    
-                    if len(length_result) == N and start >= len(words_original):
-                        candidate_results.append(length_result)
-            except Exception:
-                pass
-            
-            # 균등 분할도 후보에 추가
-            try:
-                chunk_size = len(words_original) // target_count
-                remainder = len(words_original) % target_count
-                uniform_result = []
-                start = 0
-                for i in range(target_count):
-                    current_size = chunk_size + (1 if i < remainder else 0)
-                    end = start + current_size
-                    uniform_result.append(slice_segment_by_word_index(start, end))
-                    start = end
-                candidate_results.append(uniform_result)
-            except Exception:
-                pass
-            
-            # 모든 후보 중 최고 유사도 선택
-            best_result = current_result
-            best_similarity = -1.0
-            
-            for candidate in candidate_results:
-                try:
-                    if len(candidate) == len(target_sentences):
-                        cand_embeddings = embed_func(candidate)
-                        cand_similarities = []
-                        for cand_emb, tgt_emb in zip(cand_embeddings, target_embeddings):
-                            cand_norm = np.linalg.norm(cand_emb)
-                            tgt_norm = np.linalg.norm(tgt_emb)
-                            if cand_norm > 1e-8 and tgt_norm > 1e-8:
-                                sim = float(np.dot(cand_emb, tgt_emb) / (cand_norm * tgt_norm))
-                            else:
-                                sim = 0.0
-                            cand_similarities.append(sim)
-                        
-                        avg_sim = np.mean(cand_similarities)
-                        if avg_sim > best_similarity:
-                            best_result = candidate
-                            best_similarity = avg_sim
-                except:
-                    continue
-            
-            result = best_result
-            
-            # 최종 결과 로깅
-            import logging
-            logger = logging.getLogger(__name__)
-            if best_similarity >= 0:
-                logger.info(f"최적 분할 완료 (평균 유사도: {best_similarity:.3f})")
-            
-            return restore_brackets_in_chunks(result, bracket_insertions)
+                        j = word_cuts[i + 1]
+                        if (j - 1) < len(words_original) and (j - 1) >= 0:
+                            w_last = words_original[j - 1]
+                            b = float(_boundary_end_bonus(w_last))
+                            if b > 0:
+                                boundary_bonus_hits += 1
+                                boundary_bonus_sum += b
+                            if enable_src_marker_whitespace_dp_bonus:
+                                m = float(_marker_end_bonus(w_last))
+                                if m > 0:
+                                    marker_bonus_hits += 1
+                                    marker_bonus_sum += m
+
+                        # 유사도(선택된 span)
+                        k = word_cuts[i]
+                        j = word_cuts[i + 1]
+                        tgt = target_vecs[i] if i < len(target_vecs) else None
+                        if tgt is not None:
+                            span_vec = span_cache.get((k, j))
+                            if span_vec is not None:
+                                sim = float(_cosine(span_vec, tgt))
+                                sim_sum += sim
+                                sim_cnt += 1
+
+                    debug_meta_out["path_boundary_bonus_hits"] = int(boundary_bonus_hits)
+                    debug_meta_out["path_boundary_bonus_sum"] = float(boundary_bonus_sum)
+                    debug_meta_out["path_marker_bonus_hits"] = int(marker_bonus_hits)
+                    debug_meta_out["path_marker_bonus_sum"] = float(marker_bonus_sum)
+                    debug_meta_out["path_sim_mean"] = (float(sim_sum / sim_cnt) if sim_cnt else None)
+                except Exception:
+                    pass
+
+            return restore_brackets_in_chunks(result[:target_count], bracket_insertions)
             
         except Exception as e:
             # 로깅으로 변경하여 진행바 간섭 방지
@@ -1391,7 +1804,7 @@ def split_source_by_whitespace_and_align(
             logger = logging.getLogger(__name__)
             logger.warning(f"임베딩 기반 분할 실패, 균등 분배로 폴백: {e}")
 
-    # 3. 폴백: 어절 기준 균등 분배 (🎯 원본 어절 사용!)
+    # 3. 폴백: 어절 기준 균등 분배 (🎯 원본 슬라이스 보존!)
     chunk_size = len(words_original) // target_count
     remainder = len(words_original) % target_count
     
@@ -1400,8 +1813,7 @@ def split_source_by_whitespace_and_align(
     for i in range(target_count):
         current_size = chunk_size + (1 if i < remainder else 0)
         end = start + current_size
-        chunk_words_orig = words_original[start:end]
-        result.append(' '.join(chunk_words_orig))
+        result.append(slice_segment_by_word_index(start, end))
         start = end
     
     return restore_brackets_in_chunks(result, bracket_insertions)

@@ -89,6 +89,8 @@ class AccuracyEvaluator:
         # 메트릭 한글 라벨 매핑 (CSV/엑셀에서 사용)
         self.metric_label_ko = {
             'avg_partial_match': '부분 일치율',
+            'avg_source_partial_match': '원문 부분 일치율',
+            'avg_target_partial_match': '번역문 부분 일치율',
             'avg_target_avg_similarity': '번역문 평균 유사도',
             'avg_target_text_similarity': '번역문 전체 유사도',
             'avg_source_text_similarity': '원문 전체 유사도',
@@ -100,6 +102,10 @@ class AccuracyEvaluator:
             'avg_target_f1_score': '번역문 F1',
             'avg_precision': '정밀도',
             'avg_recall': '재현율',
+            'avg_source_precision': '원문 정밀도',
+            'avg_source_recall': '원문 재현율',
+            'avg_target_precision': '번역문 정밀도',
+            'avg_target_recall': '번역문 재현율',
             'avg_exact_match': '완전 일치율',
             'avg_text_match': '전체 텍스트 일치율',
             'avg_source_text_match': '원문 일치율',
@@ -135,6 +141,38 @@ class AccuracyEvaluator:
         if not text1 or not text2:
             return 0.0
         return difflib.SequenceMatcher(None, text1, text2).ratio()
+
+    def _primary_match_basis_for_project(self) -> str:
+        """프로젝트별 primary 매칭 기준.
+
+        - PA: 원문 기준(source)
+        - SA: 번역 기준(target)
+        """
+        if (self.project or '').lower() == 'sa':
+            return 'target'
+        return 'source'
+
+    @staticmethod
+    def _basis_label(match_basis: str) -> str:
+        if match_basis == 'target':
+            return '번역기준(target)'
+        return '원문기준(source)'
+
+    @staticmethod
+    def _basis_suffix(match_basis: str) -> str:
+        if match_basis == 'target':
+            return '_번역기준'
+        return '_원문기준'
+
+    @staticmethod
+    def _normalize_results_object(results: Dict[str, any]) -> Dict[str, any]:
+        """호환성: 결과가 wrapper(primary/secondary)인지 단일 결과인지 통일."""
+        if isinstance(results, dict) and 'primary' in results and isinstance(results.get('primary'), dict):
+            return results
+        return {
+            'primary_basis': (results or {}).get('summary', {}).get('match_basis', 'source'),
+            'primary': results,
+        }
     
     def log_detailed_differences(self, text_gt: str, text_pred: str, output_file: str):
         """모든 차이점을 상세히 로깅하여 파일로 저장"""
@@ -759,6 +797,7 @@ class AccuracyEvaluator:
         # 토큰 매칭 결과를 행 단위 정확도로 변환
         correct_translation_pairs = 0
         translation_similarities = []
+        source_similarities = []
         matched_pairs = []
         total_matched_gt_segments = 0
         total_matched_pred_segments = 0
@@ -774,6 +813,10 @@ class AccuracyEvaluator:
             # 매칭된 GT와 Pred 번역문을 합치기
             gt_target_matched = "".join([gt_targets[i] for i in gt_indices])
             pred_target_matched = "".join([pred_targets[i] for i in pred_indices])
+
+            # 매칭된 GT와 Pred 원문도 합치기 (원문 평균 유사도 산출용)
+            gt_source_matched = "".join([gt_sources[i] for i in gt_indices])
+            pred_source_matched = "".join([pred_sources[i] for i in pred_indices])
             
             # 번역문 비교
             gt_target_norm = self._normalize_by_mode(gt_target_matched)
@@ -787,6 +830,14 @@ class AccuracyEvaluator:
                 translation_similarities.append(similarity)
                 if similarity >= 0.9:
                     correct_translation_pairs += 1
+
+            # 원문 유사도(블록 단위)도 함께 계산
+            gt_source_norm = self._normalize_by_mode(gt_source_matched)
+            pred_source_norm = self._normalize_by_mode(pred_source_matched)
+            if gt_source_matched == pred_source_matched or gt_source_norm == pred_source_norm:
+                source_similarities.append(1.0)
+            else:
+                source_similarities.append(self.calculate_text_similarity(gt_source_matched, pred_source_matched))
             
             # 매칭 정보 저장 (n:m으로 확장)
             matched_pairs.append({
@@ -835,12 +886,15 @@ class AccuracyEvaluator:
                                if target_precision + target_recall > 0 else 0.0)
             # 번역문 평균 유사도 계산
             target_avg_similarity = sum(translation_similarities) / len(translation_similarities) if translation_similarities else 0.0
+            # 원문 평균 유사도(블록 단위) 계산
+            source_avg_similarity = sum(source_similarities) / len(source_similarities) if source_similarities else 0.0
         else:
             target_accuracy = 0.0
             target_precision = 0.0
             target_recall = 0.0
             target_f1_score = 0.0
             target_avg_similarity = 0.0
+            source_avg_similarity = 0.0
 
         # 전체 F1 점수 (원문 매칭과 번역문 정확도의 조화평균)
         f1_score = (source_f1_score + target_f1_score) / 2
@@ -929,6 +983,7 @@ class AccuracyEvaluator:
             'source_text_similarity': source_text_similarity,
             'target_text_similarity': target_text_similarity,
             'source_avg_overlap': source_avg_overlap,
+            'source_avg_similarity': source_avg_similarity,
             # 🆕 원문과 번역문 쌍의 통합 유사도
             'combined_text_similarity': combined_text_similarity,
             'combined_avg_similarity': combined_avg_similarity
@@ -1451,7 +1506,12 @@ class AccuracyEvaluator:
         }
 
     def evaluate_accuracy(self, unit: str = 'row', include_translation_matching: bool = True) -> Dict[str, any]:
-        """전체 정확도 평가 (원문 기준 기본 + 번역문 기준 옵션)"""
+        """전체 정확도 평가.
+
+        - 원문 기준(원문 유사도로 매칭) 1회 + (옵션) 번역문 기준(번역문 유사도로 매칭) 1회.
+        - 프로젝트(PA/SA)는 임계값(등급) 적용에만 영향을 주며,
+          매칭/평가 축(원문기준/번역기준) 자체는 항상 동일하게 계산된다.
+        """
         if self.gt_data is None or self.pred_data is None:
             print("데이터가 로드되지 않았습니다. load_data()를 먼저 실행하세요.")
             return {}
@@ -1488,7 +1548,7 @@ class AccuracyEvaluator:
         global_integrity = self.compute_global_text_integrity()
 
         source_matches, source_row_shift = self._build_matches(gt_grouped, pred_grouped, unit, match_on='source')
-        results = self._compute_metrics_for_matches(
+        source_results = self._compute_metrics_for_matches(
             gt_grouped,
             pred_grouped,
             source_matches,
@@ -1501,26 +1561,49 @@ class AccuracyEvaluator:
             log_prefix='',
         )
 
+        target_results = None
         if include_translation_matching:
             self.log("\n================ 번역문 기준 추가 평가 실행 ================")
             translation_mismatch_details: List[Dict[str, any]] = []
             target_matches, target_row_shift = self._build_matches(gt_grouped, pred_grouped, unit, match_on='target')
-            translation_results = self._compute_metrics_for_matches(
+            target_results = self._compute_metrics_for_matches(
                 gt_grouped,
                 pred_grouped,
                 target_matches,
                 unit,
-                match_basis='translation',
+                match_basis='target',
                 row_shift_meta=target_row_shift,
                 mismatch_container=translation_mismatch_details,
                 global_integrity=global_integrity,
                 log_integrity=False,
                 log_prefix='[번역기준] ',
             )
-            translation_results['source_mismatch_details'] = translation_mismatch_details
-            results['translation_matched'] = translation_results
+            target_results['source_mismatch_details'] = translation_mismatch_details
 
-        return results
+        # 프로젝트별 primary 기준 선택
+        requested_primary = self._primary_match_basis_for_project()
+        primary_basis = requested_primary
+        primary_results = source_results
+        secondary_results = target_results
+        if requested_primary == 'target' and target_results is not None:
+            primary_results = target_results
+            secondary_results = source_results
+        elif requested_primary == 'target' and target_results is None:
+            # SA인데 번역기준 평가를 꺼둔 경우: 안전하게 원문기준으로 폴백
+            primary_basis = 'source'
+            primary_results = source_results
+
+        wrapper: Dict[str, any] = {
+            'project': self.project,
+            'primary_basis': primary_basis,
+            'primary': primary_results,
+            'secondary_basis': ('target' if primary_basis == 'source' else 'source') if secondary_results is not None else None,
+            'secondary': secondary_results,
+            # 호환/가독성용 별칭
+            'source_based': source_results,
+            'target_based': target_results,
+        }
+        return wrapper
 
     def analyze_unmatched_gt_rows(self, output_file: str = None) -> Dict[str, any]:
         """키 기반 정렬 후 매칭되지 않은 GT 행들만 분석
@@ -1689,17 +1772,29 @@ class AccuracyEvaluator:
     
     def print_detailed_results(self, results: Dict[str, any]):
         """상세 결과 출력"""
+        normalized = self._normalize_results_object(results)
+        primary = normalized.get('primary') or {}
+        secondary = normalized.get('secondary')
+        primary_basis = normalized.get('primary_basis', (primary.get('summary') or {}).get('match_basis', 'source'))
+        secondary_basis = normalized.get('secondary_basis')
+
         self.log("\n" + "="*80)
-        self.log("정확도 평가 결과")
+        self.log(f"정확도 평가 결과 (Primary: {self._basis_label(primary_basis)})")
         self.log("="*80)
 
         # 전체 요약
-        summary = results['summary']
-        overall = results['overall_accuracy']
+        summary = primary['summary']
+        overall = primary['overall_accuracy']
 
         self.log(f"\n📊 전체 요약:")
         self.log(f"  • 📋 매칭 요약:")
-        self.log(f"    - 원문 기준 매칭: {summary.get('source_based_matches', 0)}개")
+        self.log(f"    - Primary 매칭 기준: {self._basis_label(primary_basis)}")
+        self.log(f"    - 총 평가 {summary.get('group_label','문장')} 쌍: {summary['total_sentences']}개")
+        # secondary가 있을 때만 표시
+        if secondary is not None:
+            sec_summary = (secondary.get('summary') or {})
+            sec_basis = secondary_basis or sec_summary.get('match_basis', 'target')
+            self.log(f"    - Secondary 매칭 기준: {self._basis_label(sec_basis)}")
         self.log(f"    - 총 평가 {summary.get('group_label','문장')} 쌍: {summary['total_sentences']}개")
         self.log(f"    - 평가 단위: {'행' if summary.get('unit')=='row' else summary.get('group_label','문장')}")
         self.log(f"  • 🗂️ 데이터 현황:")
@@ -1748,10 +1843,10 @@ class AccuracyEvaluator:
                 self.log(f"    GT: {t_ctx_gt}")
                 self.log(f"    PD: {t_ctx_pd}")
 
-        # 임계값 등급 요약
+        # 임계값 등급 요약 (primary 기준)
         if self.thresholds:
             grading = self.grade_with_thresholds(overall)
-            self.log("\n🏷️ 임계값 등급 요약:")
+            self.log(f"\n🏷️ 임계값 등급 요약 (Primary: {self._basis_label(primary_basis)}):")
             unit_ko = '행' if grading.get('unit') == 'row' else (self.group_label or '문장')
             self.log(f"• 프로젝트: {grading['project'].upper()} (단위: {unit_ko})")
             # 메트릭 한글 라벨 매핑
@@ -1776,19 +1871,48 @@ class AccuracyEvaluator:
 
         # 간결 모드: 핵심 지표만 출력하고 나머지 상세는 생략
         if self.brief:
-            self.log("\n🎯 핵심 지표 (간결 모드)")
-            self.log(f"• 부분 일치율: {overall.get('avg_partial_match', 0):.3f}")
-            self.log(f"• 번역문 평균 유사도: {overall.get('avg_target_avg_similarity', 0):.3f}")
-            self.log(f"• 번역문 전체 유사도: {overall.get('avg_target_text_similarity', 0):.3f}")
+            def log_brief_metrics(*, basis: str, overall_metrics: Dict[str, any], role: str):
+                """brief 모드 핵심 지표 출력.
+
+                - 원문기준(source) 매칭 결과: 번역 품질(번역문 유사도)을 핵심으로 표시
+                - 번역기준(target) 매칭 결과: 원문 품질(원문 유사도)을 핵심으로 표시
+
+                매칭 기준과 무관하게 계산되는 지표들도 있지만, brief에서는 혼동을 줄이기 위해
+                '매칭 기준과 반대쪽 텍스트'의 유사도를 핵심으로 보여준다.
+                """
+                self.log(f"\n🎯 핵심 지표 (간결 모드, {role}: {self._basis_label(basis)})")
+                self.log(f"• 부분 일치율: {overall_metrics.get('avg_partial_match', 0):.3f}")
+                if basis == 'target':
+                    # 번역기준 매칭에서는 '원문 유사도'를 핵심으로 표시
+                    self.log(f"• 원문 일치율: {overall_metrics.get('avg_source_text_match', 0):.3f}")
+                    self.log(f"• 원문 F1: {overall_metrics.get('avg_source_f1_score', 0):.3f}")
+                    self.log(f"• 원문 평균 유사도: {overall_metrics.get('avg_source_avg_similarity', 0):.3f}")
+                    self.log(f"• 원문 전체 유사도: {overall_metrics.get('avg_source_text_similarity', 0):.3f}")
+                else:
+                    # 원문기준 매칭에서는 '번역문 유사도'를 핵심으로 표시
+                    self.log(f"• 번역문 일치율: {overall_metrics.get('avg_target_text_match', 0):.3f}")
+                    self.log(f"• 번역문 F1: {overall_metrics.get('avg_target_f1_score', 0):.3f}")
+                    self.log(f"• 번역문 평균 유사도: {overall_metrics.get('avg_target_avg_similarity', 0):.3f}")
+                    self.log(f"• 번역문 전체 유사도: {overall_metrics.get('avg_target_text_similarity', 0):.3f}")
+
+            log_brief_metrics(basis=primary_basis, overall_metrics=overall, role='Primary')
+            if secondary is not None:
+                sec_overall = (secondary.get('overall_accuracy') or {})
+                sec_basis = secondary_basis or (secondary.get('summary') or {}).get('match_basis', 'target')
+                log_brief_metrics(basis=sec_basis, overall_metrics=sec_overall, role='Secondary')
             return
 
-        self.log(f"\n🎯 주요 정확도 지표 (원문 기준 순수 매칭 + 번역문 평가):")
+        self.log(f"\n🎯 주요 정확도 지표 (현재 출력: Primary={self._basis_label(primary_basis)}):")
         self.log(f"  📌 평가 방식 안내:")
-        self.log(f"    - 문장식별자 무시: 식별자와 관계없이 순수 원문 유사도로만 매칭")
-        self.log(f"    - 원문-번역문 쌍 단위 평가: 각 행은 [원문,번역문] 한 쌍")
-        self.log(f"    - 순서대로 매칭: 정답 원문을 순서대로 처리하여 가장 유사한 예측 원문 찾기")
-        self.log(f"    - 번역문 평가: 매칭된 쌍의 번역문 정확도 측정")
-        self.log(f"    - 중복 방지: 한 예측 쌍은 하나의 정답 쌍과만 매칭")
+        unit_mode = summary.get('unit')
+        group_label = summary.get('group_label', self.group_label or '문장')
+        if unit_mode == 'row':
+            self.log("    - 평가 단위: 행(로우)")
+            self.log("    - 매칭: 기본은 1:1(행 번호) 또는(설정에 따라) 유사도 기반 스마트 매칭")
+        else:
+            self.log(f"    - 평가 단위: {group_label} 식별자 그룹")
+            self.log("    - 주의: 식별자는 그룹(묶기) 용도이며, 매칭은 유사도 기반으로 수행(식별자 값 자체로 직접 매칭하지 않음)")
+        self.log("    - 원문/번역문은 각 단위의 (원문, 번역문) 쌍으로 함께 평가")
         self.log("")
         self.log(f"  • 완전 일치율: {overall.get('avg_exact_match', 0):.1%}")
         self.log(f"  • 전체 텍스트 일치율: {overall.get('avg_text_match', 0):.1%}")
@@ -1816,17 +1940,64 @@ class AccuracyEvaluator:
         self.log(f"  • 정밀도: {overall.get('avg_precision', 0):.1%}")
         self.log(f"  • 재현율: {overall.get('avg_recall', 0):.1%}")
 
-        translation_res = results.get('translation_matched')
-        if translation_res:
-            t_overall = translation_res.get('overall_accuracy', {})
-            self.log("\n🌐 번역문 기준 추가 지표:")
+        if secondary is not None:
+            t_overall = secondary.get('overall_accuracy', {})
+            sec_basis = secondary_basis or (secondary.get('summary') or {}).get('match_basis', 'target')
+            self.log(f"\n🌐 Secondary 기준 추가 지표 ({self._basis_label(sec_basis)}):")
             self.log(f"  • 완전 일치율: {t_overall.get('avg_exact_match', 0):.1%}")
             self.log(f"  • 번역문 정확도: {t_overall.get('avg_target_accuracy', 0):.1%}")
             self.log(f"  • 부분 일치율: {t_overall.get('avg_partial_match', 0):.1%}")
             self.log(f"  • 매칭률: {t_overall.get('matching_rate', 0):.1%}")
 
+            # 사용자가 보는 '기준(원문/번역)'에 따라, 반대쪽 텍스트 품질 지표를 함께 노출
+            # - 번역기준(target): 원문 정확도/유사도(핵심)
+            # - 원문기준(source): 번역문 유사도(핵심)
+            if sec_basis == 'target':
+                self.log(f"  • 원문 일치율: {t_overall.get('avg_source_text_match', 0):.1%}")
+                self.log(f"  • 원문 부분 일치율: {t_overall.get('avg_source_partial_match', 0):.1%}")
+                self.log(f"    - Jaccard 유사도: {t_overall.get('avg_source_jaccard', 0):.1%}")
+                self.log(f"  • 원문 F1: {t_overall.get('avg_source_f1_score', 0):.1%}")
+                self.log(f"    - 원문 정밀도: {t_overall.get('avg_source_precision', 0):.1%}")
+                self.log(f"    - 원문 재현율: {t_overall.get('avg_source_recall', 0):.1%}")
+                self.log(f"  • 원문 평균 유사도: {t_overall.get('avg_source_avg_similarity', 0):.1%}")
+                self.log(f"  • 원문 전체 유사도: {t_overall.get('avg_source_text_similarity', 0):.1%}")
+            else:
+                self.log(f"  • 번역문 일치율: {t_overall.get('avg_target_text_match', 0):.1%}")
+                self.log(f"  • 번역문 부분 일치율: {t_overall.get('avg_target_partial_match', 0):.1%}")
+                self.log(f"  • 번역문 F1: {t_overall.get('avg_target_f1_score', 0):.1%}")
+                self.log(f"    - 번역문 정밀도: {t_overall.get('avg_target_precision', 0):.1%}")
+                self.log(f"    - 번역문 재현율: {t_overall.get('avg_target_recall', 0):.1%}")
+                self.log(f"  • 번역문 평균 유사도: {t_overall.get('avg_target_avg_similarity', 0):.1%}")
+                self.log(f"  • 번역문 전체 유사도: {t_overall.get('avg_target_text_similarity', 0):.1%}")
+
+            # 임계값 등급(secondary도 함께 표시)
+            if self.thresholds:
+                grading_t = self.grade_with_thresholds(t_overall)
+                if grading_t:
+                    self.log(f"\n🏷️ 임계값 등급 요약 (Secondary: {self._basis_label(sec_basis)}):")
+                    unit_ko_t = '행' if grading_t.get('unit') == 'row' else (self.group_label or '문장')
+                    self.log(f"• 프로젝트: {grading_t['project'].upper()} (단위: {unit_ko_t})")
+                    metric_label_ko = {
+                        'partial_match': '부분 일치율',
+                        'target_avg_similarity': '번역문 평균 유사도',
+                        'target_text_similarity': '번역문 전체 유사도',
+                        'source_text_similarity': '원문 전체 유사도',
+                        'source_avg_similarity': '원문 평균 유사도',
+                        'source_jaccard': '원문 Jaccard 유사도',
+                        'target_accuracy': '번역문 정확도',
+                        'f1_score': 'F1 점수',
+                        'source_f1_score': '원문 F1',
+                        'target_f1_score': '번역문 F1',
+                        'precision': '정밀도',
+                        'recall': '재현율',
+                    }
+                    for m, info in grading_t.get('per_metric', {}).items():
+                        label = metric_label_ko.get(m, m)
+                        self.log(f"- {label}: {info['value']:.3f} → {info['label']} [min {info['min']}, rec {info['recommended']}, top {info['top']}]")
+                    self.log(f"• 전체 등급: {grading_t.get('overall_label')}")
+
         # 문장별 상세 결과 (상위 10개 + 하위 10개)
-        sentence_results = results['sentence_results']
+        sentence_results = primary['sentence_results']
         sentence_results.sort(key=lambda x: x['f1_score'], reverse=True)
 
         self.log(f"\n📈 성능 상위 10개 {summary.get('group_label','문장') }:")
@@ -1842,22 +2013,86 @@ class AccuracyEvaluator:
     def save_results(self, results: Dict[str, any], output_file: str, csv_dir: str | None = None):
         """결과를 엑셀 파일로 저장"""
         try:
+            normalized = self._normalize_results_object(results)
+            primary = normalized.get('primary') or {}
+            secondary = normalized.get('secondary')
+            primary_basis = normalized.get('primary_basis', (primary.get('summary') or {}).get('match_basis', 'source'))
+            secondary_basis = normalized.get('secondary_basis')
+
+            project_label = (self.project or '').upper() or ''
+
             # 출력 디렉터리 자동 생성
             parent = os.path.dirname(output_file)
             if parent:
                 os.makedirs(parent, exist_ok=True)
 
-            def build_summary_rows(overall: Dict[str, any]) -> List[Dict[str, any]]:
+            def build_summary_rows(overall: Dict[str, any], *, match_basis: str, role: str, res_summary: Dict[str, any] | None = None) -> List[Dict[str, any]]:
                 summary_rows: List[Dict[str, any]] = []
+                res_summary = res_summary or {}
+                unit = str(res_summary.get('unit', '') or '')
+                group_label = str(res_summary.get('group_label', '') or '')
+                # 어떤 결과(Primary/Secondary)이며 어떤 단위/프로젝트인지 먼저 명시
+                if project_label:
+                    summary_rows.append({'지표(한글)': '프로젝트', '지표(영문)': 'project', '값': project_label})
+                if unit:
+                    summary_rows.append({'지표(한글)': '평가 단위(unit)', '지표(영문)': 'unit', '값': unit})
+                if group_label:
+                    summary_rows.append({'지표(한글)': '평가 단위(라벨)', '지표(영문)': 'group_label', '값': group_label})
+                summary_rows.append({'지표(한글)': '결과 구분', '지표(영문)': 'result_role', '값': role})
+                # 어떤 매칭 기준으로 계산된 지표인지 명시
+                summary_rows.append({'지표(한글)': '매칭 기준', '지표(영문)': 'match_basis', '값': self._basis_label(match_basis)})
                 if self.minimal_summary:
+                    # minimal-summary는 "핵심 지표"가 match_basis에 따라 달라져야 혼동이 줄어듦.
+                    # - match_basis=target(번역기준): 원문(소스) 일치율/F1/유사도가 핵심
+                    # - match_basis=source(원문기준): 번역문(타겟) 정확도/F1/유사도가 핵심
+                    if match_basis == 'target':
+                        core_keys = [
+                            # 원문(소스) 핵심 지표
+                            'avg_source_text_match',
+                            'avg_source_partial_match',
+                            'avg_source_jaccard',
+                            'avg_source_f1_score',
+                            'avg_source_precision',
+                            'avg_source_recall',
+                            'avg_source_avg_similarity',
+                            'avg_source_text_similarity',
+                            # 번역(타겟)도 함께 제공 (컨텍스트)
+                            'avg_target_accuracy',
+                            'avg_target_partial_match',
+                            'avg_target_f1_score',
+                            'avg_target_avg_similarity',
+                            'avg_target_text_similarity',
+                        ]
+                    else:
+                        core_keys = [
+                            # 번역(타겟) 핵심 지표
+                            'avg_target_accuracy',
+                            'avg_target_partial_match',
+                            'avg_target_f1_score',
+                            'avg_target_avg_similarity',
+                            'avg_target_text_similarity',
+                            # 원문(소스)도 함께 제공 (컨텍스트)
+                            'avg_source_text_match',
+                            'avg_source_partial_match',
+                            'avg_source_jaccard',
+                            'avg_source_f1_score',
+                            'avg_source_precision',
+                            'avg_source_recall',
+                            'avg_source_avg_similarity',
+                            'avg_source_text_similarity',
+                        ]
+
                     keys = [
+                        # 기존 호환(있으면 포함)
                         'avg_partial_match',
-                        'avg_target_avg_similarity',
-                        'avg_target_text_similarity',
-                        'avg_source_avg_similarity',
-                        'avg_source_text_similarity',
+                        # 전역 일치율(있으면 포함)
+                        'avg_exact_match',
+                        'avg_text_match',
+                        *core_keys,
+                        # 규모/카운트
                         'total_gt_segments', 'total_pred_segments',
                         'total_matched_pairs', 'total_correct_translation_pairs',
+                        # 편집거리/쉬프트(디버그용)
                         'global_source_delta', 'global_target_delta',
                         'global_source_ops_insert', 'global_source_ops_delete', 'global_source_ops_replace',
                         'global_target_ops_insert', 'global_target_ops_delete', 'global_target_ops_replace',
@@ -1894,13 +2129,39 @@ class AccuracyEvaluator:
                         summary_rows.append({'지표(한글)': f'{ko_m} (임계값)', '지표(영문)': f'grade_{m}_thresholds', '값': f"min={info['min']}, rec={info['recommended']}, top={info['top']}"})
                 return summary_rows
 
-            def write_single_result(res_obj: Dict[str, any], suffix: str = '', mismatch_details_override: List[Dict[str, any]] | None = None):
-                sentence_df = pd.DataFrame(res_obj['sentence_results'])
-                sentence_df.to_excel(writer, sheet_name=f'문장별_상세결과{suffix}', index=False)
+            def build_meta_df() -> pd.DataFrame:
+                rows: List[Dict[str, any]] = []
+                rows.append({'항목': 'project', '값': project_label})
+                rows.append({'항목': 'unit', '값': (primary.get('summary') or {}).get('unit', '')})
+                rows.append({'항목': 'group_label', '값': (primary.get('summary') or {}).get('group_label', '')})
+                rows.append({'항목': 'primary_basis', '값': self._basis_label(primary_basis)})
+                if secondary is not None:
+                    sec_basis = secondary_basis or (secondary.get('summary') or {}).get('match_basis', 'target')
+                    rows.append({'항목': 'secondary_basis', '값': self._basis_label(sec_basis)})
+                else:
+                    rows.append({'항목': 'secondary_basis', '값': ''})
+                rows.append({'항목': 'ground_truth_file', '값': self.ground_truth_file})
+                rows.append({'항목': 'prediction_file', '값': self.prediction_file})
+                rows.append({'항목': 'output_file', '값': output_file})
+                if csv_dir:
+                    rows.append({'항목': 'csv_dir', '값': csv_dir})
+                return pd.DataFrame(rows)
 
-                summary_rows = build_summary_rows(res_obj['overall_accuracy'])
+            def write_single_result(res_obj: Dict[str, any], *, match_basis: str, role: str, sheet_suffix: str = '', mismatch_details_override: List[Dict[str, any]] | None = None):
+                res_summary = (res_obj.get('summary') or {})
+                sentence_df = pd.DataFrame(res_obj['sentence_results'])
+                # 프로젝트/단위/구분(Primary/Secondary)/기준을 컬럼으로 포함(필터링/재가공 용이)
+                if project_label:
+                    sentence_df.insert(0, 'project', project_label)
+                sentence_df.insert(0 if not project_label else 1, 'result_role', role)
+                sentence_df.insert(0 if not project_label else 2, 'unit', str(res_summary.get('unit', '') or ''))
+                # 어떤 매칭 기준의 결과인지 컬럼으로도 포함(필터링/재가공 용이)
+                sentence_df.insert(0 if not project_label else 3, 'match_basis', self._basis_label(match_basis))
+                sentence_df.to_excel(writer, sheet_name=f'문장별_상세결과{sheet_suffix}', index=False)
+
+                summary_rows = build_summary_rows(res_obj['overall_accuracy'], match_basis=match_basis, role=role, res_summary=res_summary)
                 summary_df = pd.DataFrame(summary_rows)
-                summary_df.to_excel(writer, sheet_name=f'전체_요약{suffix}', index=False)
+                summary_df.to_excel(writer, sheet_name=f'전체_요약{sheet_suffix}', index=False)
 
                 mismatch_details = mismatch_details_override if mismatch_details_override is not None else res_obj.get('source_mismatch_details')
                 if mismatch_details:
@@ -1910,9 +2171,15 @@ class AccuracyEvaluator:
                         if c not in mismatch_df.columns:
                             mismatch_df[c] = None
                     mismatch_df = mismatch_df[cols]
-                    mismatch_df.to_excel(writer, sheet_name=f'원문불일치_상세{suffix}', index=False)
+                    mismatch_df.to_excel(writer, sheet_name=f'원문불일치_상세{sheet_suffix}', index=False)
             with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-                write_single_result(results, suffix='')
+                # 메타(프로젝트/단위/Primary-Secondary 기준) 시트 먼저 기록
+                try:
+                    build_meta_df().to_excel(writer, sheet_name='메타', index=False)
+                except Exception:
+                    pass
+
+                write_single_result(primary, match_basis=primary_basis, role='Primary', sheet_suffix='')
 
                 try:
                     gi = self._global_integrity or {}
@@ -1948,9 +2215,9 @@ class AccuracyEvaluator:
                 except Exception:
                     pass
 
-                translation_res = results.get('translation_matched')
-                if translation_res:
-                    write_single_result(translation_res, suffix='_번역기준', mismatch_details_override=translation_res.get('source_mismatch_details'))
+                if secondary is not None:
+                    sec_basis = secondary_basis or (secondary.get('summary') or {}).get('match_basis', 'target')
+                    write_single_result(secondary, match_basis=sec_basis, role='Secondary', sheet_suffix=self._basis_suffix(sec_basis), mismatch_details_override=secondary.get('source_mismatch_details'))
 
                 import datetime
                 current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1968,10 +2235,21 @@ class AccuracyEvaluator:
             if csv_dir:
                 try:
                     os.makedirs(csv_dir, exist_ok=True)
+                    # 메타 CSV
+                    try:
+                        build_meta_df().to_csv(os.path.join(csv_dir, '메타.csv'), index=False, encoding='utf-8-sig')
+                    except Exception:
+                        pass
                     # 재사용 가능한 DataFrame들 구성
-                    sentence_df = pd.DataFrame(results['sentence_results'])
-                    summary_pairs = build_summary_rows(results['overall_accuracy'])
-                    mismatch_df = pd.DataFrame(results.get('source_mismatch_details', self.source_mismatch_details)) if results.get('source_mismatch_details', self.source_mismatch_details) else pd.DataFrame()
+                    sentence_df = pd.DataFrame(primary['sentence_results'])
+                    res_summary_p = (primary.get('summary') or {})
+                    if project_label:
+                        sentence_df.insert(0, 'project', project_label)
+                    sentence_df.insert(0 if not project_label else 1, 'result_role', 'Primary')
+                    sentence_df.insert(0 if not project_label else 2, 'unit', str(res_summary_p.get('unit', '') or ''))
+                    sentence_df.insert(0 if not project_label else 3, 'match_basis', self._basis_label(primary_basis))
+                    summary_pairs = build_summary_rows(primary['overall_accuracy'], match_basis=primary_basis, role='Primary', res_summary=res_summary_p)
+                    mismatch_df = pd.DataFrame(primary.get('source_mismatch_details', self.source_mismatch_details)) if primary.get('source_mismatch_details', self.source_mismatch_details) else pd.DataFrame()
                     log_df = pd.DataFrame({'실행_로그': self.execution_log})
 
                     sentence_df.to_csv(os.path.join(csv_dir, '문장별_상세결과.csv'), index=False, encoding='utf-8-sig')
@@ -1983,18 +2261,26 @@ class AccuracyEvaluator:
                                 mismatch_df[c] = None
                         mismatch_df = mismatch_df[cols]
                         mismatch_df.to_csv(os.path.join(csv_dir, '원문불일치_상세.csv'), index=False, encoding='utf-8-sig')
-                    translation_res = results.get('translation_matched')
-                    if translation_res:
-                        pd.DataFrame(translation_res['sentence_results']).to_csv(os.path.join(csv_dir, '문장별_상세결과_번역기준.csv'), index=False, encoding='utf-8-sig')
-                        pd.DataFrame(build_summary_rows(translation_res['overall_accuracy'])).to_csv(os.path.join(csv_dir, '전체_요약_번역기준.csv'), index=False, encoding='utf-8-sig')
-                        t_md = pd.DataFrame(translation_res.get('source_mismatch_details', []))
+                    if secondary is not None:
+                        sec_basis = secondary_basis or (secondary.get('summary') or {}).get('match_basis', 'target')
+                        sec_suffix = self._basis_suffix(sec_basis)
+                        sec_sentence_df = pd.DataFrame(secondary['sentence_results'])
+                        res_summary_s = (secondary.get('summary') or {})
+                        if project_label:
+                            sec_sentence_df.insert(0, 'project', project_label)
+                        sec_sentence_df.insert(0 if not project_label else 1, 'result_role', 'Secondary')
+                        sec_sentence_df.insert(0 if not project_label else 2, 'unit', str(res_summary_s.get('unit', '') or ''))
+                        sec_sentence_df.insert(0 if not project_label else 3, 'match_basis', self._basis_label(sec_basis))
+                        sec_sentence_df.to_csv(os.path.join(csv_dir, f'문장별_상세결과{sec_suffix}.csv'), index=False, encoding='utf-8-sig')
+                        pd.DataFrame(build_summary_rows(secondary['overall_accuracy'], match_basis=sec_basis, role='Secondary', res_summary=res_summary_s)).to_csv(os.path.join(csv_dir, f'전체_요약{sec_suffix}.csv'), index=False, encoding='utf-8-sig')
+                        t_md = pd.DataFrame(secondary.get('source_mismatch_details', []))
                         if not t_md.empty:
                             cols = ['sentence_id', 'length_diff', 'similarity', 'gt_source', 'pred_source']
                             for c in cols:
                                 if c not in t_md.columns:
                                     t_md[c] = None
                             t_md = t_md[cols]
-                            t_md.to_csv(os.path.join(csv_dir, '원문불일치_상세_번역기준.csv'), index=False, encoding='utf-8-sig')
+                            t_md.to_csv(os.path.join(csv_dir, f'원문불일치_상세{sec_suffix}.csv'), index=False, encoding='utf-8-sig')
                     # 전역 불일치 CSV 저장 (가능한 경우)
                     try:
                         gi = self._global_integrity or {}
@@ -2113,7 +2399,7 @@ def main():
     parser.add_argument('prediction', help='예측 파일 경로 (output01 등)')
     parser.add_argument('--output', '-o', help='결과 저장 파일 경로', default='test_results/sa/row_eval_combined_similarity.xlsx')
     parser.add_argument('--csv-dir', help='각 시트를 CSV로도 저장할 디렉터리 경로(미지정 시 자동 생성)', default=None)
-    parser.add_argument('--unit', choices=['sentence', 'row'], default='row', help='평가 단위: row(행 단위) 또는 sentence(문장식별자 그룹)')
+    parser.add_argument('--unit', choices=['sentence', 'row'], default='row', help='평가 단위: row(행 단위) 또는 sentence(식별자 그룹)')
     parser.add_argument('--project', choices=['pa', 'sa'], default='sa', help='프로젝트 유형에 따른 임계값 적용')
     parser.add_argument('--brief', action='store_true', help='간결 모드: 핵심 지표만 콘솔 출력')
     parser.add_argument('--minimal-summary', action='store_true', help='전체_요약(엑셀/CSV)에 핵심 지표만 저장')

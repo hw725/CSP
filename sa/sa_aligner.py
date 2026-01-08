@@ -11,7 +11,7 @@ SA (Semantic Alignment) 모듈
 import logging
 # Use the third-party 'regex' module to support Unicode properties like \p{Han}
 import regex as re
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 import sys
 import os
 import pandas as pd
@@ -491,6 +491,9 @@ def split_tgt_meaning_units(text: str, src_units_count: int, src_units: List[str
     
     tgt_tokens = text.split()
     N, T = src_units_count, len(tgt_tokens)
+    
+    # 원본 텍스트 정규화 (무결성 검증용)
+    original_normalized = text.replace(' ', '').replace('\n', '').replace('\t', '')
 
     # 의미 기반 분할 시도
     result: List[str]
@@ -498,12 +501,39 @@ def split_tgt_meaning_units(text: str, src_units_count: int, src_units: List[str
         try:
             result = _split_tgt_by_src_units_semantic(src_units, text, **kwargs)
             logger.debug(f"의미 기반 분할 성공: {result}")
+            
+            # 🔒 무결성 검증: 분할 결과가 원본과 동일한지 확인 (경고만)
+            result_normalized = ''.join(result).replace(' ', '').replace('\n', '').replace('\t', '')
+            if result_normalized != original_normalized:
+                diff = len(original_normalized) - len(result_normalized)
+                logger.warning(f"⚠️ 의미 기반 분할 무결성 경고: 원본 {len(original_normalized)}자 != 분할 {len(result_normalized)}자 (차이: {diff:+d}자)")
+                # 차이가 크면 (10자 이상) 폴백으로 재시도
+                if abs(diff) > 10:
+                    logger.warning(f"   차이가 커서 단순 분할로 대체")
+                    del result  # 무결성 문제가 크면 폴백
+                # 차이가 작으면 (공백 차이 등) 그대로 사용
         except Exception as e:
             logger.warning(f"의미 기반 분할 실패, 단순 분할로 대체: {e}")
     
     # 폴백: 단순 분할
     if 'result' not in locals():
         result = _split_tgt_by_src_units_simple(text, src_units_count, src_units=src_units, **kwargs)
+        
+        # 🔒 단순 분할 무결성 검증 (경고만)
+        result_normalized = ''.join(result).replace(' ', '').replace('\n', '').replace('\t', '')
+        if result_normalized != original_normalized:
+            diff = len(original_normalized) - len(result_normalized)
+            logger.warning(f"⚠️ 단순 분할 무결성 경고: 원본 {len(original_normalized)}자 != 분할 {len(result_normalized)}자 (차이: {diff:+d}자)")
+            # 차이가 크면 (10자 이상) 균등 분할로 재시도
+            if abs(diff) > 10:
+                logger.warning(f"   차이가 커서 균등 분할로 재시도")
+                words = text.split()
+                result = _distribute_words_evenly(words, src_units_count)
+                result_normalized_2 = ''.join(result).replace(' ', '').replace('\n', '').replace('\t', '')
+                if result_normalized_2 == original_normalized:
+                    logger.info(f"✅ 균등 분할로 무결성 복원")
+                else:
+                    logger.error(f"❌ 균등 분할도 무결성 문제: 차이 {len(original_normalized) - len(result_normalized_2):+d}자")
 
     # 인용 표지가 문장 앞에 오면 앞 단위로 이동 (빈 칸 유지)
     result = _merge_leading_quotation_markers(result)
@@ -1151,6 +1181,11 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
     """
     단일 행 처리: 원문 분할 + 번역문 정렬 → 여러 행으로 분할
     
+    🆕 통합 모드: use_boundary_model=True이면
+    - 기존 방식으로 초기 분할
+    - 경계 모델로 refinement
+    - Alignment 모델로 정렬 개선
+    
     Args:
         row_data: {'원문': '원문', '번역문': '번역문', '문장식별자': 'id', ...}
         **kwargs: 처리 옵션
@@ -1162,6 +1197,7 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
     translation_text = row_data.get('번역문', '')
     base_id = row_data.get('문장식별자', '')
     
+    # 1️⃣ 기존 방식으로 초기 분할
     # 원문 분할 (공백 기준)
     src_units = split_src_meaning_units(source_text, **kwargs)
     
@@ -1173,6 +1209,47 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
         use_semantic=True,    # 의미 기반 매칭 사용
         **kwargs
     )
+    method_label = 'bge_initial'
+
+    # 2️⃣ (옵션) boundary + alignment 모델로 refinement
+    # - 번역문: boundary 모델로 구 분할(텍스트 보존)
+    # - 원문: alignment 모델로 번역문 구 개수에 맞춰 매칭/분할
+    use_boundary_model = kwargs.get('use_boundary_model', False)
+    if use_boundary_model:
+        try:
+            from sa.io_manager import safe_process_sa_row
+
+            boundary_model = getattr(safe_process_sa_row, '_boundary_model', None)
+            alignment_model = getattr(safe_process_sa_row, '_alignment_model', None)
+            threshold = float(kwargs.get('boundary_threshold', 0.5))
+
+            if boundary_model is not None and alignment_model is not None:
+                tgt_units_by_model = boundary_model.segment_text(
+                    str(translation_text),
+                    task='sa',
+                    threshold=threshold,
+                )
+
+                # 너무 극단적인 분할(0개/1개)은 이득이 없으므로 스킵
+                if tgt_units_by_model and len(tgt_units_by_model) >= 2:
+                    # alignment_matcher.match_segments는 tgt 개수만큼 src를 반환한다.
+                    src_units_by_model = alignment_model.match_segments(src_units, tgt_units_by_model)
+
+                    # 무결성(공백 제거 기준) 검증 후에만 적용
+                    src_ok = ''.join(str(source_text).split()) == ''.join(''.join(src_units_by_model).split())
+                    tgt_ok = ''.join(str(translation_text).split()) == ''.join(''.join(tgt_units_by_model).split())
+                    len_ok = len(src_units_by_model) == len(tgt_units_by_model)
+
+                    if src_ok and tgt_ok and len_ok:
+                        src_units = src_units_by_model
+                        trans_units = tgt_units_by_model
+                        method_label = method_label + '+boundary_tgt+align_src'
+                    else:
+                        logger.warning(
+                            f"SA refinement 무결성 실패로 폴백 (id={base_id}, src_ok={src_ok}, tgt_ok={tgt_ok}, len_ok={len_ok})"
+                        )
+        except Exception as e:
+            logger.warning(f"SA refinement 실패로 폴백 (id={base_id}): {e}")
     
     # 시대 정보 분석
     try:
@@ -1181,6 +1258,30 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
         logger.warning(f"시대 감지 실패: {e}")
         period = 'unknown'
     
+    # 무결성 가드레일: 번역문 결합(공백/개행 제거 기준)이 원본과 다르면 안전 폴백으로 재분할
+    try:
+        original_flat_tgt = ''.join(str(translation_text).split())
+        processed_flat_tgt = ''.join(''.join(trans_units).split())
+
+        if original_flat_tgt != processed_flat_tgt:
+            diff_chars = len(original_flat_tgt) - len(processed_flat_tgt)
+            logger.warning(
+                f"⚠️ SA 번역문 무결성 불일치: {diff_chars:+d}자 (id={base_id}) → 단순 분할로 폴백"
+            )
+
+            # split_tgt_meaning_units는 내부에서 semantic→simple→evenly 폴백을 하므로,
+            # 여기서는 semantic을 끄고 재시도해서 텍스트 보존성을 최우선으로 한다.
+            trans_units = split_tgt_meaning_units(
+                translation_text,
+                len(src_units),
+                src_units=src_units,
+                use_semantic=False,
+                **kwargs,
+            )
+            method_label = method_label + '+integrity_fallback'
+    except Exception as e:
+        logger.warning(f"SA 무결성 가드레일 실패(기존 결과 유지): {e}")
+
     # 각 단위별로 개별 행 생성
     result_rows = []
     
@@ -1190,32 +1291,28 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
     # 원문-번역문 쌍별 유사도 계산
     segment_similarities = []
     try:
+        # BGE/임베더 기반 유사도 (기존 로직 유지)
         from common.embedders import get_embedder
         embedder_name = kwargs.get('embedder_name', kwargs.get('embedder', 'bge'))
         embedder_device_id = kwargs.get('embedder_device_id', 0)
-        
         if embedder_name.lower() != 'none':
             if embedder_name.lower() == 'openai':
                 embedder = OpenAIWrapper(max_workers=kwargs.get('max_workers', 4))
                 compute_embeddings = embedder.compute_embeddings_with_cache
             else:
                 compute_embeddings = get_embedder(embedder_name, device_id=embedder_device_id)
-            
-            # 모든 단위의 임베딩 계산
+
             all_texts = src_units + trans_units
             embeddings = compute_embeddings(all_texts, batch_size=kwargs.get('batch_size', 100))
-            
             src_embeddings = embeddings[:len(src_units)]
             tgt_embeddings = embeddings[len(src_units):]
-            
-            # 각 쌍의 코사인 유사도 계산
+
             from sklearn.metrics.pairwise import cosine_similarity
             for src_emb, tgt_emb in zip(src_embeddings, tgt_embeddings):
                 sim = float(cosine_similarity([src_emb], [tgt_emb])[0][0])
                 segment_similarities.append(sim)
     except Exception as e:
         logger.warning(f"세그먼트 유사도 계산 실패: {e}")
-        # 폴백: PA 유사도 사용
         segment_similarities = [row_data.get('similarity', 1.0)] * len(src_units)
     
     # 각 분할된 구(segment)에 대해
@@ -1228,7 +1325,8 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
             '구식별자': _global_segment_id,
             '원문': src_unit,
             '번역문': trans_unit,
-            '유사도': sim
+            '유사도': sim,
+            '분할방법': method_label
         }
         result_rows.append(row)
     
@@ -1471,3 +1569,4 @@ def _try_split_by_korean_particles(tgt_text: str, N: int) -> Optional[List[str]]
     """
     # 현재는 비활성화 - 추후 개선 예정
     return None
+

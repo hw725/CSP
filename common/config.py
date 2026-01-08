@@ -132,6 +132,102 @@ def get_thresholds() -> Dict[str, Any]:
     return defaults
 
 
+def get_pa_selection_params() -> Dict[str, Any]:
+    """PA strict의 후보 선택(prior/style bonus 등) 파라미터.
+
+    우선순위:
+    - csp_config.json의 pa_selection_params
+    - (없으면) 안전한 기본값
+
+    목적:
+    - 휴리스틱(상수/토큰 리스트)을 코드에서 분리하여 재현/튜닝 가능하게 함
+    - trace에서 기여도를 투명하게 남기기 위한 단일 진입점 제공
+    """
+
+    cfg = _load_file_config()
+    params = cfg.get("pa_selection_params", {}) or {}
+
+    defaults: Dict[str, Any] = {
+        # boundary-aware alignment matcher에서 (의미 유사도 vs 경계 일치) 결합 가중치
+        # 0이면 의미 유사도만, 1이면 경계 일치만 반영.
+        "boundary_aware_weight": 0.3,
+        "candidate_prior_bonus_by_prefix": {
+            "supar(": 0.015,
+            "boundary(": 0.010,
+        },
+        "boundary_style_prior": {
+            "enabled": True,  # Alignment score 우선, style은 보조 역할
+            "weight_terminal": 0.006,  # 1/3로 약화 (의미 대응 우선)
+            "weight_continuation": -0.010,  # 1/3로 약화
+            "continuation_tokens": [
+                "하며",
+                "하며,",
+                "하고",
+                "하야",
+                "하여",
+                "하야,",
+                "하여,",
+            ],
+            "continuation_tail_cjk": [
+                "而",
+                "以",
+                "則",
+                "乃",
+                "故",
+                "及",
+                "與",
+                "且",
+            ],
+            "terminal_suffixes": [
+                "이라",
+                "矣라",
+                "也라",
+                "耳라",
+                "니라",
+                "로라",
+                "哉아",
+                "邪아",
+            ],
+            "terminal_punct": [".", "!", "?", "。", "！", "？"],
+        },
+        "penalty_short_pairs": {
+            "long_tgt_threshold": 40,
+            "short_src_threshold": 12,
+            "penalty_per_pair": 0.015,
+        },
+        "penalty_empty_src": 0.5,
+        "max_candidates_multiplier": 12,
+        "whitespace_dp_penalties": {
+            "long_tgt_threshold": 80,
+            "short_src_threshold": 25,
+            "very_short_src_threshold": 8,
+            "penalty_short": 0.070,
+            "penalty_very_short": 0.090,
+            "ratio_outlier": {
+                "min_tgt_len": 80,
+                "ratio_high_threshold": 3.8,
+                "ratio_mid_threshold": 3.2,
+                "median_margin_high": 1.2,
+                "median_margin_mid": 1.0,
+                "src_len_cap_high": 45,
+                "src_len_cap_mid": 35,
+                "penalty_high": 0.18,
+                "penalty_mid": 0.12,
+                "penalty_longest_shortest": 0.10,
+            },
+        },
+    }
+
+    # shallow + nested dict merge (필요 최소만)
+    merged: Dict[str, Any] = dict(defaults)
+    for key, val in params.items():
+        if isinstance(val, dict) and isinstance(merged.get(key), dict):
+            merged[key] = {**merged[key], **val}
+        else:
+            merged[key] = val
+    return merged
+
+
 def as_dict() -> dict:
     """디버깅/로깅용 현재 설정 스냅샷"""
     return {

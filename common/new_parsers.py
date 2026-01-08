@@ -3,14 +3,16 @@
 # Stanza는 보조/폴백 용도로만 사용됩니다.
 import logging
 import os
+import subprocess
+import sys
 logger = logging.getLogger(__name__)
 
 # 환경 변수로 강제 설정 가능: CSP_KANBUN_FORCE=1 이면 Kanbun 강제 우선
 KANBUN_FORCE = os.environ.get("CSP_KANBUN_FORCE", "1") not in ["0", "false", "False"]
 
-# 로드 상태
+# 로드 상태(모듈 설치 여부)
 KANBUN_AVAILABLE = False
-STANZA_AVAILABLE = False
+STANZA_MODULE_AVAILABLE = False
 
 # Kanbun (suparkanbun / esupar) 우선 로드
 try:
@@ -24,7 +26,7 @@ except Exception as e:
 # Stanza 로드 (폴백)
 try:
     import stanza
-    STANZA_AVAILABLE = True
+    STANZA_MODULE_AVAILABLE = True
     logger.info("✅ Stanza 로드됨 (폴백용)")
 except Exception as e:
     logger.warning(f"⚠️ Stanza 로드 실패: {e}")
@@ -64,7 +66,7 @@ def load_kanbun_pipeline(BERT: str | None = None, Danku: bool | None = None):
 
 def get_stanza_pipeline(lang: str = "zh"):
     """Stanza 파이프라인 반환 (폴백)"""
-    if not STANZA_AVAILABLE:
+    if not STANZA_MODULE_AVAILABLE:
         raise RuntimeError("Stanza가 설치되지 않았습니다")
     try:
         stanza.download(lang)
@@ -77,19 +79,19 @@ def select_parsers(prefer_kanbun: bool = True):
     use_kanbun = KANBUN_FORCE or prefer_kanbun
     if use_kanbun and KANBUN_AVAILABLE:
         logger.info("🔀 파서 선택: Kanbun 우선 사용")
-        return {"kanbun": True, "stanza": STANZA_AVAILABLE}
+        return {"kanbun": True, "stanza": STANZA_MODULE_AVAILABLE}
     # Kanbun 불가 또는 비우선인 경우
-    if STANZA_AVAILABLE:
+    if STANZA_MODULE_AVAILABLE:
         logger.info("🔀 파서 선택: Stanza 폴백 사용")
         return {"kanbun": False, "stanza": True}
     # 둘 다 없으면 에러
     raise RuntimeError("사용 가능한 파서를 찾을 수 없습니다 (Kanbun/Stanza 모두 없음)")
 
 def log_current_configuration():
-    logger.info(f"⚙️ KANBUN_FORCE={KANBUN_FORCE}, KANBUN_AVAILABLE={KANBUN_AVAILABLE}, STANZA_AVAILABLE={STANZA_AVAILABLE}")
+    logger.info(f"⚙️ KANBUN_FORCE={KANBUN_FORCE}, KANBUN_AVAILABLE={KANBUN_AVAILABLE}, STANZA_MODULE_AVAILABLE={STANZA_MODULE_AVAILABLE}")
     if KANBUN_AVAILABLE:
         logger.info("🧠 Kanbun: suparkanbun/esupar 활성")
-    if STANZA_AVAILABLE:
+    if STANZA_MODULE_AVAILABLE:
         logger.info("🧠 Stanza: zh 파이프라인 폴백 활성")
 
 """새로운 파서 모듈 - SuPar-Kanbun & Stanza 통합"""
@@ -97,7 +99,7 @@ def log_current_configuration():
 import re
 from typing import List, Optional
 
-# 파서 가용성 플래그
+# 파서 가용성 플래그(실제 파이프라인 준비 여부)
 SUPAR_AVAILABLE = False
 STANZA_AVAILABLE = False
 
@@ -216,109 +218,150 @@ def fallback_split_by_punctuation(text: str, is_source: bool = True) -> List[str
     """구두점 기반 폴백 분할"""
     return smart_sentence_split(text, is_source)
 
-"""SuPar-Kanbun 대신 suparkanbun(esupar) 직접 사용
-환경에 supar 패키지가 없어도 Kanbun을 최우선으로 쓰기 위해,
-suparkanbun 제공 파이프라인으로 한문 원문 문장 분할을 수행합니다.
+"""SuPar-Kanbun(suparkanbun/esupar) & Stanza는 무겁기 때문에 import 시점에 자동 초기화하지 않고,
+실제 사용 시점에 lazy-init 합니다.
+
+- SUPAR_AVAILABLE / STANZA_AVAILABLE: '파이프라인이 실제로 준비됨'을 의미
+- KANBUN_AVAILABLE / STANZA_MODULE_AVAILABLE: '패키지 import 가능'을 의미
 """
-if KANBUN_AVAILABLE:
-    try:
-        # 환경값 기반으로 Kanbun 파이프라인 로드
-        supar_parser = load_kanbun_pipeline()
-        SUPAR_AVAILABLE = True
-        print("✅ Kanbun(suparkanbun) 파이프라인 로드 완료")
 
-        def split_source_with_supar(text: str) -> List[str]:
-            """suparkanbun 파이프라인을 사용한 한문 문장 분할
-            - Danku 옵션이 켜져 있으면 파이프라인 내부 분할 사용
-            - 그렇지 않으면 간단한 구두점 기반 분할로 폴백
-            """
-            try:
-                nlp = supar_parser
-                if hasattr(nlp, 'Danku') and getattr(nlp, 'Danku'):
-                    # 파이프라인 호출로 문장 분할 시도
-                    doc = nlp(text)
-                    # esupar/suparkanbun 출력 형식에 따라 안전하게 텍스트 복원
-                    sentences: List[str] = []
-                    if hasattr(doc, 'sentences') and doc.sentences:
-                        for s in doc.sentences:
-                            # values/form 형태를 최대한 안전하게 처리
-                            if hasattr(s, 'values') and s.values:
-                                sent_text = ''.join([getattr(tok, 'form', '') for tok in s.values])
-                                if sent_text.strip():
-                                    sentences.append(sent_text.strip())
-                            elif hasattr(s, 'text'):
-                                t = getattr(s, 'text')
-                                if isinstance(t, str) and t.strip():
-                                    sentences.append(t.strip())
-                    # 결과 없으면 폴백
-                    if sentences:
-                        return sentences
-                # Danku 비활성 또는 결과가 없으면 휴리스틱 분할
-                return smart_sentence_split(text, is_source=True)
-            except Exception as e:
-                print(f"⚠️ suparkanbun 분할 실패: {e}")
-                return smart_sentence_split(text, is_source=True)
-    except Exception as e:
-        print(f"⚠️ Kanbun 파이프라인 초기화 실패: {e}")
-        SUPAR_AVAILABLE = False
-        supar_parser = None
-else:
-    # Kanbun 미가용 시 폴백
-    SUPAR_AVAILABLE = False
-    supar_parser = None
+def _get_stanza_model_dir() -> str:
+    # Docker에서는 /opt/stanza_resources를 권장(빌드 타임에 미리 다운로드 가능)
+    env_dir = os.environ.get("CSP_STANZA_DIR")
+    if env_dir:
+        return env_dir
+    if os.path.isdir("/opt/stanza_resources"):
+        return "/opt/stanza_resources"
+    return os.path.join(os.path.expanduser("~"), "stanza_resources")
 
-# Stanza 로드 시도  
-try:
-    import stanza
-    import os
-    
-    # Stanza 리소스 디렉토리 설정
-    stanza_dir = os.path.join(os.path.expanduser("~"), "stanza_resources")
-    os.makedirs(stanza_dir, exist_ok=True)
-    
-    try:
-        # 한국어 모델 다운로드 (필요시)
+
+def ensure_kanbun_pipeline(BERT: str | None = None, Danku: bool | None = None):
+    """suparkanbun 파이프라인을 1회만 초기화하고 반환합니다."""
+    global supar_parser, SUPAR_AVAILABLE
+    if supar_parser is not None:
+        return supar_parser
+
+    if not KANBUN_AVAILABLE:
+        # 요구사항: 미설치면 즉시 설치 시도
         try:
-            stanza.download('ko', model_dir=stanza_dir, verbose=False)
-        except:
-            pass  # 이미 다운로드된 경우
-            
-        # GPU 사용 가능 여부 확인
+            logger.warning("⚠️ Kanbun 파서 미설치: suparkanbun/esupar 설치를 시도합니다...")
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", "--no-cache-dir", "suparkanbun", "esupar"]
+            )
+            import importlib
+            importlib.invalidate_caches()
+            globals()["skb"] = importlib.import_module("suparkanbun")
+            globals()["es"] = importlib.import_module("esupar")
+            globals()["KANBUN_AVAILABLE"] = True
+            logger.info("✅ Kanbun 파서 패키지 설치/임포트 성공")
+        except Exception as e:
+            raise RuntimeError(
+                "Kanbun 파서가 설치되어 있지 않습니다 (suparkanbun/esupar 필요). "
+                f"자동 설치도 실패했습니다: {e}"
+            )
+
+    supar_parser = load_kanbun_pipeline(BERT=BERT, Danku=Danku)
+    SUPAR_AVAILABLE = True
+    logger.info("✅ Kanbun(suparkanbun) 파이프라인 초기화 완료")
+    return supar_parser
+
+
+def ensure_stanza_pipeline(lang: str = "ko"):
+    """Stanza 파이프라인을 1회만 초기화하고 반환합니다."""
+    global stanza_nlp, STANZA_AVAILABLE
+    if stanza_nlp is not None:
+        return stanza_nlp
+
+    if not STANZA_MODULE_AVAILABLE:
+        # 요구사항: 미설치면 즉시 설치 시도
+        try:
+            logger.warning("⚠️ Stanza 미설치: stanza 설치를 시도합니다...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir", "stanza"])
+            import importlib
+            importlib.invalidate_caches()
+            globals()["stanza"] = importlib.import_module("stanza")
+            globals()["STANZA_MODULE_AVAILABLE"] = True
+            logger.info("✅ Stanza 패키지 설치/임포트 성공")
+        except Exception as e:
+            raise RuntimeError(f"Stanza가 설치되지 않았습니다. 자동 설치도 실패했습니다: {e}")
+
+    model_dir = _get_stanza_model_dir()
+    os.makedirs(model_dir, exist_ok=True)
+
+    # 리소스가 없으면 Pipeline 생성이 실패할 수 있으므로, 여기서는 다운로드를 강제하지 않습니다.
+    # (Docker 빌드 시 stanza.download로 미리 받아두는 것을 권장)
+    try:
         import torch
         use_gpu = torch.cuda.is_available()
-        
-        stanza_nlp = stanza.Pipeline('ko', model_dir=stanza_dir, use_gpu=use_gpu, verbose=False)
-        STANZA_AVAILABLE = True
-        print(f"✅ Stanza 한국어 모델 로드 완료 (GPU: {use_gpu})")
-        
-        def split_target_with_stanza(text: str) -> List[str]:
-            """실제 Stanza 파서 - 인용 표지 병합 지원"""
-            global stanza_nlp
-            try:
-                # Stanza로 문장 분할
-                doc = stanza_nlp(text)
-                sentences = [sent.text for sent in doc.sentences]
-                sentences = [s.strip() for s in sentences if s.strip()]
-                
-                # 인용 표지 병합
-                sentences = merge_quotation_markers(sentences)
-                
-                return sentences
-            except Exception as e:
-                print(f"⚠️ Stanza 파싱 실패: {e}")
-                return smart_sentence_split(text, is_source=False)
-                
-    except Exception as e:
-        print(f"⚠️ Stanza 모델 로드 실패: {e}")
-        STANZA_AVAILABLE = False
-        stanza_nlp = None
-        
-except ImportError:
-    print("⚠️ Stanza 미설치 (폴백 모드)")
-    STANZA_AVAILABLE = False
-    stanza_nlp = None
+    except Exception:
+        use_gpu = False
 
-print(f"✅ new_parsers 모듈 로드됨 (SuPar: {SUPAR_AVAILABLE}, Stanza: {STANZA_AVAILABLE})")
+    def _try_init() -> "stanza.Pipeline":
+        return stanza.Pipeline(lang, model_dir=model_dir, use_gpu=use_gpu, verbose=False)
+
+    try:
+        stanza_nlp = _try_init()
+        STANZA_AVAILABLE = True
+        logger.info(f"✅ Stanza 파이프라인 초기화 완료 (lang={lang}, GPU={use_gpu}, dir={model_dir})")
+        return stanza_nlp
+    except Exception as e:
+        # 리소스가 없으면 다운로드 후 1회 재시도
+        try:
+            logger.warning(f"⚠️ Stanza 파이프라인 초기화 실패: {e} → 리소스 다운로드 후 재시도")
+            stanza.download(lang, model_dir=model_dir, verbose=False)
+            stanza_nlp = _try_init()
+            STANZA_AVAILABLE = True
+            logger.info(f"✅ Stanza 파이프라인 초기화 완료(재시도) (lang={lang}, GPU={use_gpu}, dir={model_dir})")
+            return stanza_nlp
+        except Exception as e2:
+            STANZA_AVAILABLE = False
+            stanza_nlp = None
+            raise RuntimeError(f"Stanza 파이프라인 초기화 실패(다운로드/재시도 포함): {e2}")
+
+
+def split_source_with_supar(text: str) -> List[str]:
+    """suparkanbun 파이프라인을 사용한 한문 문장 분할(실패 시 휴리스틱 폴백)."""
+    try:
+        nlp = ensure_kanbun_pipeline()
+        if hasattr(nlp, 'Danku') and getattr(nlp, 'Danku'):
+            doc = nlp(text)
+            sentences: List[str] = []
+            if hasattr(doc, 'sentences') and doc.sentences:
+                for s in doc.sentences:
+                    if hasattr(s, 'values') and s.values:
+                        sent_text = ''.join([getattr(tok, 'form', '') for tok in s.values])
+                        if sent_text.strip():
+                            sentences.append(sent_text.strip())
+                    elif hasattr(s, 'text'):
+                        t = getattr(s, 'text')
+                        if isinstance(t, str) and t.strip():
+                            sentences.append(t.strip())
+            if sentences:
+                return sentences
+        return smart_sentence_split(text, is_source=True)
+    except Exception as e:
+        logger.warning(f"⚠️ suparkanbun 분할 실패(휴리스틱 폴백): {e}")
+        return smart_sentence_split(text, is_source=True)
+
+
+def split_target_with_stanza(text: str) -> List[str]:
+    """Stanza 기반 한국어 문장 분할(실패 시 휴리스틱 폴백) + 인용 표지 병합."""
+    try:
+        nlp = ensure_stanza_pipeline(lang="ko")
+        doc = nlp(text)
+        sentences = [sent.text for sent in doc.sentences]
+        sentences = [s.strip() for s in sentences if s.strip()]
+        return merge_quotation_markers(sentences)
+    except Exception as e:
+        logger.warning(f"⚠️ Stanza 문장 분할 실패(휴리스틱 폴백): {e}")
+        return smart_sentence_split(text, is_source=False)
+
+
+logger.info(
+    "✅ new_parsers import OK "
+    f"(Kanbun module={KANBUN_AVAILABLE}, Stanza module={STANZA_MODULE_AVAILABLE}, "
+    f"pipelines created(lazy init): supar={SUPAR_AVAILABLE}, stanza={STANZA_AVAILABLE})"
+)
 
 # === Korean clause boundary detection (comma) ===
 def get_korean_clause_boundary_commas(text: str, mode: str = 'soft') -> list[int]:

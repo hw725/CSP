@@ -121,6 +121,14 @@ def main():
     parser.add_argument('--no-hybrid-embed', action='store_true',
                        help='하이브리드 임베딩 비활성화 (기본: 활성화, 한자/한글 세분화)')
     
+    # 새로운 모델 옵션
+    parser.add_argument('--use-boundary-model', action='store_true',
+                       help='새로운 boundary_multitask + alignment 모델 사용')
+    parser.add_argument('--boundary-threshold', type=float, default=0.5,
+                       help='경계 모델 threshold (기본: 0.5, 범위: 0.0-1.0)')
+    parser.add_argument('--device', default='cuda', choices=['cuda', 'cpu'],
+                       help='디바이스 (기본: cuda, GPU 미지원시 자동 cpu)')
+    
     args = parser.parse_args()
 
     # 입력 파일명에서 서종명 추출 유틸리티
@@ -199,7 +207,7 @@ def main():
             embedder_name=args.embedder,
             max_workers=args.max_workers,
             chunk_size=args.chunk_size,
-            use_parallel=use_parallel,  # 계산된 값 사용
+            use_parallel=use_parallel,
             min_src_tokens=args.min_src_tokens,
             max_src_tokens=args.max_src_tokens,
             min_tgt_tokens=args.min_tgt_tokens,
@@ -214,8 +222,11 @@ def main():
             comma_bonus=args.comma_bonus,
             comma_mode=args.comma_mode,
             syntax_when=args.syntax_when,
-            hybrid_embed=not args.no_hybrid_embed,  # 🎯 하이브리드 임베딩 설정 (기본: True)
-            verbose=args.verbose
+            hybrid_embed=not args.no_hybrid_embed,
+            verbose=args.verbose,
+            use_boundary_model=args.use_boundary_model,
+            boundary_threshold=args.boundary_threshold,
+            device=args.device
         )
         
         elapsed_time = time.time() - start_time

@@ -151,107 +151,114 @@ def verify_paragraph_integrity(src_paragraph: str, tgt_paragraph: str, alignment
     return src_integrity and tgt_integrity and alignment_quality
 
 def restore_paragraph_integrity(src_paragraph: str, tgt_paragraph: str, alignments: List[Dict]) -> List[Dict]:
-    """문단 무결성 복원"""
-    
-    def _map_normalized_to_original(original_text: str, normalized_text: str, normalized_idx: int) -> int:
-        """정규화된 텍스트의 인덱스를 원본 텍스트의 인덱스로 매핑"""
-        normalized_idx = min(normalized_idx, len(normalized_text))
-        non_space_count = 0
-        for i, char in enumerate(original_text):
-            if char not in (' ', '\n', '\t'):
-                if non_space_count == normalized_idx:
-                    return i
-                non_space_count += 1
-        return len(original_text)
-    
-    def _insert_text_at_pos(seq_alignments: List[Dict], text: str, pos: int, field: str):
-        """정렬된 세그먼트들에 대해 전역 pos 위치에 text를 삽입"""
-        if not seq_alignments:
-            seq_alignments.append({
-                '원문': '' if field == '번역문' else '', 
-                '번역문': '' if field == '원문' else '', 
-                'similarity': 0.0, 
-                'split_method': 'integrity_restore', 
-                'align_method': f'{field}_missing_restore'
-            })
-        concat = ''.join([a.get(field, '') for a in seq_alignments])
-        pos = min(max(pos, 0), len(concat))
-        # 누적 길이로 삽입 위치 찾기
-        running = 0
-        for idx, a in enumerate(seq_alignments):
-            seg = a.get(field, '')
-            if running + len(seg) >= pos:
-                local = pos - running
-                a[field] = seg[:local] + text + seg[local:]
-                return
-            running += len(seg)
-        # 끝에 삽입
-        seq_alignments[-1][field] += text
-    
-    # 현재 정렬 결과 분석
-    aligned_src = ''.join([align.get('원문', '') for align in alignments])
-    aligned_tgt = ''.join([align.get('번역문', '') for align in alignments])
-    
-    # 정규화(공백/개행/탭 제거)
-    aligned_src_normalized = aligned_src.replace(' ', '').replace('\n', '').replace('\t', '')
-    aligned_tgt_normalized = aligned_tgt.replace(' ', '').replace('\n', '').replace('\t', '')
-    original_src = src_paragraph.replace('\n', '').replace('\t', '')
-    original_tgt = tgt_paragraph.replace('\n', '').replace('\t', '')
-    original_src_normalized = original_src.replace(' ', '')
-    original_tgt_normalized = original_tgt.replace(' ', '')
-    
-    restored_alignments = alignments[:]
-    
-    # 원문 복원
-    if original_src_normalized != aligned_src_normalized:
-        logger.info("원문 무결성 복원 시작...")
-        sm = SequenceMatcher(None, aligned_src_normalized, original_src_normalized)
-        opcodes = sm.get_opcodes()
-        
+    """문단 무결성 복원 (PA)
+
+    목표:
+    - alignment 개수/순서 절대 변경 금지
+    - 원문/번역문 각각, "정규화(공백 제거)" 기준 경계를 유지한 채
+      원본 문단(raw)을 해당 개수만큼 슬라이싱하여 텍스트를 되돌린다.
+
+    기존 구현은 SequenceMatcher opcodes를 개별 alignment 내부에 insert/replace/delete로 적용하면서
+    공백/경계를 깨뜨려 단어 단위 파편화가 발생할 수 있었다.
+    여기서는 경계(정규화 문자 수 누적)만 유지하고, 최종 텍스트는 항상 원본 문단에서 잘라온다.
+    """
+
+    if not alignments:
+        return alignments
+
+    def _strip_ws(text: str) -> str:
+        return re.sub(r"\s+", "", text or "")
+
+    def _norm_lengths(parts: List[str]) -> List[int]:
+        return [len(_strip_ws(p)) for p in parts]
+
+    def _translate_pos(pos: int, opcodes, src_len: int, dst_len: int) -> int:
+        """SequenceMatcher opcode 기반으로 src 정규화 좌표를 dst 정규화 좌표로 변환(단조 증가 보장)."""
+        if pos <= 0:
+            return 0
+        if pos >= src_len:
+            return dst_len
+
+        candidate_end = None
         for tag, i1, i2, j1, j2 in opcodes:
-            if tag == 'insert':
-                # 누락된 원문 추가 (정규화 인덱스 → 원본 인덱스로 매핑)
-                missing_text = original_src[j1:j2]
-                original_pos = _map_normalized_to_original(original_src, original_src_normalized, j1)
-                _insert_text_at_pos(restored_alignments, missing_text, original_pos, '원문')
-                logger.info(f"누락 원문 복원: '{missing_text}'")
-                
-            elif tag == 'delete':
-                # 중복된 원문 제거
-                excess_text = aligned_src_normalized[i1:i2]
-                for align in restored_alignments:
-                    if excess_text in align.get('원문', '').replace(' ', '').replace('\n', '').replace('\t', ''):
-                        align['원문'] = align['원문'].replace(excess_text, '', 1)
-                        logger.info(f"중복 원문 제거: '{excess_text}'")
-                        break
-    
-    # 번역문 복원
-    aligned_tgt_after_src_restore = ''.join([align.get('번역문', '') for align in restored_alignments])
-    aligned_tgt_after_src_restore_normalized = aligned_tgt_after_src_restore.replace(' ', '').replace('\n', '').replace('\t', '')
-    
-    if original_tgt_normalized != aligned_tgt_after_src_restore_normalized:
-        logger.info("번역문 무결성 복원 시작...")
-        sm = SequenceMatcher(None, aligned_tgt_after_src_restore_normalized, original_tgt_normalized)
-        opcodes = sm.get_opcodes()
-        
-        for tag, i1, i2, j1, j2 in opcodes:
-            if tag == 'insert':
-                # 누락된 번역문 추가 (정규화 인덱스 → 원본 인덱스로 매핑)
-                missing_text = original_tgt[j1:j2]
-                original_pos = _map_normalized_to_original(original_tgt, original_tgt_normalized, j1)
-                _insert_text_at_pos(restored_alignments, missing_text, original_pos, '번역문')
-                logger.info(f"누락 번역문 복원: '{missing_text}'")
-                
-            elif tag == 'delete':
-                # 중복된 번역문 제거
-                excess_text = aligned_tgt_after_src_restore_normalized[i1:i2]
-                for align in restored_alignments:
-                    if excess_text in align.get('번역문', '').replace(' ', '').replace('\n', '').replace('\t', ''):
-                        align['번역문'] = align['번역문'].replace(excess_text, '', 1)
-                        logger.info(f"중복 번역문 제거: '{excess_text}'")
-                        break
-    
-    return restored_alignments
+            if pos < i1:
+                break
+            if pos == i2:
+                candidate_end = j2
+                continue
+            if i1 <= pos < i2:
+                if tag == 'equal':
+                    return j1 + (pos - i1)
+                return j1
+        if candidate_end is not None:
+            return candidate_end
+        return min(dst_len, max(0, pos))
+
+    def _restore_side(original_raw: str, restored_rows: List[Dict], key: str) -> None:
+        original_norm = _strip_ws(original_raw)
+        parts = [r.get(key, '') for r in restored_rows]
+        part_norm_lens = _norm_lengths(parts)
+        aligned_norm = ''.join(_strip_ws(p) for p in parts)
+
+        # 경계(정규화 좌표) 계산: 0, l1, l1+l2, ...
+        boundaries = [0]
+        cum = 0
+        for ln in part_norm_lens:
+            cum += ln
+            boundaries.append(cum)
+
+        # 정규화 문자열이 다르면, opcodes로 boundaries를 원본 정규화 좌표로 사상
+        if aligned_norm != original_norm:
+            sm = SequenceMatcher(None, aligned_norm, original_norm, autojunk=False)
+            opcodes = sm.get_opcodes()
+            mapped = [_translate_pos(b, opcodes, len(aligned_norm), len(original_norm)) for b in boundaries]
+        else:
+            mapped = boundaries
+
+        # 단조 증가/범위 보정
+        fixed = []
+        prev = 0
+        for v in mapped:
+            v2 = max(prev, min(len(original_norm), int(v)))
+            fixed.append(v2)
+            prev = v2
+        if fixed:
+            fixed[0] = 0
+            fixed[-1] = len(original_norm)
+
+        # 원본 raw에서 "정규화 인덱스 -> raw 인덱스" 변환 준비
+        non_ws_positions = [i for i, ch in enumerate(original_raw) if not ch.isspace()]
+
+        def norm_index_to_raw_index(norm_index: int) -> int:
+            if norm_index <= 0:
+                return 0
+            if norm_index >= len(non_ws_positions):
+                return len(original_raw)
+            # norm_index번째(0-based) 정규화 문자의 raw 위치
+            return non_ws_positions[norm_index]
+
+        # boundaries를 raw 인덱스로 변환
+        raw_bounds = [norm_index_to_raw_index(v) for v in fixed]
+        if raw_bounds:
+            raw_bounds[0] = 0
+            raw_bounds[-1] = len(original_raw)
+        # 단조 증가 보정(혹시 모를 역전 방지)
+        prev_raw = 0
+        for i, rb in enumerate(raw_bounds):
+            rb2 = max(prev_raw, min(len(original_raw), int(rb)))
+            raw_bounds[i] = rb2
+            prev_raw = rb2
+
+        # 최종 슬라이싱 적용 (개수/순서 유지)
+        for i in range(len(restored_rows)):
+            start = raw_bounds[i]
+            end = raw_bounds[i + 1]
+            restored_rows[i][key] = original_raw[start:end]
+
+    restored = [a.copy() for a in alignments]
+    _restore_side(src_paragraph or "", restored, '원문')
+    _restore_side(tgt_paragraph or "", restored, '번역문')
+    return restored
 
 # ===== 기존 함수들에 무결성 보장 적용 =====
 
@@ -1299,10 +1306,19 @@ def align_sentences_with_optimal_matching(
                 logger.info(f"🔄 저유사도 폴백 시도 (avg_sim={avg_sim:.3f} < 0.25)")
                 try:
                     src_text_full = ' '.join(src_sentences)
+                    original_src_normalized = src_text_full.replace(' ', '').replace('\n', '').replace('\t', '')
                     logger.info(f"  원문 재분할: {len(src_text_full)}자 → {N}개 세그먼트")
                     reseg = segment_src_by_tgt_similarity(src_text_full, tgt_sentences, embed_func=embed_func, tokenizer_func=tokenizer_func)
                     logger.info(f"  DP 재분할 결과: {len(reseg) if reseg else 0}개")
                     if reseg and len(reseg) == N:
+                        # 🔒 무결성 검증: 재분할 결과가 원본과 동일한지 확인 (경고만, 진행은 계속)
+                        reseg_normalized = ''.join(reseg).replace(' ', '').replace('\n', '').replace('\t', '')
+                        integrity_ok = (reseg_normalized == original_src_normalized)
+                        if not integrity_ok:
+                            diff = len(original_src_normalized) - len(reseg_normalized)
+                            logger.warning(f"⚠️ 재분할 무결성 경고: 원본 {len(original_src_normalized)}자 != 재분할 {len(reseg_normalized)}자 (차이: {diff:+d}자)")
+                            logger.warning(f"   유사도 개선 여부에 따라 적용 여부 결정")
+                        
                         # 재분할된 원문이 의미가 있는지 확인 (빈 문자열 비율)
                         non_empty = sum(1 for s in reseg if s.strip())
                         if non_empty < N * 0.5:  # 절반 이상 비어있으면 무효
@@ -1325,11 +1341,16 @@ def align_sentences_with_optimal_matching(
                                 })
                             if new_align:
                                 new_avg = float(np.mean([a['similarity'] for a in new_align]))
-                                if new_avg > avg_sim or avg_sim < 0.15:  # 개선되거나 원래 너무 나쁘면 적용
+                                # 무결성 OK이거나, 유사도가 크게 개선되면 적용
+                                if integrity_ok and (new_avg > avg_sim or avg_sim < 0.15):
                                     alignments = new_align
-                                    logger.info(f"✅ 저유사도 폴백 적용: 평균 유사도 {avg_sim:.3f} → {new_avg:.3f}")
+                                    logger.info(f"✅ 저유사도 폴백 적용: 평균 유사도 {avg_sim:.3f} → {new_avg:.3f} (무결성 보장)")
+                                elif not integrity_ok and (new_avg > avg_sim * 1.5 or avg_sim < 0.10):
+                                    # 무결성 문제 있지만 유사도가 1.5배 이상 개선되거나 원래 매우 나쁘면 적용
+                                    alignments = new_align
+                                    logger.warning(f"⚠️ 저유사도 폴백 적용 (무결성 경고 무시): 평균 유사도 {avg_sim:.3f} → {new_avg:.3f}")
                                 else:
-                                    logger.info(f"⚠️ 폴백 결과 나쁨 ({new_avg:.3f}), 원본 유지")
+                                    logger.info(f"⚠️ 폴백 결과 나쁨 ({new_avg:.3f}) 또는 무결성 문제, 원본 유지")
                     else:
                         logger.warning(f"⚠️ 재분할 실패: 예상 {N}개, 실제 {len(reseg) if reseg else 0}개")
                 except Exception as e:
@@ -1381,6 +1402,28 @@ def segment_src_by_tgt_similarity(src_text: str, tgt_sentences: List[str], embed
     words = [working_src[s:e] for (s, e) in word_spans]
     W = len(words)
     S = len(tgt_sentences)
+
+    # 번역문 문장 길이 비율 기반 길이 prior(soft constraint)
+    # - DP가 특정 문장에 과도한 어절을 배정하여 경계가 뒤로 밀리는 현상을 완화
+    # - gold를 직접 참조하지 않고(추론 시 불가), 번역문 길이 분포만 사용하는 약한 prior
+    import re
+    tgt_char_lens = [max(1, len(re.sub(r"\s+", "", s or ""))) for s in tgt_sentences]
+    total_tgt_chars = sum(tgt_char_lens)
+    expected_end_word_idx: List[int] = []
+    if total_tgt_chars > 0 and W > 0 and S > 0:
+        cum = 0
+        prev_end = 0
+        for j, l in enumerate(tgt_char_lens):
+            cum += l
+            raw = int(round(W * (cum / total_tgt_chars)))
+            # 각 문장 최소 1 어절 확보 및 남은 문장 수 고려
+            min_end = prev_end + 1
+            max_end = W - (S - j - 1)
+            end_j = min(max(raw, min_end), max_end)
+            expected_end_word_idx.append(end_j)
+            prev_end = end_j
+        # 마지막 문장은 반드시 W에서 끝나도록 보정
+        expected_end_word_idx[-1] = W
 
     if W == 0:
         return ["" for _ in range(S)]
@@ -1632,6 +1675,10 @@ def segment_src_by_tgt_similarity(src_text: str, tgt_sentences: List[str], embed
     dp = np.full((W + 1, S), NEG_INF, dtype=float)
     prev = np.full((W + 1, S), -1, dtype=int)  # 경계 k 저장
 
+    # 길이 prior 강도(튜닝 가능한 상수): 0에 가까울수록 prior 약함
+    # sim 점수(약 0~1) 누적 대비 과도하게 크지 않도록 보수적으로 시작
+    length_prior_weight = 0.8
+
     # base: 첫 문장(j=0)에 i>=1 단어 할당
     for i in range(1, W + 1):
         try:
@@ -1648,10 +1695,17 @@ def segment_src_by_tgt_similarity(src_text: str, tgt_sentences: List[str], embed
                             for src_emb in src_sent_embs]
                 max_src_sim = max(src_sims) if src_sims else 0.0
                 # 결합 유사도
-                dp[i, 0] = 0.5 * sim_tgt + 0.5 * max_src_sim
+                base_sim = 0.5 * sim_tgt + 0.5 * max_src_sim
             else:
                 # 번역문만 사용
-                dp[i, 0] = sim_tgt
+                base_sim = sim_tgt
+
+            # 길이 prior: 첫 문장 종료 위치가 번역문 길이 비율과 크게 어긋나면 패널티
+            if expected_end_word_idx:
+                dev = (i - expected_end_word_idx[0]) / max(W, 1)
+                base_sim -= length_prior_weight * (dev * dev)
+
+            dp[i, 0] = base_sim
         except Exception as e:
             logger.warning(f"⚠️ DP 초기화 오류 (i={i}): {e}, 기본값 사용")
             dp[i, 0] = 0.0
@@ -1710,6 +1764,11 @@ def segment_src_by_tgt_similarity(src_text: str, tgt_sentences: List[str], embed
                     boundary_bonus += parser_boundary_bonus[k - 1]
                 
                 score = dp[k, j - 1] + combined_sim + boundary_bonus
+
+                # 길이 prior: j번째 문장 종료(i)가 기대 종료 위치에서 멀수록 패널티
+                if expected_end_word_idx:
+                    dev = (i - expected_end_word_idx[j]) / max(W, 1)
+                    score -= length_prior_weight * (dev * dev)
                 if score > best_score:
                     best_score = score
                     best_k = k
@@ -1901,7 +1960,7 @@ def process_paragraph_file(
     tokenizer_name: str = 'korean_hybrid',
     max_length: int = 150,
     similarity_threshold: float = 0.3,
-    device: str = "cpu",
+    device: str = "cuda",
     quality_threshold: float = 0.8,
     use_spacy_tokenizer: bool = False,
     verbose: bool = False,

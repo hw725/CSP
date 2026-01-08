@@ -10,6 +10,13 @@ import os
 import argparse
 import time
 import warnings
+import random
+
+try:
+    import numpy as np  # type: ignore
+    NUMPY_AVAILABLE = True
+except Exception:
+    NUMPY_AVAILABLE = False
 
 # torch은 Docker 환경에서만 필수입니다. 로컬(Windows)에서는 없을 수 있으므로 안전하게 처리합니다.
 try:
@@ -92,15 +99,120 @@ def main():
     parser.add_argument('--device', default='cuda', choices=['cuda', 'cpu'],
                        help='디바이스 (기본: cuda, GPU 미지원시 자동 cpu)')
     
+    parser.add_argument('--use-boundary-model', action='store_true',
+                       help='새로운 boundary_multitask + alignment 모델 사용')
+    
+    parser.add_argument('--boundary-threshold', type=float, default=0.70,
+                       help='경계 모델 threshold (기본: 0.70, 범위: 0.0-1.0)')
+
+    parser.add_argument(
+        '--boundary-min-len',
+        type=int,
+        default=None,
+        help='경계 모델 디코딩 min_len 오버라이드(task=pa, 기본 20). 지정 시 경계 후보 밀도에 영향',
+    )
+
+    parser.add_argument(
+        '--enable-refine',
+        action='store_true',
+        help='(실험용) use-boundary-model에서 인접/DP refine의 이동 폭을 확장합니다(기본 1토큰 → 4토큰).',
+    )
+
+    parser.add_argument(
+        '--disable-adjacent-boundary-refine',
+        action='store_true',
+        help='(실험용) boundary/supar 선택 시 수행되는 인접 경계 로컬 교정(_refine_adjacent_boundaries)을 비활성화.',
+    )
+
+    parser.add_argument(
+        '--enable-src-marker-boundary-bonus',
+        action='store_true',
+        help=(
+            '(실험용) 원문 내 현토(한글 marker) 패턴을 경계 선택 tie-break에 보너스로 반영합니다. '
+            '원문 토큰 끝의 한글 marker(예: “也에”, “之者가”)를 이용해 경계 후보를 약하게 선호합니다.'
+        ),
+    )
+
+    parser.add_argument(
+        '--enable-src-marker-whitespace-dp-bonus',
+        action='store_true',
+        help=(
+            '(실험용) whitespace_dp(어절 경계 DP 분할)에서도 원문 내 현토(한글 marker) 패턴을 '
+            '후보 컷/DP 점수에 약하게 반영합니다. '
+            'A/B 실험용으로, boundary-bonus는 동일하게 ON인 상태에서 이 옵션만 ON/OFF 하세요.'
+        ),
+    )
+
+    parser.add_argument(
+        '--trace-stages-jsonl',
+        default=None,
+        help=(
+            'PA 단계별(경계 후보/매칭/후처리/restore 등) 중간 결과를 JSONL로 저장합니다. '
+            '드리프트가 시작되는 단계를 찾기 위한 진단용 옵션입니다. '
+            '미지정 시 환경변수 CSP_PA_TRACE_STAGES_JSONL을 사용합니다.'
+        ),
+    )
+    
     parser.add_argument('--verbose', action='store_true',
                        help='상세 로그 출력')
+
+    # 실험 재현성 옵션 (기본: 기존 동작 유지)
+    parser.add_argument('--seed', type=int, default=None,
+                       help='재현성 seed (지정 시 random/torch/numpy seed 고정)')
+    parser.add_argument('--deterministic', action='store_true',
+                       help='가능한 범위에서 deterministic 모드 활성화(속도 저하 가능)')
     
     args = parser.parse_args()
+
+    # deterministic 설정은 CUDA 초기화(예: torch.cuda.is_available)보다 먼저 적용해야 효과가 있습니다.
+    if args.deterministic and TORCH_AVAILABLE:
+        # cuBLAS 결정성(가능한 경우) - 이미 설정돼 있으면 유지
+        os.environ.setdefault('CUBLAS_WORKSPACE_CONFIG', ':16:8')
+        try:
+            if hasattr(torch.backends, 'cudnn'):
+                torch.backends.cudnn.deterministic = True
+                torch.backends.cudnn.benchmark = False
+                if hasattr(torch.backends.cudnn, 'allow_tf32'):
+                    torch.backends.cudnn.allow_tf32 = False
+            if hasattr(torch.backends, 'cuda') and hasattr(torch.backends.cuda, 'matmul') and hasattr(torch.backends.cuda.matmul, 'allow_tf32'):
+                torch.backends.cuda.matmul.allow_tf32 = False
+        except Exception:
+            pass
+        try:
+            if hasattr(torch, 'use_deterministic_algorithms'):
+                try:
+                    torch.use_deterministic_algorithms(True, warn_only=True)
+                except TypeError:
+                    torch.use_deterministic_algorithms(True)
+        except Exception:
+            # 일부 연산이 결정성을 지원하지 않으면 예외가 날 수 있으므로 조용히 폴백
+            pass
+        try:
+            if hasattr(torch, 'set_num_threads'):
+                torch.set_num_threads(1)
+            if hasattr(torch, 'set_num_interop_threads'):
+                torch.set_num_interop_threads(1)
+        except Exception:
+            pass
+
+    # 재현성 seed 설정 (옵션)
+    if args.seed is not None:
+        random.seed(args.seed)
+        if NUMPY_AVAILABLE:
+            try:
+                np.random.seed(args.seed)
+            except Exception:
+                pass
+        if TORCH_AVAILABLE:
+            try:
+                torch.manual_seed(args.seed)
+                if args.device == 'cuda' and hasattr(torch, 'cuda') and torch.cuda.is_available():
+                    torch.cuda.manual_seed_all(args.seed)
+            except Exception:
+                pass
     
     # SA와 동일한 경고 숨김 설정
     if not args.verbose:
-        import os
-        import warnings
         os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
         os.environ['TOKENIZERS_PARALLELISM'] = 'false'
         os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'
@@ -108,6 +220,11 @@ def main():
     
     print("🚀 PA (Paragraph Aligner) 시작")
     print(f"⚙️ 설정: 임베더={args.embedder}, 병렬 워커={args.max_workers}, 배치 크기={args.batch_size}")
+    if args.use_boundary_model:
+        extra = ""
+        if args.boundary_min_len is not None:
+            extra = f", min_len={args.boundary_min_len}"
+        print(f"🔬 모델 모드: boundary_multitask + alignment (threshold={args.boundary_threshold}{extra})")
     if args.embedder == 'openai':
         print("🔥 OpenAI 병렬 처리 활성화")
     elif args.embedder == 'none':
@@ -115,8 +232,13 @@ def main():
     else:
         print("📊 BGE 임베더 사용 (기본)")
     print()
+
+    # 사용자 요구사항: 임베더는 항상 bge
+    if args.embedder != 'bge':
+        raise SystemExit(f"PA는 --embedder bge만 허용합니다. 현재: {args.embedder}")
     
     # 하이브리드 토크나이저 초기화
+    tokenizer_init_ok = False
     try:
         from common.tokenizers import get_siku_tokenizer, get_hybrid_korean_tokenizer
         
@@ -127,6 +249,8 @@ def main():
         get_siku_tokenizer()
         # 한국어 토크나이저 초기화
         get_hybrid_korean_tokenizer()
+
+        tokenizer_init_ok = True
         
         if args.verbose:
             print("✅ PA: 하이브리드 토크나이저 초기화 완료 (원문: SikuBERT+Kiwipiepy, 번역문: RoBERTa-Hanja+Kiwipiepy)")
@@ -153,10 +277,20 @@ def main():
             similarity_threshold=args.threshold,
             openai_model=args.openai_model,
             openai_api_key=args.openai_api_key,
-            max_workers=args.max_workers,  # 🚀 병렬 워커 수 전달
-            batch_size=args.batch_size,    # 🚀 배치 크기 전달
+            max_workers=args.max_workers,
+            batch_size=args.batch_size,
             verbose=args.verbose,
-            device=args.device             # 🚀 device 전달
+            device=args.device,
+            use_boundary_model=args.use_boundary_model,
+            boundary_threshold=args.boundary_threshold,
+            boundary_min_len=args.boundary_min_len,
+            enable_refine=args.enable_refine,
+            enable_adjacent_boundary_refine=(not args.disable_adjacent_boundary_refine),
+            enable_src_marker_boundary_bonus=args.enable_src_marker_boundary_bonus,
+            enable_src_marker_whitespace_dp_bonus=args.enable_src_marker_whitespace_dp_bonus,
+            trace_stages_path=args.trace_stages_jsonl,
+            seed=args.seed,
+            tokenizer_init_ok=tokenizer_init_ok,
         )
         
         end_time = time.time()

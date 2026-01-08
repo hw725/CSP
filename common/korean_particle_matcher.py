@@ -186,11 +186,16 @@ class KoreanParticleMatcher:
             try:
                 tokens = kiwi.analyze(text)
                 if tokens and len(tokens) > 0 and len(tokens[0]) > 0:
-                    char_pos = 0
-                    
                     for token in tokens[0][0]:
                         form = token.form
                         pos = token.tag
+                        # kiwipiepy.Token은 start/end/len/span을 제공함
+                        # (start는 원문 텍스트 기준 문자 오프셋)
+                        try:
+                            char_pos = int(getattr(token, 'start'))
+                        except Exception:
+                            # 매우 예외적인 경우에만 폴백(정확도 저하 가능)
+                            char_pos = text.find(form)
                         
                         # 조사 처리
                         if pos.startswith('JK') or pos.startswith('JX') or pos.startswith('JC'):
@@ -202,8 +207,6 @@ class KoreanParticleMatcher:
                             category = self._map_ending_to_category(pos, form)
                             if category:
                                 particles_found.append((form, category, char_pos))
-                        
-                        char_pos += len(form)
                     
                     particles_found.sort(key=lambda x: x[2])
                     return particles_found

@@ -1,10 +1,21 @@
-"""BGE 임베더 - 프로세스 안전 버전"""
+"""BGE 임베더 - 프로세스 안전 버전
+
+주의:
+- 로컬 환경에 torch가 없을 수 있어(예: Docker-only 구성), torch 의존 부분은 optional로 처리한다.
+- torch/FlagEmbedding 로딩이 실패하면 deterministic한 문자 기반 해시 임베딩으로 fallback하여
+    파이프라인이 끝까지 실행되도록 한다.
+"""
 
 import logging
 import numpy as np
-import torch
 import os
 from typing import List, Optional, Callable
+
+try:
+        import torch  # type: ignore
+except Exception:  # pragma: no cover
+        torch = None  # type: ignore
+
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
@@ -41,6 +52,39 @@ class EmbeddingManager:
         # 🔧 API 버전 캐싱 (한 번만 감지하도록)
         self._api_version_checked = False
         self._use_legacy_api = False  # True면 구버전 API
+        self._fallback_vectorizer = None
+
+    def _get_fallback_vectorizer(self):
+        if self._fallback_vectorizer is not None:
+            return self._fallback_vectorizer
+        try:
+            from sklearn.feature_extraction.text import HashingVectorizer
+
+            # char_wb ngram은 CJK/현토(한글) 포함 텍스트에서도 비교적 안정적
+            self._fallback_vectorizer = HashingVectorizer(
+                n_features=1024,
+                alternate_sign=False,
+                norm=None,
+                analyzer="char_wb",
+                ngram_range=(2, 5),
+            )
+        except Exception:
+            self._fallback_vectorizer = None
+        return self._fallback_vectorizer
+
+    def _fallback_dense_embeddings(self, texts: List[str]) -> List[np.ndarray]:
+        """torch 없이도 동작하는 deterministic dense(1024) 임베딩."""
+        vec = self._get_fallback_vectorizer()
+        if vec is None:
+            return [self._generate_dummy_embedding(t) for t in texts]
+
+        X = vec.transform([t or "" for t in texts])
+        X = X.astype(np.float32)
+        # HashingVectorizer는 sparse -> dense로 변환 (n_features=1024)
+        Xd = X.toarray().astype(np.float32)
+        norms = np.linalg.norm(Xd, axis=1, keepdims=True)
+        Xd = Xd / (norms + 1e-8)
+        return [Xd[i] for i in range(Xd.shape[0])]
     
     def _load_model(self):
         """모델 로딩 (프로세스별)"""
@@ -74,7 +118,7 @@ class EmbeddingManager:
                 with open(os.devnull, 'w') as devnull:
                     with contextlib.redirect_stdout(devnull), contextlib.redirect_stderr(devnull):
                         # 디바이스 설정 (프로세스별로 GPU 메모리 분리)
-                        if torch.cuda.is_available():
+                        if torch is not None and torch.cuda.is_available():
                             if self.device_id is not None:
                                 device = f'cuda:{self.device_id}'
                             else:
@@ -90,7 +134,7 @@ class EmbeddingManager:
             else:
                 # verbose 모드에서는 정상 출력
                 # 디바이스 설정 (프로세스별로 GPU 메모리 분리)
-                if torch.cuda.is_available():
+                if torch is not None and torch.cuda.is_available():
                     if self.device_id is not None:
                         device = f'cuda:{self.device_id}'
                     else:
@@ -332,13 +376,15 @@ class EmbeddingManager:
         # 새 임베딩 계산
         if to_embed:
             if self._use_dummy:
-                # 더미 임베딩 사용
+                # torch/FlagEmbedding 없이도 파이프라인이 의미 있게 돌도록 fallback 임베딩 사용
+                dense_list = self._fallback_dense_embeddings(to_embed)
                 if use_multi_vector:
-                    # multi-vector 더미: dense(1024) + sparse(30522) + colbert(1024*avg_tokens)
-                    embeddings = [self._generate_dummy_multi_embedding(text) for text in to_embed]
+                    embeddings = [
+                        self._simulate_multi_vector_from_dense(text, dense_emb)
+                        for text, dense_emb in zip(to_embed, dense_list)
+                    ]
                 else:
-                    # dense 더미: 1024차원
-                    embeddings = [self._generate_dummy_embedding(text) for text in to_embed]
+                    embeddings = dense_list
             else:
                 # 실제 BGE 모델 사용
                 embeddings = []
@@ -348,7 +394,7 @@ class EmbeddingManager:
                     
                     try:
                         # GPU 메모리 정리
-                        if torch.cuda.is_available():
+                        if torch is not None and torch.cuda.is_available():
                             torch.cuda.empty_cache()
                         
                         if use_multi_vector:
@@ -414,9 +460,15 @@ class EmbeddingManager:
                         
                         # 실패한 배치는 더미로 대체
                         if use_multi_vector:
-                            embeddings.extend([self._generate_dummy_multi_embedding(text) for text in batch])
+                            dense_list = self._fallback_dense_embeddings(list(batch))
+                            embeddings.extend(
+                                [
+                                    self._simulate_multi_vector_from_dense(text, dense_emb)
+                                    for text, dense_emb in zip(batch, dense_list)
+                                ]
+                            )
                         else:
-                            embeddings.extend([self._generate_dummy_embedding(text) for text in batch])
+                            embeddings.extend(self._fallback_dense_embeddings(list(batch)))
 
             # 캐시 업데이트
             for i, (txt, emb) in enumerate(zip(to_embed, embeddings)):

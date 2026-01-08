@@ -58,7 +58,11 @@ class SafeFileProcessor:
         
         try:
             # 1. 입력 파일 로드 및 무결성 등록
-            df = pd.read_excel(input_file)
+            # CSV 또는 Excel 자동 감지
+            if str(input_file).endswith('.csv'):
+                df = pd.read_csv(input_file)
+            else:
+                df = pd.read_excel(input_file)
             logger.info(f"입력 데이터 로드: {len(df)}개 행")
             
             # 🔧 NaN 값 필터링 (원문/번역문 중 하나라도 NaN이면 제외)
@@ -145,25 +149,59 @@ class SafeFileProcessor:
                 final_integrity = self._verify_final_integrity(df, result_df, file_id)
                 
                 if final_integrity['valid']:
-                    # 멀티 시트 저장: results + integrity_losses
-                    with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-                        result_df.to_excel(writer, index=False, sheet_name='results')
+                    # CSV 또는 Excel 자동 감지하여 저장
+                    if str(output_file).endswith('.csv'):
+                        result_df.to_csv(output_file, index=False)
+                    else:
+                        with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+                            result_df.to_excel(writer, index=False, sheet_name='results')
                     
-                    # 🆕 전역 무결성 검증 및 손실 시트 추가
+                    # 🆕 빠른 무결성 검증 (문자 수 기반)
                     try:
-                        passed, integrity_losses_df, analysis = verify_global_integrity(
-                            df, result_df,
-                            source_col='원문', target_col='번역문',
-                            verbose=self.verbose
-                        )
+                        original_src = ''.join(df['원문'].fillna('').astype(str))
+                        original_tgt = ''.join(df['번역문'].fillna('').astype(str))
+                        result_src = ''.join(result_df['원문'].fillna('').astype(str))
+                        result_tgt = ''.join(result_df['번역문'].fillna('').astype(str))
                         
-                        # 손실 정보가 있으면 시트 추가
-                        if len(integrity_losses_df) > 0:
-                            with pd.ExcelWriter(output_file, engine='openpyxl', mode='a') as writer:
-                                integrity_losses_df.to_excel(writer, index=False, sheet_name='integrity_losses')
+                        losses = []
+                        
+                        # 원문 손실 확인
+                        if len(result_src) != len(original_src):
+                            diff = len(original_src) - len(result_src)
+                            losses.append({
+                                'type': '원문',
+                                'original_length': len(original_src),
+                                'result_length': len(result_src),
+                                'difference': diff,
+                                'loss_rate': abs(diff) / len(original_src) * 100 if len(original_src) > 0 else 0
+                            })
+                        
+                        # 번역문 손실 확인
+                        if len(result_tgt) != len(original_tgt):
+                            diff = len(original_tgt) - len(result_tgt)
+                            losses.append({
+                                'type': '번역문',
+                                'original_length': len(original_tgt),
+                                'result_length': len(result_tgt),
+                                'difference': diff,
+                                'loss_rate': abs(diff) / len(original_tgt) * 100 if len(original_tgt) > 0 else 0
+                            })
+                        
+                        if losses:
+                            integrity_losses_df = pd.DataFrame(losses)
+                            # 무결성 손실 시트는 Excel만 지원
+                            if not str(output_file).endswith('.csv'):
+                                with pd.ExcelWriter(output_file, engine='openpyxl', mode='a') as writer:
+                                    integrity_losses_df.to_excel(writer, index=False, sheet_name='integrity_losses')
+                            
+                            for loss in losses:
+                                print(f"⚠️ {loss['type']} 무결성 손실: {loss['difference']:,}자 ({loss['loss_rate']:.2f}%)")
+                        else:
+                            print("✅ 무결성 검증 통과 (손실 없음)")
+                            
                     except Exception as e:
                         if self.verbose:
-                            logger.warning(f"전역 무결성 검증 오류: {e}")
+                            logger.warning(f"무결성 검증 오류: {e}")
                     
                     if self.verbose:
                         logger.info(f"결과 저장 완료: {output_file}")
@@ -175,7 +213,10 @@ class SafeFileProcessor:
                         logger.error(f"최종 무결성 검증 실패: {final_integrity['message']}")
                     # 복구된 결과로 저장
                     if final_integrity.get('restored_df') is not None:
-                        final_integrity['restored_df'].to_excel(output_file, index=False)
+                        if str(output_file).endswith('.csv'):
+                            final_integrity['restored_df'].to_csv(output_file, index=False)
+                        else:
+                            final_integrity['restored_df'].to_excel(output_file, index=False)
                         if self.verbose:
                             logger.info(f"복구된 결과로 저장: {output_file}")
                         # 기본 모드에서는 중복 메시지 방지
@@ -473,6 +514,9 @@ def process_file(
     chunk_size: int = 100,
     use_parallel: bool = True,
     verbose: bool = False,  # 🔧 verbose 옵션 추가
+    use_boundary_model: bool = False,  # 🆕 경계 모델 사용 여부
+    boundary_threshold: float = 0.5,  # 🆕 경계 모델 임계값
+    device: str = "cuda",  # 🆕 디바이스 설정
     **kwargs
 ) -> bool:
     """기존 SA 호환 파일 처리 함수 (무결성 보장)"""
@@ -480,6 +524,8 @@ def process_file(
     if verbose:
         logger.info(f"SA 파일 처리 시작: {input_file}")
         logger.info(f"설정: 임베더={embedder_name}, 병렬={use_parallel}, 워커={max_workers}")
+        if use_boundary_model:
+            logger.info(f"🔧 경계 모델 사용: threshold={boundary_threshold}, device={device}")
     
     try:
         # SA 처리 함수 import (패키지 경로)
@@ -501,6 +547,9 @@ def process_file(
             output_file=output_file,
             processing_function=safe_process_sa_row,
             embedder_name=embedder_name,
+            use_boundary_model=use_boundary_model,  # 🆕 경계 모델 옵션 전달
+            boundary_threshold=boundary_threshold,  # 🆕 임계값 전달
+            device=device,  # 🆕 디바이스 전달
             **kwargs
         )
         
@@ -530,7 +579,11 @@ def process_file_fallback(input_file: str, output_file: str, **kwargs) -> bool:
     logger.warning("폴백 모드로 파일 처리 중...")
     
     try:
-        df = pd.read_excel(input_file)
+        # CSV 또는 Excel 자동 감지
+        if str(input_file).endswith('.csv'):
+            df = pd.read_csv(input_file)
+        else:
+            df = pd.read_excel(input_file)
         
         # 🔧 NaN 값 필터링
         original_rows = len(df)
@@ -557,7 +610,10 @@ def process_file_fallback(input_file: str, output_file: str, **kwargs) -> bool:
         
         if results:
             result_df = pd.DataFrame(results)
-            result_df.to_excel(output_file, index=False)
+            if str(output_file).endswith('.csv'):
+                result_df.to_csv(output_file, index=False)
+            else:
+                result_df.to_excel(output_file, index=False)
             logger.info(f"폴백 처리 완료: {len(results)}개 결과")
             return True  # 🔧 성공시 True 반환
         else:
@@ -693,11 +749,34 @@ def split_dataframe_into_chunks(df: pd.DataFrame, chunk_size: int = 100) -> List
     return chunks
 
 def safe_process_sa_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Dict]:
-    """SA 행 처리 무결성 보장 래퍼"""
+    """SA 행 처리 무결성 보장 래퍼
+    
+    🆕 통합 모드: use_boundary_model=True이면
+    - 기존 process_single_row 실행 (BGE 기반)
+    - 내부에서 경계/alignment 모델로 refinement
+    """
     
     try:
-        # SA 토크나이저 처리 함수 import
-        from sa.sa_aligner import process_single_row  # 🆕 SA 얼라이너에서 import
+        # 경계 모델 사용 시 모델 로드 (캐싱)
+        use_boundary_model = kwargs.get('use_boundary_model', False)
+        
+        if use_boundary_model and not hasattr(safe_process_sa_row, '_boundary_model'):
+            from common.boundary_model_loader import BoundaryModelLoader
+            from common.alignment_model_loader import AlignmentMatcher
+            
+            device = kwargs.get('device', 'cuda')
+            
+            logger.info(f"🔧 SA 경계 모델 로드 중... (refinement 모드, device={device})")
+            # 경계 멀티태스크 모델 및 SA용 듀얼 인코더 정렬 모델 경로 설정
+            boundary_model_path = Path("models/boundary_multitask.pt")
+            alignment_model_path = Path("models/dual_encoder_alignment_sa.pt")
+            
+            safe_process_sa_row._boundary_model = BoundaryModelLoader(model_path=boundary_model_path, device=device)
+            safe_process_sa_row._alignment_model = AlignmentMatcher(model_path=alignment_model_path, device=device)
+            logger.info("✅ SA 경계/alignment 모델 로드 완료")
+        
+        # 기존 process_single_row 실행 (내부에서 refinement 수행)
+        from sa.sa_aligner import process_single_row
         
         # 원본 데이터 추출
         src_text = str(row.get('원문', ''))
