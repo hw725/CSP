@@ -897,7 +897,10 @@ class AccuracyEvaluator:
             source_avg_similarity = 0.0
 
         # 전체 F1 점수 (원문 매칭과 번역문 정확도의 조화평균)
-        f1_score = (source_f1_score + target_f1_score) / 2
+        if source_f1_score + target_f1_score > 0:
+            f1_score = 2 * source_f1_score * target_f1_score / (source_f1_score + target_f1_score)
+        else:
+            f1_score = 0.0
 
         # 🆕 부분 일치 계산 (토큰 기준)
         # 1) 어절 단위 유사도 (모든 토큰 매칭 고려)
