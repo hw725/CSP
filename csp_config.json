@@ -63,8 +63,8 @@
   },
   "pa_selection_params": {
     "candidate_prior_bonus_by_prefix": {
-      "supar(": 0.0,
-      "boundary(": 0.0
+      "supar(": 0.4,
+      "boundary(": 0.4
     },
     "boundary_style_prior": {
       "enabled": true,
