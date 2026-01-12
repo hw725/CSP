@@ -1,0 +1,23 @@
+{
+  "analysis_date": "2026-01-11T23:49:17.309427",
+  "data_file": "hyeonto/reports/pa_boundary_v6_full/boundary_clusters.csv",
+  "data_rows": 87943,
+  "target_cluster": "12",
+  "target_canonicity": 48.791455874086566,
+  "null_hypothesis": {
+    "verdict": "REJECTED",
+    "effect_size": 79.53364430490416,
+    "p_value": 0.0
+  },
+  "inverse_weighting": {
+    "interpretation": "✅ 클러스터 구성은 가중치와 무관하게 결정됨 (데이터 내재적 현상)"
+  },
+  "alternative_centrality": {
+    "verdict": "SASEO_DOMINANT",
+    "saseo_ratio": 48.791455874086566,
+    "samgyeong_ratio": 0.0,
+    "effect_size": 82.34147527851812
+  },
+  "final_verdict": "✅ 모든 검증 통과: 사서 중심성은 실제 언어 패턴",
+  "bias_level": "LOW"
+}

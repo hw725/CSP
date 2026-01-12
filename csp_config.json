@@ -68,8 +68,8 @@
     },
     "boundary_style_prior": {
       "enabled": true,
-      "weight_terminal": 0.006,
-      "weight_continuation": -0.01,
+      "weight_terminal": 0.05,
+      "weight_continuation": -0.05,
       "continuation_tokens": [
         "하며",
         "하며,",

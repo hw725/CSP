@@ -1,0 +1,4 @@
+﻿pair,trans_tam,hyeonto_tam,chi2,p_value,cramers_v,a,b,c,d,significant
+과거/완료 ↔ 회상상(-러-),past_perfective,retrospective_aspect,3301.3545489512153,0.0,0.19375166604305977,4840,39879,631,42593,True
+추측/가능성 ↔ 추측양태(-리-),epistemic,epistemic_mood,3124.175157450582,0.0,0.18848077073682,5420,24784,3456,54283,True
+의문 ↔ 의문서법,interrogative,interrogative_mood,34291.80140502271,0.0,0.6244454588645324,6594,4515,2224,74610,True
