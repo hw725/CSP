@@ -1,0 +1,13 @@
+{
+  "current_ratio": "5:3:2:1",
+  "tested_combinations": 122,
+  "current_entropy": 3.9041119655236285,
+  "current_percentile": 55.73770491803278,
+  "best_by_entropy": {
+    "saseo": 7.0,
+    "samgyeong": 4.0,
+    "other_gyeong": 1.0,
+    "entropy": 3.7343578418442553
+  },
+  "conclusion": "review_needed"
+}

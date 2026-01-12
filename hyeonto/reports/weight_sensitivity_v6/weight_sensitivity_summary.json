@@ -1,0 +1,43 @@
+{
+  "analysis_date": "2026-01-12T23:27:33.648133",
+  "data_source": "hyeonto/reports/pa_boundary_v6_full/boundary_clusters.csv",
+  "n_records": 87943,
+  "recommended_scenario": "strong",
+  "scenarios": [
+    {
+      "name": "uniform",
+      "avg_weighted_canonicity": 14.322592621068683,
+      "max_weighted_canonicity": 50.0,
+      "avg_genre_entropy": 4.263216501281625
+    },
+    {
+      "name": "weak",
+      "avg_weighted_canonicity": 20.899261743377426,
+      "max_weighted_canonicity": 64.4167795320878,
+      "avg_genre_entropy": 4.159891423064259
+    },
+    {
+      "name": "moderate",
+      "avg_weighted_canonicity": 24.974390248057396,
+      "max_weighted_canonicity": 71.95854922279793,
+      "avg_genre_entropy": 4.060308680318585
+    },
+    {
+      "name": "strong",
+      "avg_weighted_canonicity": 30.440945186302187,
+      "max_weighted_canonicity": 79.50902262526334,
+      "avg_genre_entropy": 3.9041119655236285
+    },
+    {
+      "name": "inverse",
+      "avg_weighted_canonicity": 5.7920577182533535,
+      "max_weighted_canonicity": 37.735849056603776,
+      "avg_genre_entropy": 4.337588468248177
+    }
+  ],
+  "conclusion": {
+    "cluster_stability": "sensitive",
+    "canonicity_delta_uniform_to_strong": 29.50902262526334,
+    "entropy_delta_uniform_to_strong": -0.3591045357579965
+  }
+}

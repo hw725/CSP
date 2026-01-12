@@ -41,6 +41,12 @@
 PA(v6) ↔ SA(v6) 교차 분석
 - `pa_sa_sankey_v6_final.html`: 표준 v6 모델 기반 흐름도
 
+### `weight_sensitivity_v6/`
+가중치 민감도 분석 및 수치 정당성 검토
+- **[WEIGHT_RATIO_JUSTIFICATION.md](weight_sensitivity_v6/WEIGHT_RATIO_JUSTIFICATION.md)**: 7:4:1:1 가중치 도출 상세 과정
+- `WEIGHT_SENSITIVITY_REPORT.md`: 민감도 분석 요약 (Strong vs Uniform 등)
+- `weight_grid_search.csv`: 122개 가중치 조합 테스트 로우 데이터
+
 ---
 
 ## 📁 V6 표준 분석 결과 (K=16 Baseline)
