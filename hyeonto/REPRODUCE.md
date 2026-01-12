@@ -1,49 +1,67 @@
 # Hyeonto 연구 재현 가이드 (Reproduction Guide) - v6
 
-본 문서는 hyeonto 프로젝트의 전체 분석 파이프라인을 처음부터 끝까지 재현하는 방법을 단계별로 설명합니다.
+본 문서는 hyeonto 프로젝트의 데이터 가용성 정보와 전체 분석 파이프라인을 처음부터 끝까지 재현하는 방법을 단계별로 설명합니다.
 
 ---
 
-## 📋 사전 준비
+## 📂 데이터 가용성 및 안내 (Data Availability)
+
+### 1. 데이터 출처
+
+본 연구에 사용된 현토 데이터는 다음 DB에서 제공하는 사서삼경 및 기타 유교 경전의 현토본을 기반으로 합니다.
+
+| DB | URL |
+|:---|:---|
+| **동양고전종합DB** | https://db.juntong.or.kr |
+| **동양고전번역용례** | https://db.juntong.or.kr/example |
+
+### 2. 저작권 및 재현성 안내
+
+⚠️ **일부 텍스트는 저작권 문제로 본 저장소에 포함되어 있지 않으며 공개 접근이 제한될 수 있습니다.**
+
+그러나 공개된 텍스트만으로도 **본 연구의 핵심 발견을 충분히 재현 가능**합니다. 가중치 민감도 테스트 결과, 클러스터 구성은 데이터 부분집합에서도 다음과 같은 특성에 대해 안정적이었습니다:
+- 사서 클러스터 분리 현상
+- 정의형 마커 우세 패턴  
+- PA→SA 위계적 흐름
+
+### 3. 데이터 스키마 (CSV)
+
+분석용 데이터셋(`pa_merged_v2.csv`, `sa_merged_v2.csv` 등)의 구조는 다음과 같습니다. 직접 데이터를 수집하여 분석할 경우 이 형식을 따라야 합니다.
+
+| 컬럼명 | 설명 | 예시 |
+|:---|:---|:---|
+| `src_l` | 좌측 한문 원문 | 子曰學而時習之 |
+| `src_r` | 우측 한문 원문 | 不亦說乎 |
+| `tgt_l` | 좌측 번역문 | 공자께서 말씀하시길 |
+| `tgt_r` | 우측 번역문 | 기쁘지 아니한가 |
+| `marker` | 현토 마커 | 하시니 |
+| `book` | 도서명 | 논어집주 |
+
+---
+
+## 📋 사전 준비 (Prerequisites)
 
 ### 1. 환경 설정
 
 **필요한 소프트웨어**:
 - Python 3.9 이상
 - CUDA 11.8 이상 (GPU 사용 시)
-- Docker (권장 - csp-workspace 컨테이너)
+- Docker (권장 - `csp-workspace` 컨테이너)
 
-**Python 패키지**:
+**Python 패키지 설치**:
 ```bash
 pip install -r requirements.txt
 ```
 
-주요 패키지:
-- pandas >= 1.5.0
-- numpy >= 1.24.0
-- scikit-learn >= 1.2.0
-- umap-learn >= 0.5.0
-- plotly >= 5.0.0
-- regex
-- FlagEmbedding (bge-m3)
+### 2. 데이터 배치
 
-### 2. 데이터 확인
-
-```bash
-# XML 원본 파일들이 있는지 확인
-ls hyeonto/*.xml
-
-# 통합 데이터셋 확인
-wc -l hyeonto/datasets/pa_merged_v2.csv
-# 예상: 120203 (120,202 + header)
-
-wc -l hyeonto/datasets/sa_merged_v2.csv
-# 예상: 415092 (415,091 + header)
-```
+분석을 시작하기 전, 위 DB에서 취득하거나 준비된 데이터를 다음 경로에 배치하십시오.
+- XML 원본: `hyeonto/*.xml`
+- 통합 CSV: `hyeonto/datasets/pa_merged_v2.csv`, `hyeonto/datasets/sa_merged_v2.csv`
 
 ---
 
-## 🔄 전체 파이프라인 (v6 - 번역문 포함)
+## 🔄 전체 파이프라인 실행 (v6)
 
 ### Step 1: PA 클러스터링 (번역문 포함)
 
@@ -63,19 +81,6 @@ docker exec csp-workspace python scripts/cluster_pa_boundary_functions.py \
     --batch 128
 ```
 
-**핵심 옵션**:
-- `--use-src`: 한문 원문 포함
-- `--use-tgt`: **번역문 포함 (v6 핵심)**
-- `--device-id 0`: GPU 사용
-
-**출력**:
-- `hyeonto/reports/pa_boundary_v6_full/boundary_clusters.csv` (~45MB)
-- `hyeonto/reports/pa_boundary_v6_full/boundary_clusters.md`
-
-**예상 소요 시간**:
-- GPU: 1~1.5시간
-- CPU: 4~6시간
-
 ---
 
 ### Step 2: SA 클러스터링 (번역문 포함)
@@ -93,14 +98,6 @@ docker exec csp-workspace python scripts/cluster_sa_boundary_functions.py \
     --device-id 0 \
     --seed 42
 ```
-
-**출력**:
-- `hyeonto/reports/sa_boundary_v6_full/sa_boundary_clusters.csv` (~51MB)
-- `hyeonto/reports/sa_boundary_v6_full/sa_boundary_clusters.md`
-
-**예상 소요 시간**:
-- GPU: 4~5시간 (데이터 약 29.5만 건)
-- CPU: 12~18시간
 
 ---
 
@@ -120,15 +117,9 @@ docker exec csp-workspace python scripts/profile_boundary_clusters.py \
     --out hyeonto/reports/sa_boundary_v6_full/sa_cluster_profile.md
 ```
 
-**출력**:
-- `pa_cluster_profile.md` (~37KB)
-- `sa_cluster_profile.md` (~22KB)
-
 ---
 
-### Step 4: 시각화
-
-**목적**: 클러스터 2D 매핑 (PCA/t-SNE)
+### Step 4: 시각화 및 라벨링
 
 ```bash
 # PA 시각화
@@ -136,24 +127,7 @@ docker exec csp-workspace python scripts/visualize_clusters_v6.py \
     --csv hyeonto/reports/pa_boundary_v6_full/boundary_clusters.csv \
     --out-dir hyeonto/reports/pa_boundary_v6_full/visualization
 
-# SA 시각화
-docker exec csp-workspace python scripts/visualize_clusters_v6.py \
-    --csv hyeonto/reports/sa_boundary_v6_full/sa_boundary_clusters.csv \
-    --out-dir hyeonto/reports/sa_boundary_v6_full/visualization
-```
-
-**출력**:
-- `cluster_embedding.html` (인터랙티브 Plotly)
-- `cluster_embedding.csv` (좌표 데이터)
-- `config.json` (설정 기록)
-
----
-
-### Step 5: 휴리스틱 라벨링
-
-**목적**: 클러스터에 인간 가독성 라벨 부여
-
-```bash
+# 휴리스틱 라벨링
 docker exec csp-workspace python scripts/describe_boundary_clusters.py \
     --csv hyeonto/reports/pa_boundary_v6_full/boundary_clusters.csv \
     --out hyeonto/reports/pa_boundary_v6_full/boundary_clusters_labeled.md
@@ -161,127 +135,33 @@ docker exec csp-workspace python scripts/describe_boundary_clusters.py \
 
 ---
 
-## 🧪 결과 검증
+## 🧪 결과 검증 (Verification)
 
-### 1. 데이터 무결성 확인
-
-```bash
-# PA 클러스터링 결과 행 수
-wc -l hyeonto/reports/pa_boundary_v6_full/boundary_clusters.csv
-# 예상: 87944 (87,943 + header)
-
-# SA 클러스터링 결과 행 수
-wc -l hyeonto/reports/sa_boundary_v6_full/sa_boundary_clusters.csv
-# 예상: 294890 (294,889 + header)
-
-# 클러스터 수 확인
-cut -d',' -f1 hyeonto/reports/pa_boundary_v6_full/boundary_clusters.csv | \
-    sort -u | wc -l
-# 예상: 17 (16 클러스터 + header)
-```
+### 1. 데이터 수치 확인
+- PA 결과 행 수 예상: 87,944 (header 포함)
+- SA 결과 행 수 예상: 294,890 (header 포함)
 
 ### 2. 주요 지표 확인
-
-```python
-import pandas as pd
-
-# PA 클러스터 크기 분포
-df = pd.read_csv("hyeonto/reports/pa_boundary_v6_full/boundary_clusters.csv")
-print(df["cluster_id"].value_counts().sort_index())
-
-# 사서 비율 확인
-CANON = ["논어", "맹자", "대학", "중용"]
-df["is_canon"] = df["book_name"].str.contains("|".join(CANON), na=False)
-print(df.groupby("cluster_id")["is_canon"].mean().sort_values(ascending=False))
-```
-
-### 3. 시각화 확인
-
-브라우저에서 다음 HTML 파일 열기:
-```
-hyeonto/reports/pa_boundary_v6_full/visualization/cluster_embedding.html
-hyeonto/reports/sa_boundary_v6_full/visualization/cluster_embedding.html
-```
+시각화 결과물인 `cluster_embedding.html`을 브라우저에서 열어 클러스터 분리 양상을 확인하고, `pa_cluster_profile.md`에서 사서 가중치 및 마커 분포가 연구 보고서와 일치하는지 대조합니다.
 
 ---
 
-## 📊 예상 산출물 체크리스트 (v6)
+## ⏱️ 예상 소요 시간
 
-### 데이터셋
-- [ ] `hyeonto/datasets/pa_merged_v2.csv` (120,202행)
-- [ ] `hyeonto/datasets/sa_merged_v2.csv` (415,091행)
-
-### PA 분석 결과
-- [ ] `pa_boundary_v6_full/boundary_clusters.csv` (87,943행)
-- [ ] `pa_boundary_v6_full/boundary_clusters.md`
-- [ ] `pa_boundary_v6_full/boundary_clusters_labeled.md`
-- [ ] `pa_boundary_v6_full/pa_cluster_profile.md`
-- [ ] `pa_boundary_v6_full/visualization/cluster_embedding.html`
-
-### SA 분석 결과
-- [ ] `sa_boundary_v6_full/sa_boundary_clusters.csv` (294,889행)
-- [ ] `sa_boundary_v6_full/sa_boundary_clusters.md`
-- [ ] `sa_boundary_v6_full/sa_cluster_profile.md`
-- [ ] `sa_boundary_v6_full/visualization/cluster_embedding.html`
-
-### 마스터 문서
-- [ ] `reports/FINAL_ANALYSIS_REPORT.md` (v6 반영)
-
----
-
-## ⏱️ 전체 소요 시간 예상 (v6)
-
-| 단계 | GPU | CPU |
+| 단계 | GPU (RTX 3090 기준) | CPU |
 |------|-----|-----|
-| Step 1: PA 클러스터링 | 1.5시간 | 6시간 |
-| Step 2: SA 클러스터링 | 5시간 | 18시간 |
-| Step 3: 프로파일링 | 10분 | 10분 |
-| Step 4: 시각화 | 5분 | 10분 |
-| Step 5: 라벨링 | 5분 | 5분 |
-| **총계** | **~7시간** | **~25시간** |
+| PA/SA 클러스터링 | 약 6.5시간 | 약 24시간 |
+| 분석 및 시각화 | 약 20분 | 약 30분 |
 
 ---
 
 ## 🐛 문제 해결 (Troubleshooting)
 
-### 문제 1: GPU 메모리 부족
-
-```bash
-# 배치 크기 줄이기
---batch 64  # 기본 128에서 줄임
-```
-
-### 문제 2: Docker 환경 접속
-
-```bash
-# 컨테이너 시작
-docker start csp-workspace
-
-# 인터랙티브 접속
-docker exec -it csp-workspace bash
-```
-
-### 문제 3: 번역문 컬럼 없음
-
-v6 분석을 위해서는 `번역문` 컬럼이 필요합니다:
-```python
-# 컬럼 확인
-df = pd.read_csv("hyeonto/datasets/pa_merged_v2.csv")
-print("번역문" in df.columns)  # True여야 함
-```
+- **GPU 메모리 부족**: 실행 옵션에 `--batch 64` (또는 더 낮게)를 추가하십시오.
+- **Docker 컨테이너**: `docker start csp-workspace` 명령으로 컨테이너가 실행 중인지 확인하십시오.
+- **컬럼 오류**: 입력 CSV에 `tgt_l`, `tgt_r` (번역문) 컬럼이 반드시 포함되어야 v6 분석이 가능합니다.
 
 ---
 
-## 📞 지원 및 문의
-
-- **문서 업데이트**: 2026-01-12 (v6)
-- **작성자**: CSP Research Team
-
----
-
-**재현 성공 시 다음 단계**:
-1. `reports/FINAL_ANALYSIS_REPORT.md`와 결과 비교
-2. 주요 지표(Canonicity 48.8% 등)가 일치하는지 확인
-3. 시각화 HTML 파일에서 클러스터 분포 확인
-
-**Good Luck!** 🚀
+**업데이트 일자**: 2026-01-12
+**작성자**: CSP Research Team
