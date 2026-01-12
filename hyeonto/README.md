@@ -1,4 +1,4 @@
-# 현토(懸吐) 분석 프로젝트 (v6)
+# 현토(懸吐) 분석 프로젝트 (v6 + Multi-Resolution)
 
 > 사서삼경(四書三經) 등 유교 경전의 **현토(懸吐)** 패턴을 클러스터링 및 시각화하여 한문 구문 기능을 분석하는 연구 프로젝트
 
@@ -19,7 +19,8 @@
 
 1. **현토 패턴 클러스터링**: 한문 경계(boundary)에서 나타나는 현토의 기능적 역할 분류
 2. **PA-SA 위계적 분석**: 문장(PA)과 구(SA) 수준의 이중 레벨 분석
-3. **번역문 통합 임베딩**: 한문 원문과 한국어 번역문을 결합하여 화용론적 뉘앙스 포착 (v6)
+3. **다중 해상도 분석 (Multi-Resolution)**: K=4 (거시적) 및 K=14/K=24 (미시적) 분석으로 다층적 패턴 규명
+4. **번역문 통합 임베딩**: 한문 원문과 한국어 번역문을 결합하여 화용론적 뉘앙스 포착 (v6)
 
 ---
 
@@ -28,17 +29,28 @@
 ```
 hyeonto/
 ├── datasets/                  # 학습용 데이터셋
-│   ├── pa_merged_v2.csv       # PA 통합 데이터 (120,202건)
-│   └── sa_merged_v2.csv       # SA 통합 데이터 (415,091건)
+│   ├── pa_merged_v2.csv       # PA 통합 데이터 (87,943건)
+│   └── sa_merged_v2.csv       # SA 통합 데이터 (294,889건)
+├── cache/                     # 임베딩 캐시
+│   ├── pa_embeddings.npy      # PA BGE-M3 임베딩 (약 300MB)
+│   └── sa_embeddings.npy      # SA BGE-M3 임베딩 (약 1.2GB)
 ├── reports/                   # 분석 결과
-│   ├── FINAL_ANALYSIS_REPORT.md    # ⭐ 통합 마스터 리포트
-│   ├── pa_boundary_v6_full/        # PA 클러스터링 결과 (v6)
-│   ├── sa_boundary_v6_full/        # SA 클러스터링 결과 (v6)
-│   └── crossmatch_v6/              # PA-SA 교차 분석 (Sankey)
+│   ├── FINAL_ANALYSIS_REPORT.md       # ⭐ 통합 마스터 리포트
+│   ├── dashboard.html                 # ⭐ 인터랙티브 대시보드
+│   ├── pa_boundary_v6_full/           # PA v6 클러스터링 (K=16)
+│   ├── sa_boundary_v6_full/           # SA v6 클러스터링 (K=16)
+│   ├── pa_boundary_k4_full/           # PA K=4 클러스터링 (거시적)
+│   ├── pa_boundary_k14_full/          # PA K=14 클러스터링 (미시적)
+│   ├── sa_boundary_k4_full/           # SA K=4 클러스터링 (거시적)
+│   ├── sa_boundary_k24_full/          # SA K=24 클러스터링 (미시적) + 심층 프로파일
+│   ├── optimal_k_pa/                  # PA 최적 K값 분석
+│   ├── optimal_k_sa_v3/               # SA 최적 K값 분석
+│   ├── crossmatch_v6/                 # PA-SA 교차 분석 (Sankey)
+│   └── exploratory/                   # 탐색적 분석 (Sankey, 비교, 흐름)
 ├── BIAS_VALIDATION.md         # 편향 검증 보고서
 ├── DATA_PROVENANCE.md         # 데이터 출처 설명
+├── EXPLORATORY_ANALYSIS.md    # 탐색적 분석 가이드
 ├── KEY_FINDINGS.md            # 핵심 발견 사항
-├── NEXT_STEPS.md              # 다음 단계 로드맵
 ├── REPRODUCE.md               # 재현 가이드
 ├── VISUALIZATION_GUIDE.md     # 시각화 해석 가이드
 └── jti_*.xml                  # 원본 현토 XML 파일들
@@ -66,71 +78,113 @@ hyeonto/
 
 ---
 
-## 🛠 분석 파이프라인 (v6)
+## 🔬 다중 해상도 분석 (Multi-Resolution Analysis)
 
-### 1단계: 데이터셋 구축
-```bash
-python scripts/hyeonto_build_datasets.py
+### 최적 K값 결정
+
+| 데이터 | 권장 K (거시적) | 기능적 K (미시적) | 근거 |
+|:---:|:---:|:---:|:---|
+| **PA** | K=4 | K=14 | Silhouette + Calinski-Harabasz 최적화 |
+| **SA** | K=4 | K=24 | Davies-Bouldin 최적화 |
+
+### 분석 계층
+
+```
+     거시적 분석 (K=4)
+     ┌─────────────────────────────────────────┐
+     │  장르 대분류: 사서류 / 경전류 / 역사류 / 문집류  │
+     └─────────────────────────────────────────┘
+                       ↓ 분화
+     미시적 분석 (K=14/24)
+     ┌─────────────────────────────────────────┐
+     │  구문 기능: 조건문 / 정의문 / 서사문 / 나열문 등 │
+     └─────────────────────────────────────────┘
 ```
 
-### 2단계: PA 클러스터링 (번역문 포함)
+---
+
+## 🛠 분석 파이프라인
+
+### 1단계: 최적 K값 분석 (선택)
 ```bash
+docker exec csp-workspace python scripts/find_optimal_k.py \
+    --csv hyeonto/datasets/pa_merged_v2.csv \
+    --out-dir hyeonto/reports/optimal_k_pa \
+    --k-min 4 --k-max 32 --k-step 2 \
+    --device-id 0 --seed 42
+```
+
+### 2단계: PA 클러스터링
+```bash
+# K=4 (거시적)
 docker exec csp-workspace python scripts/cluster_pa_boundary_functions.py \
     --input hyeonto/datasets/pa_merged_v2.csv \
-    --out-dir hyeonto/reports/pa_boundary_v6_full \
-    --k 16 --use-src --use-tgt --device-id 0
+    --out-dir hyeonto/reports/pa_boundary_k4_full \
+    --k 4 --load-embeddings hyeonto/cache/pa_embeddings.npy \
+    --use-src --use-tgt --seed 42
+
+# K=14 (미시적)
+docker exec csp-workspace python scripts/cluster_pa_boundary_functions.py \
+    --input hyeonto/datasets/pa_merged_v2.csv \
+    --out-dir hyeonto/reports/pa_boundary_k14_full \
+    --k 14 --load-embeddings hyeonto/cache/pa_embeddings.npy \
+    --use-src --use-tgt --seed 42
 ```
 
-### 3단계: SA 클러스터링 (번역문 포함)
+### 3단계: SA 클러스터링
 ```bash
+# K=4 (거시적)
 docker exec csp-workspace python scripts/cluster_sa_boundary_functions.py \
     --input hyeonto/datasets/sa_merged_v2.csv \
-    --out-dir hyeonto/reports/sa_boundary_v6_full \
-    --k 16 --use-src --use-tgt --device-id 0
+    --out-dir hyeonto/reports/sa_boundary_k4_full \
+    --k 4 --load-embeddings hyeonto/cache/sa_embeddings.npy \
+    --use-src --use-tgt --seed 42
+
+# K=24 (미시적)
+docker exec csp-workspace python scripts/cluster_sa_boundary_functions.py \
+    --input hyeonto/datasets/sa_merged_v2.csv \
+    --out-dir hyeonto/reports/sa_boundary_k24_full \
+    --k 24 --load-embeddings hyeonto/cache/sa_embeddings.npy \
+    --use-src --use-tgt --seed 42
 ```
 
-### 4단계: PA-SA 교차 분석 (Sankey Diagram)
+### 4단계: 심층 프로파일링 (K=24 SA)
 ```bash
-docker exec csp-workspace python scripts/visualize_pa_sa_sankey_v6_precision.py \
-    --pa-clusters hyeonto/reports/pa_boundary_v6_full/boundary_clusters.csv \
-    --sa-clusters hyeonto/reports/sa_boundary_v6_full/sa_boundary_clusters.csv \
-    --out-dir hyeonto/reports/crossmatch_v6
+docker exec csp-workspace python scripts/profile_deep_sa.py \
+    --csv hyeonto/reports/sa_boundary_k24_full/sa_boundary_clusters.csv \
+    --out-dir hyeonto/reports/sa_boundary_k24_full
+```
+
+### 5단계: PA-SA Sankey 시각화
+```bash
+docker exec csp-workspace python scripts/visualize_pa_sa_sankey.py \
+    --pa-csv hyeonto/reports/pa_boundary_k4_full/boundary_clusters.csv \
+    --sa-csv hyeonto/reports/sa_boundary_k4_full/sa_boundary_clusters.csv \
+    --pa-k 4 --sa-k 4 \
+    --out-dir hyeonto/reports/exploratory/pa_sa_sankey
 ```
 
 ---
 
 ## 📊 주요 산출물
 
-### 핵심 시각화 (v6)
+### 핵심 시각화
 
 | 시각화 | 경로 | 설명 |
 |--------|------|------|
-| **Sankey Diagram** | `crossmatch_v6/pa_sa_sankey_v6_final.html` | ⭐ PA→SA 클러스터 흐름 |
-| **Joint Embedding** | `pa_boundary_v6_full/joint_embedding/*.html` | 마커-클러스터 공동 공간 |
-| **Marker Heatmap** | `pa_boundary_v6_full/marker_distribution/*.html` | 현토-클러스터 밀집도 |
-| **Entropy Chart** | `pa_boundary_v6_full/marker_distribution/marker_entropy_chart.html` | 범용성 지수 |
+| **대시보드** | `reports/dashboard.html` | ⭐ 모든 분석 결과 통합 탐색 |
+| **PA-SA Sankey** | `exploratory/pa_sa_sankey/*.html` | PA↔SA 클러스터 흐름 (K=4, K=14, K=24) |
+| **클러스터 분화** | `exploratory/cluster_flow_*/` | K=4 → K=14/24 분화 패턴 |
+| **고급 산점도** | `*_full/visualization/advanced_cluster_viz.html` | Convex Hull + 사서 추세선 |
 
 ### 주요 발견 사항
 
-1. **사서는 문법적 북극점**: PA-12 클러스터에서 사서 집중도 **48.8%**
-2. **PA→SA 위계적 흐름**: 문장의 문체적 정체성이 구 단위 문법으로 74% 수렴
-3. **번역문 효과**: 한문만으로 구분 어려웠던 화용론적 뉘앙스 포착
-
----
-
-## 💡 활용 방안
-
-### 1. 한문 교육
-- 현토 암기 순서 최적화 (빈도/기능별 분류)
-- 유사 현토 그룹화로 학습 효율 증대
-
-### 2. NLP 연구
-- 한문 번역 모델 개선 (현토 패턴 feature 활용)
-- 경계 감지 모델의 데이터 증강
-
-### 3. 인문학 연구
-- 장르별 문법 차이 정량화
-- 조선시대 현토 체계의 통계적 규명
+1. **사서는 문법적 북극점**: PA K=4에서 p1 사서 집중도 **13.4%**, SA K=4에서 p5 **16.5%**
+2. **다중 해상도 일관성**: K=4와 K=24 모두 사서 중심성 유지
+3. **SA K=24 심층 분석**: 
+   - **p5 (Topic)**: 시경(x3.8), 은/는 53% 우세
+   - **p22 (시간/장소)**: 춘추좌씨전(x10.0), 에 집중
+   - **p17 (시적 표현)**: 당시삼백수(x9.4), 운율적 생략
 
 ---
 
@@ -139,13 +193,13 @@ docker exec csp-workspace python scripts/visualize_pa_sa_sankey_v6_precision.py 
 | 문서 | 설명 |
 |------|------|
 | [FINAL_ANALYSIS_REPORT.md](reports/FINAL_ANALYSIS_REPORT.md) | ⭐ v6 통합 마스터 리포트 |
-| [KEY_FINDINGS.md](KEY_FINDINGS.md) | 핵심 발견 사항 |
+| [KEY_FINDINGS.md](KEY_FINDINGS.md) | 핵심 발견 사항 (Multi-Resolution 포함) |
 | [REPRODUCE.md](REPRODUCE.md) | 재현 가이드 |
 | [VISUALIZATION_GUIDE.md](VISUALIZATION_GUIDE.md) | 시각화 해석 |
 | [BIAS_VALIDATION.md](BIAS_VALIDATION.md) | 편향 검증 |
 | [DATA_PROVENANCE.md](DATA_PROVENANCE.md) | 데이터 출처 |
-| [NEXT_STEPS.md](NEXT_STEPS.md) | 다음 단계 로드맵 |
+| [EXPLORATORY_ANALYSIS.md](EXPLORATORY_ANALYSIS.md) | 탐색적 분석 가이드 |
 
 ---
 
-**마지막 업데이트**: 2026-01-12 (v6)
+**마지막 업데이트**: 2026-01-13 (v6 + Multi-Resolution)

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyeonto 클러스터 분석 대시보드</title>
+    <style>
+        :root {
+            --primary: #4a90d9;
+            --secondary: #e74c3c;
+            --bg: #1a1a2e;
+            --card-bg: #16213e;
+            --text: #eee;
+            --muted: #888;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Pretendard', 'Apple SD Gothic Neo', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        h1 {
+            text-align: center;
+            padding: 30px 0;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2.5em;
+        }
+        .subtitle { text-align: center; color: var(--muted); margin-bottom: 30px; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .card h2 {
+            color: var(--primary);
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+        }
+        .card h3 {
+            color: var(--text);
+            font-size: 1em;
+            margin: 15px 0 10px;
+        }
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        .stat-item {
+            background: rgba(255,255,255,0.05);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: var(--primary);
+        }
+        .stat-label {
+            color: var(--muted);
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        .link-group {
+            margin-top: 15px;
+        }
+        .link-group a {
+            display: block;
+            padding: 12px 16px;
+            margin: 8px 0;
+            background: rgba(74, 144, 217, 0.15);
+            border-radius: 8px;
+            color: var(--primary);
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        .link-group a:hover {
+            background: rgba(74, 144, 217, 0.3);
+            transform: translateX(5px);
+        }
+        .section-title {
+            font-size: 1.5em;
+            margin: 40px 0 20px;
+            padding-left: 15px;
+            border-left: 4px solid var(--primary);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+        th { color: var(--primary); }
+        .highlight { color: var(--secondary); font-weight: bold; }
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: var(--muted);
+            border-top: 1px solid #333;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Hyeonto 클러스터 분석 대시보드</h1>
+        <p class="subtitle">PA(문단 경계) 및 SA(구 경계) 비지도 클러스터링 통합 결과</p>
+        
+        <div class="grid">
+            <div class="card">
+                <h2>📈 PA 분석 개요</h2>
+                <div class="stat-grid">
+                    <div class="stat-item">
+                        <div class="stat-value">87,943</div>
+                        <div class="stat-label">경계 데이터 수</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">K=4</div>
+                        <div class="stat-label">권장 클러스터 수</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">K=14</div>
+                        <div class="stat-label">세부 분석용</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">10.2%</div>
+                        <div class="stat-label">평균 사서 비율</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>📊 SA 분석 개요</h2>
+                <div class="stat-grid">
+                    <div class="stat-item">
+                        <div class="stat-value">294,889</div>
+                        <div class="stat-label">경계 데이터 수</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">K=4</div>
+                        <div class="stat-label">권장 클러스터 수</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">K=24</div>
+                        <div class="stat-label">세부 분석용</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">10.2%</div>
+                        <div class="stat-label">평균 사서 비율</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">🔗 PA 분석 결과</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>클러스터 프로파일</h3>
+                <div class="link-group">
+                    <a href="pa_boundary_k4_full/pa_cluster_profile.md">📄 K=4 클러스터 프로파일</a>
+                    <a href="pa_boundary_k14_full/pa_cluster_profile.md">📄 K=14 클러스터 프로파일</a>
+                </div>
+            </div>
+            <div class="card">
+                <h3>시각화</h3>
+                <div class="link-group">
+                    <a href="exploratory/cluster_flow_pa/cluster_flow_k4_to_k14.html">🌊 K=4 → K=14 Sankey 다이어그램</a>
+                    <a href="exploratory/viz_advanced_pa/advanced_cluster_viz.html">🎨 고급 클러스터 시각화</a>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">🔗 SA 분석 결과</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>클러스터 프로파일</h3>
+                <div class="link-group">
+                    <a href="sa_boundary_k4_full/sa_cluster_profile.md">📄 K=4 클러스터 프로파일</a>
+                    <a href="sa_boundary_k24_full/sa_cluster_profile.md">📄 K=24 클러스터 프로파일</a>
+                </div>
+            </div>
+            <div class="card">
+                <h3>시각화</h3>
+                <div class="link-group">
+                    <a href="exploratory/cluster_flow_sa/cluster_flow_k4_to_k24.html">🌊 K=4 → K=24 Sankey 다이어그램</a>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">🔀 PA ↔ SA 비교 분석</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>비교 리포트</h3>
+                <div class="link-group">
+                    <a href="exploratory/pa_sa_k4_vs_k4/pa_sa_comparison.html">📊 PA(K=4) vs SA(K=4) 비교 차트</a>
+                    <a href="exploratory/pa_sa_k14_vs_k24/pa_sa_comparison.html">📊 PA(K=14) vs SA(K=24) 비교 차트</a>
+                </div>
+            </div>
+            <div class="card">
+                <h3>PA-SA Sankey 다이어그램</h3>
+                <div class="link-group">
+                    <a href="exploratory/pa_sa_sankey/pa_k4_sa_k4_sankey.html">🌊 PA(K=4) ↔ SA(K=4)</a>
+                    <a href="exploratory/pa_sa_sankey/pa_k4_sa_k24_sankey.html">🌊 PA(K=4) ↔ SA(K=24)</a>
+                    <a href="exploratory/pa_sa_sankey/pa_k14_sa_k24_sankey.html">🌊 PA(K=14) ↔ SA(K=24)</a>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">🔍 탐색적 분석</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>이상치 및 패턴 분석</h3>
+                <div class="link-group">
+                    <a href="exploratory/outliers_pa/outlier_analysis_pa.md">🔍 PA 이상치 분석</a>
+                    <a href="exploratory/ngram_sa/ngram_analysis_sa.md">📜 SA N-gram 분석</a>
+                    <a href="exploratory/cooccurrence_sa/cooccurrence_analysis_sa.md">🔗 한자-현토 공기 분석</a>
+                    <a href="exploratory/phonetic/phonetic_analysis_pa+sa.md">🔊 음운 패턴 분석</a>
+                </div>
+            </div>
+            <div class="card">
+                <h3>최적 K값 분석</h3>
+                <div class="link-group">
+                    <a href="optimal_k_pa/optimal_k_analysis_pa.md">📈 PA 최적 K값 리포트</a>
+                    <a href="optimal_k_sa_v3/optimal_k_analysis_sa.md">📈 SA 최적 K값 리포트</a>
+                    <a href="optimal_k_pa/optimal_k_plot_pa.html">📊 PA K값 지표 차트</a>
+                    <a href="optimal_k_sa_v3/optimal_k_plot_sa.html">📊 SA K값 지표 차트</a>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Hyeonto Analysis Dashboard | Generated: 2026-01-13</p>
+            <p>Data: 동양고전종합DB | Analysis: BGE-M3 + MiniBatchKMeans</p>
+        </footer>
+    </div>
+</body>
+</html>
