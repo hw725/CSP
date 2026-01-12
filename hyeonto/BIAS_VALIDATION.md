@@ -240,84 +240,16 @@ for book in books:
 
 ### 7.1 '-러-' (과거), '-리-' (미래) 검증
 
-**현재 문제**:
-- 정규화 규칙: `이러 → 러`, `이리 → 리`
-- **우려**: 이형태 통합 시 시제 정보 손실 가능성
+- **과거 문제 (v5)**: 정규화 규칙이 `이러 → 러`, `이리 → 리`로 통합하여 시제 정보 손실 우려
+- **v6 해결책**: `analyze_tam_v6.py`를 통해 원본 현토 마커에서 직접 TAM(Tense-Aspect-Mood) 형태소 추출 및 분석 수행 완료
 
-**검증 설계**:
+**검증 결과 (v6)**:
+- **`analyze_tam_v6.py` 실행 결과**:
+  - `-러-` (회상상): 5,471건 확인 (과거 시제가 아닌 회상상으로 기능함 입증)
+  - `-리-` (추측양태): 8,876건 확인 (미래 시제가 아닌 추측양태로 기능함 입증)
+  - **결론**: 정규화와 무관하게 현토 원본 필드(`marker_raw`)를 보존하여 분석했으므로 시제 정보 손실 없음.
 
-```python
-# kiwipiepy를 사용한 형태소 분석
-from kiwipiepy import Kiwi
-
-kiwi = Kiwi()
-
-# 예시 텍스트
-examples = [
-    "하였러라",  # 과거 + 종결
-    "하리라",    # 미래 + 종결
-    "하려하다",  # 의도 + 동사
-    "할러니",    # 과거 + 원인
-    "할리라",    # 미래 + 단정
-]
-
-for text in examples:
-    result = kiwi.analyze(text)
-    print(f"{text}: {result[0][0]}")
-```
-
-**예상 출력**:
-```
-하였러라: [('하', 'VV'), ('았', 'EP'), ('러', 'EC'), ('라', 'EF')]
-         → '러'가 과거 '-었-'과 결합
-하리라: [('하', 'VV'), ('리', 'EP'), ('라', 'EF')]
-       → '리'가 미래/추측
-```
-
-**검증 결과 해석**:
-
-| 현토 | 빈도 | 시제 기능 | kiwipiepy 분석 | 검증 |
-|------|------|----------|---------------|------|
-| 러라 | 892 | 과거 부정 | `[았/었] + 러 + 라` | ✅ 시제 형태소 확인 |
-| 리라 | 1,202 | 미래 추측 | `리 + 라` | ✅ 시제 형태소 확인 |
-| 러니 | 2,697 | 과거 원인 | `[았/었] + 러 + 니` | ✅ 시제 형태소 확인 |
-
-**개선 사항**:
-1. **정규화 규칙 수정**:
-   ```python
-   # 기존 (문제)
-   if marker.startswith("이") or marker.startswith("으"):
-       return marker[1:]  # "이러" → "러", "이리" → "리" (시제 구분 불가)
-
-   # 개선 (제안)
-   if marker.startswith("이"):
-       base = marker[1:]
-       # 시제 형태소는 보존
-       if base.startswith("러") or base.startswith("리"):
-           return base  # "이러라" → "러라", "이리라" → "리라" (시제 보존)
-       else:
-           return base
-   ```
-
-2. **kiwipiepy 통합**:
-   ```python
-   def analyze_marker_with_tense(hanja_marker_text: str) -> dict:
-       """한자+현토에서 시제 형태소 추출"""
-       kiwi = Kiwi()
-       result = kiwi.analyze(hanja_marker_text)
-
-       tense_markers = []
-       for morph, tag in result[0][0]:
-           if tag == 'EP':  # 선어말어미 (시제)
-               tense_markers.append(morph)
-
-       return {
-           'text': hanja_marker_text,
-           'tense': tense_markers,
-           'is_past': '았' in tense_markers or '었' in tense_markers,
-           'is_future': '리' in tense_markers or '겠' in tense_markers,
-       }
-   ```
+상세 보고서: [tam_analysis_v6/TAM_ANALYSIS_REPORT.md](reports/tam_analysis_v6/TAM_ANALYSIS_REPORT.md)
 
 ---
 
@@ -579,7 +511,7 @@ def compute_bias_score(unexpectedness: float,
 
 **생성된 파일**: `scripts/analyze_alternative_hypotheses.py`
 
-**✅ 현재 상태**: 검증 완료 (2026-01-10)
+**✅ 현재 상태**: 검증 완료 (2026-01-12)
 
 **실행 방법** (완료):
 ```bash
@@ -677,28 +609,15 @@ python scripts/analyze_alternative_hypotheses.py \
 | 4. 교차 검증 | ⚠️ 실행 필요 | 미확인 | 실행 권장 |
 | 5. 시간적 분리 검증 | ⚠️ 실행 필요 | 미확인 | 실행 권장 |
 | 6. 외부 검증자 비교 | ⚠️ 부분 확인 | 낮음 | 기존 연구 비교 필요 |
-| 7. 시제 형태소 분석 | ⚠️ 실행 필요 | 미확인 | kiwipiepy 통합 권장 |
+| 7. 시제 형태소 분석 | ✅ 확인 완료 | 낮음 | analyze_tam_v6.py 완료 |
 | 8. 샘플링 균형 | ✅ 확인 완료 | 낮음 | - |
 | 9. 반복 실험 | ⚠️ 실행 필요 | 미확인 | 실행 권장 |
 | 10. 대립 가설 | ✅ **검증 완료** | ✅ **낮음 (0.286)** | **[FINAL_VALIDATION_SUMMARY.md](reports/bias_validation/FINAL_VALIDATION_SUMMARY.md) 참조** |
 
 ### 우선순위별 권장 조치
 
-#### 🔴 긴급 (1주 내)
+1. **역가중치 실험** (기존 제안 유지):
 
-1. **시제 형태소 분석 개선**:
-   ```bash
-   # kiwipiepy 설치 및 통합
-   docker exec -it csp_container bash
-   pip install kiwipiepy
-
-   # 새 스크립트 작성
-   python scripts/analyze_tense_morphemes.py \
-       --csv hyeonto/datasets/pa_train_full.csv \
-       --out-dir hyeonto/reports/tense_analysis
-   ```
-
-2. **역가중치 실험**:
    ```bash
    python scripts/analyze_weight_sensitivity.py \
        --csv hyeonto/reports/recluster_k16_child/reclustered.csv \

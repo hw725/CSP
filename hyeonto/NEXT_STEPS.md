@@ -39,30 +39,22 @@
 
 ## 📅 단계별 실행 계획
 
-### Week 1: 시제 형태소 분석 통합 (1/13 - 1/17)
+### Week 1: 논문 초안 작성 (1/13 - 1/17)
 
-#### Day 1-2: kiwipiepy 설치 및 시제 분석
+#### Day 1-2: Results 섹션 작성 (TAM 및 검증 결과)
 
-```bash
-# Docker 환경에서 실행
-docker exec -it csp-workspace bash
+- **주요 내용**:
+  - TAM 분석 결과 (시제 아님, 상/서법 중심)
+  - 양방향 검증 결과 (통계적 유의성)
+  - 3단계 체계적 가설 검증 결과 (-러니 독보적 지위)
+- **참조 파일**: `FINAL_ANALYSIS_REPORT.md`
 
-# kiwipiepy 설치
-pip install kiwipiepy
+#### Day 3-5: 서론 및 결론 작성
 
-# 시제 형태소 분석 실행
-python scripts/analyze_tense_morphemes.py \
-    --csv hyeonto/reports/pa_boundary_v6_full/boundary_clusters.csv \
-    --out-dir hyeonto/reports/tense_analysis \
-    --min-count 50
-
-# 예상 소요 시간: 30~60분
-```
-
-**예상 출력**:
-- `tense_morpheme_markers.csv`: 시제 포함 현토 목록
-- `normalization_impact.csv`: 정규화 영향 분석
-- `tense_analysis_report.md`: 마크다운 리포트
+- **Discussion**:
+  - 사서 중심성의 역사적 의미 재확인
+  - 번역문 통합 방법론의 효과
+  - 향후 연구 제언
 
 #### Day 3-5: 교차 검증 (선택)
 

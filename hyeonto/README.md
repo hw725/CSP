@@ -148,4 +148,4 @@ docker exec csp-workspace python scripts/visualize_pa_sa_sankey_v6_precision.py 
 
 ---
 
-**마지막 업데이트**: 2026-01-11 (v6)
+**마지막 업데이트**: 2026-01-12 (v6)

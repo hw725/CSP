@@ -53,9 +53,9 @@
 
 ---
 
-## 🗑️ 삭제 권장 스크립트 (DELETE)
+## 🗑️ 삭제 완료 스크립트 (DELETED)
 
-아래 스크립트들은 임시/디버깅 용도이며, 삭제를 권장합니다.
+아래 스크립트들은 임시/디버깅 용도였으며, **삭제 완료되었습니다.**
 
 ### temp 폴더 전체
 
@@ -109,7 +109,7 @@
 
 ---
 
-## 🚀 커밋 명령어 예시
+## 🚀 실행된 명령어 (History)
 
 ```bash
 # 1. temp 폴더 삭제
@@ -123,7 +123,7 @@ rm scripts/analyze_tense_morphemes.py
 rm scripts/validate_random_labels.py
 rm scripts/validate_pa_cluster11_saseo_centrality.py
 
-# 3. 커밋
+# 3. 커밋 (완료됨)
 git add scripts/*_v6.py scripts/hyeonto_*.py scripts/merge_*.py scripts/profile_*.py scripts/visualize_*.py
 git commit -m "chore: hyeonto v6 스크립트 정리 및 임시 파일 삭제"
 ```
