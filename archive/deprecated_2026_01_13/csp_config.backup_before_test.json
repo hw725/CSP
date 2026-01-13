@@ -63,8 +63,8 @@
   },
   "pa_selection_params": {
     "candidate_prior_bonus_by_prefix": {
-      "supar(": 0.4,
-      "boundary(": 0.4
+      "supar(": 0.0,
+      "boundary(": 0.0
     },
     "boundary_style_prior": {
       "enabled": true,
@@ -139,6 +139,11 @@
     "disable_whitespace_dp": false
   },
   "pa": {
+    "sentence_splitter": {
+      "prior_bonus": 0.005,
+      "length_penalty_coef": 0.3,
+      "supar_bonus": 0.15
+    },
     "boundary_threshold": 0.7
   }
 }

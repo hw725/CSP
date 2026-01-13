@@ -12,6 +12,81 @@ import time
 import warnings
 import random
 
+
+def _running_in_docker() -> bool:
+    # docker에서 흔히 존재하는 파일. 없더라도 docker일 수 있으니 안전하게 폴백.
+    try:
+        return Path("/.dockerenv").exists() or os.getenv("RUNNING_IN_DOCKER", "").strip() in {"1", "true", "yes"}
+    except Exception:
+        return False
+
+
+def _guard_docker_persisted_paths(*, output_file: str, checkpoint_path: str | None):
+    """도커 실행 시 산출물이 호스트 마운트(/workspace) 아래에 저장되도록 강제한다.
+
+    - docker-compose.yml에서 `.:/workspace`로 바인드 마운트되어 있으므로,
+      /workspace 아래는 VS Code/도커를 꺼도 호스트에 남는다.
+    - 반대로 /workspace 밖이면 컨테이너 삭제/재생성 시 같이 사라질 수 있다.
+
+    예외가 필요한 경우:
+      CSP_ALLOW_OUTSIDE_WORKSPACE_PATHS=1
+    """
+
+    if not _running_in_docker():
+        return
+
+    allow_outside = str(os.getenv("CSP_ALLOW_OUTSIDE_WORKSPACE_PATHS", "")).strip().lower() in {"1", "true", "yes"}
+    if allow_outside:
+        return
+
+    ws = Path("/workspace")
+
+    def _normalize_and_resolve(raw: str) -> Path:
+        p = Path(str(raw))
+        # Windows 드라이브 경로(C:\...)가 컨테이너에 그대로 들어오면 저장도 안 되고 재개도 깨진다.
+        if ":\\" in str(raw) or ":/" in str(raw):
+            raise SystemExit(
+                "[ERROR] Windows 절대경로가 컨테이너로 전달되었습니다. 컨테이너 내부에서는 해당 경로가 유효하지 않습니다.\n"
+                f"        path={raw}\n"
+                "        해결: output/checkpoint를 test_results/... 같은 상대경로(= /workspace 아래)로 지정하세요."
+            )
+
+        try:
+            if p.is_absolute():
+                return p.resolve()
+            return (Path.cwd() / p).resolve()
+        except Exception:
+            # 최후의 수단: 문자열 기반(대부분의 케이스는 위에서 걸러짐)
+            s = str(p).replace("\\", "/")
+            if s.startswith("/"):
+                return Path(s)
+            return Path("/workspace") / Path(s)
+
+    def _ensure_under_workspace(*, what: str, raw: str):
+        resolved = _normalize_and_resolve(raw)
+        try:
+            ws_resolved = ws.resolve()
+        except Exception:
+            ws_resolved = ws
+
+        try:
+            resolved_resolved = resolved.resolve()
+        except Exception:
+            resolved_resolved = resolved
+
+        if not (resolved_resolved == ws_resolved or ws_resolved in resolved_resolved.parents):
+            raise SystemExit(
+                f"[ERROR] {what} 경로가 /workspace 밖입니다. 이 경우 컨테이너 종료/삭제 시 산출물이 사라질 수 있어 실행을 중단합니다.\n"
+                f"        {what}={raw}\n"
+                f"        resolved={resolved_resolved}\n"
+                "        해결: test_results/... 같은 /workspace 아래 경로를 사용하세요.\n"
+                "        (예외 허용: CSP_ALLOW_OUTSIDE_WORKSPACE_PATHS=1)"
+            )
+
+    _ensure_under_workspace(what="output_file", raw=str(output_file))
+    if checkpoint_path:
+        _ensure_under_workspace(what="checkpoint_path", raw=str(checkpoint_path))
+
 try:
     import numpy as np  # type: ignore
     NUMPY_AVAILABLE = True
@@ -161,8 +236,56 @@ def main():
                        help='재현성 seed (지정 시 random/torch/numpy seed 고정)')
     parser.add_argument('--deterministic', action='store_true',
                        help='가능한 범위에서 deterministic 모드 활성화(속도 저하 가능)')
+
+    # ✅ 중간저장/재개(Checkpoint/Resume)
+    # - 장시간 실행 중 터미널/컨테이너가 종료돼도 이어서 돌릴 수 있게 함
+    # - 기본은 OFF (I/O 오버헤드가 있을 수 있어 필요 시만 켬)
+    parser.add_argument(
+        '--checkpoint-path',
+        default=None,
+        help=(
+            '중간 결과를 누적 저장할 체크포인트 CSV 경로(append). '
+            '미지정 시 output_file 기준으로 자동 생성합니다(권장). '
+            '예: /workspace/test_results/run/pa_test_output_seed5_checkpoint.csv'
+        ),
+    )
+    parser.add_argument(
+        '--resume',
+        action='store_true',
+        help='체크포인트가 있을 때, 이미 처리된 문단은 스킵하고 이어서 처리합니다(수동 강제).',
+    )
+    parser.add_argument(
+        '--checkpoint-every',
+        type=int,
+        default=25,
+        help='체크포인트 flush 주기(문단 단위, 기본 25). 값이 작을수록 안전하지만 I/O 증가.',
+    )
     
     args = parser.parse_args()
+
+    # 체크포인트는 기본 ON (장시간 실행 보호).
+    # 필요 시 환경변수 CSP_PA_DISABLE_CHECKPOINT=1 로 완전히 끌 수 있다.
+    disable_ckpt = str(os.getenv("CSP_PA_DISABLE_CHECKPOINT", "")).strip().lower() in {"1", "true", "yes"}
+    if not disable_ckpt:
+        # 경로 미지정이면 output_file 기준 자동 생성
+        if not args.checkpoint_path:
+            try:
+                out_p = Path(str(args.output_file))
+                args.checkpoint_path = str(out_p.parent / f"{out_p.stem}_checkpoint.csv")
+            except Exception:
+                # 최후의 수단: 비활성화
+                args.checkpoint_path = None
+
+        # 체크포인트 파일이 이미 있으면 기본적으로 자동 resume
+        if args.checkpoint_path:
+            try:
+                if Path(str(args.checkpoint_path)).exists():
+                    args.resume = True
+            except Exception:
+                pass
+
+    # docker 환경에서 산출물이 /workspace 밖이면 컨테이너 종료/삭제 시 날아갈 수 있음 → 기본은 강제 차단
+    _guard_docker_persisted_paths(output_file=str(args.output_file), checkpoint_path=args.checkpoint_path)
 
     # deterministic 설정은 CUDA 초기화(예: torch.cuda.is_available)보다 먼저 적용해야 효과가 있습니다.
     if args.deterministic and TORCH_AVAILABLE:
@@ -291,6 +414,9 @@ def main():
             trace_stages_path=args.trace_stages_jsonl,
             seed=args.seed,
             tokenizer_init_ok=tokenizer_init_ok,
+            checkpoint_path=args.checkpoint_path,
+            resume=args.resume,
+            checkpoint_every=args.checkpoint_every,
         )
         
         end_time = time.time()

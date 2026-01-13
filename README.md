@@ -101,9 +101,12 @@ pip install -r requirements.txt
 # 문단병렬 입력 → 문장병렬 출력
 docker compose run --rm csp python pa/main.py \
   xlsx/당송팔대가문초한유3/당송팔대가문초한유3_문단병렬.xlsx \
-  output.xlsx \
+  test_results/당송팔대가문초한유3_PA_output.xlsx \
   --embedder bge
 ```
+
+**중요**: 도커에서 실행할 때 output/체크포인트 경로는 반드시 레포 내부(컨테이너 기준 `/workspace` 아래, 예: `test_results/...`)로 지정하세요. \
+`/workspace` 밖 절대경로로 저장하면 컨테이너 종료/삭제 시 산출물이 사라질 수 있습니다.
 
 ### 3. 43권 전체 배치 처리
 
@@ -596,6 +599,14 @@ python pa/main.py input.xlsx output.xlsx --max-workers 4
 
 ## 📝 주요 업데이트
 
+### 2026-01-13: PA F1 0.87 달성 및 0.90 목표 진행
+
+- 🎯 **PA 정확도 향상**: F1 79% → **86.97%** (목표 90%)
+- 🧠 **Boundary Model 고도화**: Multi-task 경계 모델 + Dual-Encoder Alignment 통합
+- 📊 **Grid Search 인프라**: 자동화된 파라미터 튜닝 시스템 구축
+- 🔧 **Supar Bonus 도입**: 구문분석 기반 경계 보너스로 +2%p 향상
+- ✅ **SA Alignment 모델 학습 완료**: Dual-Encoder 기반 의미 정렬 모델
+
 ### 2025-12-19: XLSX 기반 문서 완전 재정리
 
 - ✅ **문서 시스템 재구축**: XML 파이프라인 제거, XLSX 기반으로 완전 통일
@@ -633,13 +644,13 @@ python pa/main.py input.xlsx output.xlsx --max-workers 4
 
 ## 📚 참고 문서
 
-- **[정확도 평가 가이드](../accuracy/README.md)** - 평가 지표 및 방법론
-- **[새로운 문서 체계](./INDEX.md)** - 전체 문서 가이드
-- **[XML to XLSX 정제](./DATA_PREPARATION.md)** - 원본 데이터 정제 프로세스
-- **[워크플로우 상세](./WORKFLOW.md)** - PA/SA 알고리즘 상세 설명
-- **[문제 해결](./TROUBLESHOOTING.md)** - FAQ 및 문제 진단
-- **[성능 최적화](./PERFORMANCE.md)** - 튜닝 가이드
+- **[정확도 평가 가이드](accuracy/README.md)** - 평가 지표 및 방법론
+- **[문서 체계](documents/INDEX.md)** - 전체 문서 가이드
+- **[워크플로우 상세](documents/WORKFLOW.md)** - PA/SA 알고리즘 상세 설명
+- **[F1 0.9 로드맵](documents/ROADMAP_TO_F1_0.9.md)** - PA 정확도 향상 계획
+- **[문제 해결](documents/TROUBLESHOOTING.md)** - FAQ 및 문제 진단
+- **[성능 최적화](documents/PERFORMANCE.md)** - 튜닝 가이드
 
 ---
 
-**최근 업데이트**: 2025년 12월 19일 - XLSX 기반 완전 재정리
+**최근 업데이트**: 2026년 1월 13일 - PA F1 0.87 달성, 0.90 목표 진행 중

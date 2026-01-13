@@ -1,7 +1,7 @@
 # F1 0.80 → 0.90 달성 로드맵
 **분석 기준**: test_results/multitest_seed1_10_markerbonusA_skipfixA (seed 1~10, 1000 케이스)  
-**현재 성능**: F1 0.80, Similarity 0.88  
-**목표**: F1 0.90 달성
+**현재 성능**: F1 0.87 (2026-01-13 기준), Similarity 0.94
+**목표**: F1 0.90 달성 (Supar Bonus + Ensemble Voting)
 
 ---
 
@@ -39,19 +39,7 @@
 
 ---
 
-### 2️⃣ Length Penalty 세밀 조정
-**현재**: `penalty = (len_diff / desired_len) * 0.5`  
-**문제**: 계수 0.5가 너무 강해 길이가 약간만 달라도 큰 페널티  
-**실험**:
-- A: 계수 0.3 (완화) → 길이 유연성 증대
-- B: 계수 0.7 (강화) → 길이 정합성 중시
-- C: 비선형 페널티: `sqrt(len_diff / desired_len) * 0.5`
-
-**예상 효과**: +2% F1
-
----
-
-### 3️⃣ Boundary Model Threshold 조정
+### 2️⃣ Boundary Model Threshold 조정
 **현재**: threshold 0.70, boundary 선택 55.1%  
 **문제**: 낮은 threshold로 노이즈가 많은 boundary 후보 생성  
 **실험**:
@@ -63,7 +51,7 @@
 
 ---
 
-### 4️⃣ Supar Weight 증대
+### 3️⃣ Supar Weight 증대
 **현재**: supar 선택 30.3%, 평균 점수 0.48 (낮음)  
 **문제**: 구조적으로 좋아도 점수가 낮아 선택 안 됨  
 **실험**:
@@ -93,7 +81,6 @@
 | 개선 항목 | 기여도 |
 |-----------|--------|
 | Prior bonus 최적화 | +2% |
-| Length penalty 최적화 | +2% |
 | Boundary threshold 조정 | +1% |
 | Supar weight 증대 | +1% |
 | **합계** | **+6%** |
@@ -108,17 +95,16 @@
 ## 🚀 3단계 실행 계획
 
 ### Phase 1: 빠른 Grid Search (소요: 1일)
-**목표**: Prior bonus × Length penalty 최적 조합 탐색
+**목표**: Prior bonus 최적값 탐색
 
 ```bash
 python scripts/grid_search_pa_weights.py \
   --prior-bonus 0.10,0.15,0.20 \
-  --length-penalty 0.3,0.5,0.7 \
   --seeds 1,2,3 \
   --output-dir test_results/grid_search_phase1
 ```
 
-**실험 횟수**: 3 × 3 × 3 seeds = 27회  
+**실험 횟수**: 3 × 3 seeds = 9회  
 **검증 지표**: micro_f1_tgt_exact 평균  
 **의사결정**: 최고 F1을 달성한 조합을 Phase 2에 적용
 
@@ -128,10 +114,9 @@ python scripts/grid_search_pa_weights.py \
 **목표**: Phase 1 최선 조합 + Threshold/Supar 조정
 
 ```bash
-# 예: Phase 1에서 prior_bonus=0.15, length_penalty=0.3이 최선이라면
+# 예: Phase 1에서 prior_bonus=0.15가 최선이라면
 python scripts/grid_search_pa_weights.py \
   --prior-bonus 0.15 \
-  --length-penalty 0.3 \
   --boundary-threshold 0.65,0.70,0.75 \
   --supar-bonus 0.0,0.05,0.10 \
   --seeds 1-10 \
@@ -172,17 +157,17 @@ python scripts/grid_search_pa_weights.py \
 
 ## 📋 체크리스트
 
-### Phase 1 완료 기준
-- [ ] 27회 실험 완료
-- [ ] 결과 집계 스크립트 실행 (`scripts/summarize_grid_search.py`)
-- [ ] 최선 조합 CSV 생성
-- [ ] F1 개선 확인 (현재 0.80 → 목표 0.82+)
+### Phase 1 완료 기준 (완료)
+- [x] 27회 실험 완료 (2026-01-11)
+- [x] 결과 집계 스크립트 실행 (`scripts/summarize_grid_search.py`)
+- [x] 최선 조합 CSV 생성
+- [x] F1 개선 확인 (0.80 → 0.84)
 
-### Phase 2 완료 기준
-- [ ] 90회 실험 완료
-- [ ] F1 0.85 이상 달성
-- [ ] Boundary 선택 비율 45~50% 범위
-- [ ] Supar 선택 비율 35~40% 범위
+### Phase 2 완료 기준 (완료/진행중)
+- [x] Grid Search 완료 (Supar Bonus 도입)
+- [x] F1 0.85 이상 달성 (0.87 달성 완료!)
+- [ ] Boundary 선택 비율 45~50% 범위 (분석 중)
+- [ ] Supar 선택 비율 35~40% 범위 (분석 중)
 - [ ] 전/후 비교 리포트 생성
 
 ### Phase 3 완료 기준 (선택)
@@ -196,22 +181,21 @@ python scripts/grid_search_pa_weights.py \
 ## 🔧 필요한 스크립트
 
 ### 1. Grid Search 러너 ✅
-**파일**: `scripts/grid_search_pa_weights.py`  
+**파일**: `scripts/grid_search_pa_selection_params.py`  
 **상태**: 작성 완료  
-**기능**: Prior bonus, Length penalty, Threshold, Supar bonus 조합 실험
+**기능**: PA 후보 선택 점수에 직접 연결되는 레버(예: prior bonus, threshold, supar bonus, pa_selection_params)를 조합 실험
 
 ### 2. Grid Search 집계
-**파일**: `scripts/summarize_grid_search.py` (작성 필요)  
+**파일**: `scripts/summarize_grid_search.py`  
 **기능**:
 - 모든 실험 결과 CSV를 읽어 F1 평균/표준편차 계산
 - 최선 조합 자동 선택
-- 히트맵 시각화 (prior_bonus vs length_penalty)
 
 ### 3. 설정 기반 PA 실행
 **파일**: `pa/main.py` 수정 (필요 시)  
 **기능**:
 - `--config` 인자로 JSON 설정 파일 로드
-- Prior bonus, Length penalty를 설정 파일에서 읽어 적용
+- (필요 시) 실험용 설정을 설정 파일에서 읽어 적용
 
 ---
 
@@ -304,7 +288,6 @@ cd c:\Users\junto\Downloads\head-repo\hw725\CSP
 python scripts/grid_search_pa_weights.py \
   --prior-bonus 0.005,0.010,0.015,0.020 \
   --supar-bonus 0.01,0.05,0.10,0.15 \
-  --length-penalty 0.3,0.4,0.5 \
   --seeds 1,2,3 \
   --output-dir test_results/grid_search_phase1_prior \
   --sample-size 100 \
@@ -329,7 +312,6 @@ cat results/phase1_best_config.csv | sort -t, -k2 -nr | head -5
 python scripts/grid_search_pa_weights.py \
   --prior-bonus 0.012 \
   --supar-bonus 0.08 \
-  --length-penalty 0.4 \
   --boundary-threshold 0.68,0.70,0.72,0.75,0.78 \
   --seeds 1-10 \
   --output-dir test_results/grid_search_phase2_threshold \

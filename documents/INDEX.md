@@ -201,37 +201,22 @@
 
 ---
 
-### PROJECT_CLEANUP_REPORT.md
+### ROADMAP_TO_F1_0.9.md
 
-**용도**: 프로젝트 전체 정리 보고서
+**용도**: PA F1 0.90 달성을 위한 로드맵
 
 **주요 내용**:
-- 코드 정리 결과
-- 중복 파일 제거 내역
-- 폴더 구조 개선 사항
-- 의존성 업데이트 내역
+- 현황 분석 및 개선 전략
+- Grid Search 실행 계획
+- Supar Bonus, Ensemble Voting 등 기법
+- 체크리스트 및 다음 단계
 
-**분량**: ~290줄
-**읽기 시간**: 5분
+**분량**: ~326줄
+**읽기 시간**: 15분
 
 ---
 
-### CONTEXT_AWARE_ALIGNMENT_GUIDE.md
 
-**용도**: 경계 인식 정렬 모델 개발 가이드
-
-**주요 내용**:
-1. **학습 메커니즘**: Contrastive Learning + Boundary Classification
-2. **데이터 생성**: 경계 정보 포함 학습 데이터 생성
-3. **모델 학습**: BoundaryAwareDualEncoder 학습 방법
-4. **PA Processor 통합**: 기존 시스템에 통합하는 방법
-5. **하이퍼파라미터 튜닝**: boundary_weight, hard_neg_ratio 등
-
-**대상**: PA 정확도 향상을 원하는 개발자
-**분량**: ~440줄
-**읽기 시간**: 20분
-
----
 
 ### OBSERVABILITY_FIRST_PROMPT_DESIGN_MANUAL.md
 
@@ -274,10 +259,9 @@ documents/
 ├── INDEX.md                          ← 📍 이 파일 (문서 가이드)
 ├── DATA_PREPARATION.md               ← 데이터 처리 과정
 ├── WORKFLOW.md                       ← PA/SA 워크플로우
+├── ROADMAP_TO_F1_0.9.md              ← PA F1 0.90 로드맵
 ├── TROUBLESHOOTING.md                ← 문제 해결
 ├── PERFORMANCE.md                    ← 성능 최적화
-├── PROJECT_CLEANUP_REPORT.md         ← 프로젝트 정리 보고서
-├── CONTEXT_AWARE_ALIGNMENT_GUIDE.md  ← 경계 인식 정렬 모델 가이드
 ├── OBSERVABILITY_FIRST_PROMPT_DESIGN_MANUAL.md ← 관측성 우선 설계 매뉴얼
 └── MULTIVECTOR_VS_DENSE.md           ← Multi-Vector vs Dense 임베딩 비교
 ```
@@ -428,5 +412,5 @@ git clone https://github.com/hw725/CSP.git
 
 ---
 
-**마지막 업데이트**: 2025년 12월 19일
-**문서 버전**: 2.0 (XLSX 기반 완전 재정리)
+**마지막 업데이트**: 2026년 1월 13일
+**문서 버전**: 2.1 (PA F1 0.87 달성 반영, 문서 정리)
