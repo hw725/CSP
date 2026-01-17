@@ -444,17 +444,16 @@ def get_embedder_function(embedder_name: str, device: str = "cpu", openai_model:
     elif embedder_name == 'openai':
         try:
             # 모듈명 충돌 해결: openai_embedder.py로 파일명 변경
-            sys.path.insert(0, str(project_root / 'common' / 'embedders'))
-            from openai_embedder import compute_embeddings_batch
-            
-            # OpenAI API 키 설정
+            try:
+                from common.embedders.openai_embedder import compute_embeddings_batch
+            except ImportError:
+                 import openai_embedder
+                 compute_embeddings_batch = openai_embedder.compute_embeddings_batch
+
             if openai_api_key:
                 os.environ["OPENAI_API_KEY"] = openai_api_key
             
-            api_key = os.getenv("OPENAI_API_KEY")
-            if not api_key:
-                raise ValueError("OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
-            
+            # 래퍼 함수 생성 (시그니처 맞추기)
             def openai_embed_func(texts, model="text-embedding-3-large"):
                 if isinstance(texts, str):
                     texts = [texts]
@@ -464,7 +463,7 @@ def get_embedder_function(embedder_name: str, device: str = "cpu", openai_model:
                 
                 embeddings = compute_embeddings_batch(
                     texts, 
-                    model=model, 
+                    model=openai_model or model, 
                     max_workers=max_workers, 
                     batch_size=batch_size
                 )
@@ -480,6 +479,20 @@ def get_embedder_function(embedder_name: str, device: str = "cpu", openai_model:
         except ImportError as e:
             print(f"❌ OpenAI 임베더 로드 실패: {e}")
             return None
+
+    elif embedder_name == 'gemini':
+        try:
+            from common.embedders.gemini_embedder import compute_embeddings_batch
+        except ImportError:
+            import gemini_embedder
+            compute_embeddings_batch = gemini_embedder.compute_embeddings_batch
+            
+        def gemini_embed_func(texts, model="text-embedding-004"):
+            return compute_embeddings_batch(texts, model=model)
+            
+        print(f"Using Gemini Embedder (model=text-embedding-004)")
+        return gemini_embed_func
+
     else:
         print(f"❌ 지원하지 않는 임베더: {embedder_name}")
         return None

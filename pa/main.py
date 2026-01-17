@@ -260,6 +260,20 @@ def main():
         default=25,
         help='체크포인트 flush 주기(문단 단위, 기본 25). 값이 작을수록 안전하지만 I/O 증가.',
     )
+
+    parser.add_argument(
+        '--boundary-bonus-factor',
+        type=float,
+        default=1.0,
+        help='DP 경계 보너스 가중치 (기본 1.0)',
+    )
+
+    parser.add_argument(
+        '--shift-penalty-factor',
+        type=float,
+        default=0.0008,
+        help='DP 이동 페널티 가중치 (기본 0.0008)',
+    )
     
     args = parser.parse_args()
 
@@ -417,6 +431,8 @@ def main():
             checkpoint_path=args.checkpoint_path,
             resume=args.resume,
             checkpoint_every=args.checkpoint_every,
+            boundary_bonus_factor=args.boundary_bonus_factor,
+            shift_penalty_factor=args.shift_penalty_factor,
         )
         
         end_time = time.time()

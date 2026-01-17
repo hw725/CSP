@@ -2,7 +2,7 @@ import numpy as np
 from numba import njit
 from numba.typed import List as NumbaList
 
-@njit(fastmath=True)
+@njit(cache=True, fastmath=True)
 def run_dp_numba(
     n_parts: int,
     text_len: int,
@@ -10,7 +10,8 @@ def run_dp_numba(
     orig_boundaries: np.ndarray, # array(int32)
     sim_table: np.ndarray,       # 3D array(float32) [start, end, target_idx]
     targets_len: int,
-    boundary_bonus_arr: np.ndarray # 1D array(float32) pre-computed bonus for each global index
+    boundary_bonus_arr: np.ndarray, # 1D array(float32) pre-computed bonus for each global index
+    shift_penalty_factor: float = 0.0008,
 ) -> tuple: # (success_bool, best_total, chosen_indices_array)
 
     NEG = -1e9
@@ -47,7 +48,7 @@ def run_dp_numba(
         if bpos < len(boundary_bonus_arr):
             bonus = boundary_bonus_arr[bpos]
             
-        shift_penalty = 0.0008 * abs(bpos - orig0) 
+        shift_penalty = shift_penalty_factor * abs(bpos - orig0) 
         # choice_penalty ignored or needs logic
         
         dp[0, j] = s + bonus - shift_penalty
@@ -68,7 +69,7 @@ def run_dp_numba(
             bonus = 0.0
             if bpos < len(boundary_bonus_arr):
                 bonus = boundary_bonus_arr[bpos]
-            shift_penalty = 0.0008 * abs(bpos - orig_curr)
+            shift_penalty = shift_penalty_factor * abs(bpos - orig_curr)
             
             for k in range(len(prev_cs)):
                 apos = prev_cs[k]

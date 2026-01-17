@@ -203,6 +203,8 @@ def process_paragraph_alignment_with_boundary_model(
     trace=None,
     dp_debug_out: str | None = None,
     dp_debug_meta: Dict | None = None,
+    boundary_bonus_factor: float = 1.0,
+    shift_penalty_factor: float = 0.0008,
 ) -> List[Dict]:
     """
     Boundary 모델과 Alignment 모델을 사용한 문단 정렬
@@ -952,7 +954,7 @@ def process_paragraph_alignment_with_boundary_model(
                 unique_pos.update(cs)
             
             for bpos in unique_pos:
-                bonus_arr[bpos] = _boundary_bonus_at(text, bpos, global_start_norm=0)
+                bonus_arr[bpos] = _boundary_bonus_at(text, bpos, global_start_norm=0) * boundary_bonus_factor
                 
             # 4. Run Numba DP
             success, best_total, chosen_indices = numba_ops.run_dp_numba(
@@ -962,7 +964,8 @@ def process_paragraph_alignment_with_boundary_model(
                 orig_bound_arr,
                 sim_table,
                 n_tgts,
-                bonus_arr
+                bonus_arr,
+                shift_penalty_factor=shift_penalty_factor,
             )
             
             if not success:
@@ -2295,6 +2298,12 @@ def process_paragraph_file(
     trace_stages_path: str | None = None,
     seed: int | None = None,
     tokenizer_init_ok: bool | None = None,
+    checkpoint_path: str | None = None,
+    resume: bool = False,
+    checkpoint_every: int = 25,
+    boundary_bonus_factor: float = 1.0,  # 🆕 DP 튜닝
+    shift_penalty_factor: float = 0.0008, # 🆕 DP 튜닝
+
 ):
     """입력 엑셀 파일을 읽어 문단 단위로 정렬하고, 결과를 출력 파일로 저장
     
@@ -2354,9 +2363,9 @@ def process_paragraph_file(
         except Exception:
             pass
 
-    # 사용자 요구사항: 임베더는 항상 bge
-    if embedder_name != "bge":
-        raise RuntimeError(f"PA는 embedder_name='bge'만 허용합니다. 현재 값: {embedder_name}")
+    # 사용자 요구사항: 임베더는 bge 또는 gemini 허용
+    if embedder_name not in ["bge", "gemini"]:
+        raise RuntimeError(f"PA는 embedder_name='bge' 또는 'gemini'만 허용합니다. 현재 값: {embedder_name}")
     
     # Boundary/Alignment 모델 로드
     boundary_model = None
@@ -2524,6 +2533,8 @@ def process_paragraph_file(
                     tgt_split_max_length=max_length,
                     adjacent_refine_max_shift_tokens=(4 if enable_refine else 1),
                     enable_adjacent_boundary_refine=enable_adjacent_boundary_refine,
+                    boundary_bonus_factor=boundary_bonus_factor,
+                    shift_penalty_factor=shift_penalty_factor,
                     enable_src_marker_boundary_bonus=enable_src_marker_boundary_bonus,
                     enable_src_marker_whitespace_dp_bonus=enable_src_marker_whitespace_dp_bonus,
                     verbose=verbose,
