@@ -62,6 +62,45 @@ def setup_logging(verbose: bool = False):
         import warnings
         warnings.filterwarnings("ignore")
 
+def _preload_models(use_boundary_model: bool = False, device: str = 'cuda', verbose: bool = False):
+    """모델 사전 로드 및 워밍업"""
+    try:
+        # 1. BGE 임베더 로드
+        if verbose: print("  - BGE 임베더 로드 중...")
+        from common.embedders.bge import get_embedding_manager
+        manager = get_embedding_manager()
+        manager._load_model()
+        
+        # 워밍업 (더미 데이터로 첫 실행 지연 제거)
+        manager.compute_embeddings_with_cache(["워밍업"])
+        
+        # 2. SA 처리 함수 캐싱
+        if verbose: print("  - SA Aligner 모듈 로드 중...")
+        from sa.sa_aligner import process_single_row
+        from sa.io_manager import safe_process_sa_row
+        safe_process_sa_row._process_func = process_single_row
+        
+        # 3. 경계 모델 로드 (옵션)
+        if use_boundary_model:
+            if verbose: print("  - Cross-Attention 경계 모델 로드 중...")
+            from common.sa_crossattn_boundary_loader import get_crossattn_boundary_tagger
+            safe_process_sa_row._boundary_model = get_crossattn_boundary_tagger(device=device)
+            # 워밍업
+            try:
+                safe_process_sa_row._boundary_model.segment_text("원문", "번역문")
+            except:
+                pass
+            
+            # Alignment 모델
+            from common.alignment_model_loader import AlignmentMatcher
+            alignment_model_path = Path("models/dual_encoder_alignment_sa.pt")
+            if alignment_model_path.exists():
+                if verbose: print("  - Alignment 모델 로드 중...")
+                safe_process_sa_row._alignment_model = AlignmentMatcher(model_path=alignment_model_path, device=device)
+                
+    except Exception as e:
+        print(f"⚠️ 모델 사전 로드 실패 (무시됨): {e}")
+
 def main():
     """메인 실행 함수"""
     parser = argparse.ArgumentParser(description='SA: 한문-한국어 문장 분할 도구')
@@ -75,8 +114,8 @@ def main():
                        help='임베더 선택 (기본: bge, 순차분할: --embedder none)')
     parser.add_argument('--max-workers', type=int, default=4,
                        help='최대 워커 수 (기본: 4)')
-    parser.add_argument('--chunk-size', type=int, default=100,
-                       help='청크 크기 (기본: 100)')
+    parser.add_argument('--chunk-size', type=int, default=200,
+                       help='청크 크기 (기본: 200, 대용량 처리 시 300 권장)')
     parser.add_argument('--no-parallel', action='store_true',
                        help='병렬 처리 비활성화')
     parser.add_argument('--verbose', '-v', action='store_true',
@@ -124,10 +163,12 @@ def main():
     # 새로운 모델 옵션
     parser.add_argument('--use-boundary-model', action='store_true',
                        help='새로운 boundary_multitask + alignment 모델 사용')
-    parser.add_argument('--boundary-threshold', type=float, default=0.5,
-                       help='경계 모델 threshold (기본: 0.5, 범위: 0.0-1.0)')
+    parser.add_argument('--boundary-threshold', type=float, default=0.55,
+                       help='경계 모델 threshold (기본: 0.55, 범위: 0.0-1.0)')
     parser.add_argument('--device', default='cuda', choices=['cuda', 'cpu'],
                        help='디바이스 (기본: cuda, GPU 미지원시 자동 cpu)')
+    parser.add_argument('--preload-models', action='store_true',
+                       help='🆕 모델 사전 로드 (첫 문장 처리 전 로드, 대용량 처리 시 권장)')
     
     args = parser.parse_args()
 
@@ -186,8 +227,11 @@ def main():
     
     start_time = time.time()
     
-    # 🚀 하이브리드 토크나이저는 sa_aligner에서 지연 초기화되므로 여기서는 스킵
-    # (중복 초기화 메시지 방지)
+    # 🆕 모델 사전 로드 (--preload-models 옵션)
+    if args.preload_models:
+        print("🔄 모델 사전 로드 중...")
+        _preload_models(args.use_boundary_model, args.device, args.verbose)
+        print("✅ 모델 로드 완료")
     
     try:
         # io_manager의 process_file 함수 호출

@@ -757,26 +757,35 @@ def safe_process_sa_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Di
     """
     
     try:
+        # 🔧 process_single_row 캐싱 (매번 import 안 하도록)
+        if not hasattr(safe_process_sa_row, '_process_func'):
+            from sa.sa_aligner import process_single_row
+            safe_process_sa_row._process_func = process_single_row
+        
         # 경계 모델 사용 시 모델 로드 (캐싱)
         use_boundary_model = kwargs.get('use_boundary_model', False)
         
         if use_boundary_model and not hasattr(safe_process_sa_row, '_boundary_model'):
-            from common.boundary_model_loader import BoundaryModelLoader
-            from common.alignment_model_loader import AlignmentMatcher
+            # 🆕 Cross-Attention SA 경계 모델 사용
+            from common.sa_crossattn_boundary_loader import get_crossattn_boundary_tagger
             
             device = kwargs.get('device', 'cuda')
             
-            logger.info(f"🔧 SA 경계 모델 로드 중... (refinement 모드, device={device})")
-            # 경계 멀티태스크 모델 및 SA용 듀얼 인코더 정렬 모델 경로 설정
-            boundary_model_path = Path("models/boundary_multitask.pt")
-            alignment_model_path = Path("models/dual_encoder_alignment_sa.pt")
+            logger.info(f"🔧 Cross-Attention SA 경계 모델 로드 중... (device={device})")
             
-            safe_process_sa_row._boundary_model = BoundaryModelLoader(model_path=boundary_model_path, device=device)
-            safe_process_sa_row._alignment_model = AlignmentMatcher(model_path=alignment_model_path, device=device)
-            logger.info("✅ SA 경계/alignment 모델 로드 완료")
-        
-        # 기존 process_single_row 실행 (내부에서 refinement 수행)
-        from sa.sa_aligner import process_single_row
+            # Cross-Attention 모델 로드
+            safe_process_sa_row._boundary_model = get_crossattn_boundary_tagger(device=device)
+            
+            # Alignment 모델은 기존 경로 유지
+            from common.alignment_model_loader import AlignmentMatcher
+            alignment_model_path = Path("models/dual_encoder_alignment_sa.pt")
+            if alignment_model_path.exists():
+                safe_process_sa_row._alignment_model = AlignmentMatcher(model_path=alignment_model_path, device=device)
+            else:
+                safe_process_sa_row._alignment_model = None
+                logger.warning(f"⚠️ Alignment 모델 없음: {alignment_model_path}")
+            
+            logger.info("✅ Cross-Attention SA 경계 모델 로드 완료")
         
         # 원본 데이터 추출
         src_text = str(row.get('원문', ''))
@@ -787,7 +796,7 @@ def safe_process_sa_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Di
         
         # 🚨 마스킹 비활성화: 괄호 마스킹 없이 직접 처리
         # (PUA 토큰 분할 문제 해결을 위해 마스킹 로직 완전 우회)
-        return process_single_row(row, row_id=row_id, **kwargs)
+        return safe_process_sa_row._process_func(row, row_id=row_id, **kwargs)
         
     except Exception as e:
         logger.error(f"SA 행 처리 실패: {e}")

@@ -1,0 +1,11 @@
+{
+  "method": "dp_alignment",
+  "sample_size": 50,
+  "errors": 0,
+  "seg_match_rate": 0.82,
+  "f1": 0.3545554335894622,
+  "precision": 0.35223555070883317,
+  "recall": 0.3569060773480663,
+  "avg_similarity": 0.516846917207027,
+  "exact_match_rate": 0.10353866317169069
+}

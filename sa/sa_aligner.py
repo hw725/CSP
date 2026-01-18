@@ -1212,9 +1212,8 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
     method_label = 'bge_initial'
 
     # 2️⃣ (옵션) boundary + alignment 모델로 refinement
-    # - 번역문: boundary 모델로 구 분할(텍스트 보존)
-    # - 원문: alignment 모델로 번역문 구 개수에 맞춰 매칭/분할
     use_boundary_model = kwargs.get('use_boundary_model', False)
+    
     if use_boundary_model:
         try:
             from sa.io_manager import safe_process_sa_row
@@ -1223,33 +1222,97 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
             alignment_model = getattr(safe_process_sa_row, '_alignment_model', None)
             threshold = float(kwargs.get('boundary_threshold', 0.5))
 
-            if boundary_model is not None and alignment_model is not None:
-                tgt_units_by_model = boundary_model.segment_text(
-                    str(translation_text),
-                    task='sa',
-                    threshold=threshold,
-                )
+            if boundary_model is not None:
+                # 🆕 Cross-Attention 모델은 (src, tgt) 인자 필요
+                try:
+                    import inspect
+                    sig = inspect.signature(boundary_model.segment_text)
+                    if 'src_text' in sig.parameters or len(sig.parameters) >= 2:
+                        tgt_units_by_model = boundary_model.segment_text(
+                            str(source_text),
+                            str(translation_text),
+                            n_segments=len(src_units) if len(src_units) > 1 else None, # 🆕 원문이 2개 이상일 때만 힌트 사용
+                            threshold=threshold,
+                        )
+                    else:
+                        tgt_units_by_model = boundary_model.segment_text(
+                            str(translation_text),
+                            task='sa',
+                            threshold=threshold,
+                        )
+                    logger.debug(f"DEBUG: 모델 예측 세그먼트 수: {len(tgt_units_by_model)}")
+                except TypeError:
+                     tgt_units_by_model = boundary_model.segment_text(
+                        str(translation_text),
+                        threshold=threshold,
+                    )
+                     logger.debug(f"DEBUG: 폴백 모델 예측 세그먼트 수: {len(tgt_units_by_model)}")
 
                 # 너무 극단적인 분할(0개/1개)은 이득이 없으므로 스킵
                 if tgt_units_by_model and len(tgt_units_by_model) >= 2:
-                    # alignment_matcher.match_segments는 tgt 개수만큼 src를 반환한다.
-                    src_units_by_model = alignment_model.match_segments(src_units, tgt_units_by_model)
-
-                    # 무결성(공백 제거 기준) 검증 후에만 적용
-                    src_ok = ''.join(str(source_text).split()) == ''.join(''.join(src_units_by_model).split())
+                    # 무결성 검증: 번역문
                     tgt_ok = ''.join(str(translation_text).split()) == ''.join(''.join(tgt_units_by_model).split())
-                    len_ok = len(src_units_by_model) == len(tgt_units_by_model)
+                    
+                    if tgt_ok:
+                        # alignment 모델이 있으면 사용, 없으면 DP로 원문 재분할
+                        if alignment_model is not None:
+                            src_units_by_model = alignment_model.match_segments(src_units, tgt_units_by_model)
+                        else:
+                            # 🆕 Alignment 모델 없이: DP로 원문을 번역문 개수에 맞춰 재분할
+                            logger.debug(f"DEBUG: DP 재분할 시도 (Target Count: {len(tgt_units_by_model)})")
+                            src_units_by_model = split_tgt_meaning_units(
+                                source_text, len(tgt_units_by_model),
+                                src_units=[source_text], use_semantic=False, **kwargs
+                            )
+                            logger.debug(f"DEBUG: DP 재분할 결과 수: {len(src_units_by_model)}")
+                        
+                        # 원문 무결성 검증
+                        src_ok = ''.join(str(source_text).split()) == ''.join(''.join(src_units_by_model).split())
+                        len_ok = len(src_units_by_model) == len(tgt_units_by_model)
 
-                    if src_ok and tgt_ok and len_ok:
-                        src_units = src_units_by_model
-                        trans_units = tgt_units_by_model
-                        method_label = method_label + '+boundary_tgt+align_src'
+                        if src_ok and len_ok:
+                            # 🆕 LLM 보정 단계 (USE_LLM_BOUNDARY_VERIFY 환경변수가 설정된 경우만)
+                            import os
+                            if os.getenv("USE_LLM_BOUNDARY_VERIFY"):
+                                try:
+                                    ref_text = ' '.join(src_units_by_model)
+                                    llm_refined = refine_boundaries_with_llm(
+                                        str(translation_text),
+                                        tgt_units_by_model,
+                                        task="sa",
+                                        max_segments=30,
+                                        reference_text=ref_text,
+                                    )
+                                    if llm_refined and len(llm_refined) == len(tgt_units_by_model):
+                                        # LLM 결과 무결성 검증
+                                        llm_text = ''.join(''.join(llm_refined).split())
+                                        orig_text = ''.join(str(translation_text).split())
+                                        if llm_text == orig_text:
+                                            tgt_units_by_model = llm_refined
+                                            method_label = method_label + '+llm_refine'
+                                            logger.info(f"✅ LLM 경계 보정 적용 (id={base_id})")
+                                except Exception as llm_err:
+                                    logger.debug(f"LLM 보정 스킵: {llm_err}")
+                            
+                            src_units = src_units_by_model
+                            trans_units = tgt_units_by_model
+                            method_label = method_label + '+boundary_tgt'
+                            if alignment_model is not None:
+                                method_label += '+align_src'
+                            else:
+                                method_label += '+dp_src'
+                        else:
+                            logger.warning(
+                                f"SA refinement 무결성 실패로 폴백 (id={base_id}, src_ok={src_ok}, len_ok={len_ok}, src_len={len(src_units_by_model)}, tgt_len={len(tgt_units_by_model)})"
+                            )
                     else:
-                        logger.warning(
-                            f"SA refinement 무결성 실패로 폴백 (id={base_id}, src_ok={src_ok}, tgt_ok={tgt_ok}, len_ok={len_ok})"
-                        )
+                        logger.warning(f"SA boundary tgt 무결성 실패로 폴백 (id={base_id})")
+                else:
+                    logger.debug(f"DEBUG: 모델 분할 개수 부족 ({len(tgt_units_by_model)})")
         except Exception as e:
             logger.warning(f"SA refinement 실패로 폴백 (id={base_id}): {e}")
+            import traceback
+            logger.warning(traceback.format_exc())
     
     # 시대 정보 분석
     try:

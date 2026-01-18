@@ -1,0 +1,12 @@
+{
+  "best_f1": 0.4197359277275886,
+  "best_params": {
+    "dp_window": 2,
+    "distance_decay": 0.19928282303699665,
+    "boundary_bonus": 0.35197640606773545,
+    "particle_bonus": 0.11688523533762182,
+    "length_penalty": 0.02839253660934266,
+    "sim_gamma": 1.4804562857722403,
+    "similarity_threshold": 0.5094719765316927
+  }
+}
