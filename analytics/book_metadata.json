@@ -1,271 +1,596 @@
 {
-    "_description": "서종별 메타데이터. 코드에서 하드코딩 대신 이 파일을 참조합니다.",
+    "_description": "서종별 메타데이터. period_detail로 세부 연도 지정, author/translator는 복수 가능",
     "_last_updated": "2026-01-20",
     "books": {
         "예기집설대전1": {
-            "author": "주희",
-            "period": "남송시대(1130-1200)",
+            "author": [
+                "주희"
+            ],
+            "period": "남송시대",
+            "period_detail": "1130-1200",
             "sibu": "經",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "예기집설대전2": {
-            "author": "주희",
-            "period": "남송시대(1130-1200)",
+            "author": [
+                "주희"
+            ],
+            "period": "남송시대",
+            "period_detail": "1130-1200",
             "sibu": "經",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "춘추좌씨전1": {
-            "author": "좌구명",
-            "period": "춘추시대(BC 556-BC 451)",
+            "author": [
+                "좌구명"
+            ],
+            "period": "춘추시대",
+            "period_detail": "BC 556-BC 451",
             "sibu": "經",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "춘추좌씨전2": {
-            "author": "좌구명",
-            "period": "춘추시대(BC 556-BC 451)",
+            "author": [
+                "좌구명"
+            ],
+            "period": "춘추시대",
+            "period_detail": "BC 556-BC 451",
             "sibu": "經",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "춘추좌씨전3": {
-            "author": "좌구명",
-            "period": "춘추시대(BC 556-BC 451)",
+            "author": [
+                "좌구명"
+            ],
+            "period": "춘추시대",
+            "period_detail": "BC 556-BC 451",
             "sibu": "經",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "춘추좌씨전4": {
-            "author": "좌구명",
-            "period": "춘추시대(BC 556-BC 451)",
+            "author": [
+                "좌구명"
+            ],
+            "period": "춘추시대",
+            "period_detail": "BC 556-BC 451",
             "sibu": "經",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "춘추좌씨전5": {
-            "author": "좌구명",
-            "period": "춘추시대(BC 556-BC 451)",
+            "author": [
+                "좌구명"
+            ],
+            "period": "춘추시대",
+            "period_detail": "BC 556-BC 451",
             "sibu": "經",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "춘추좌씨전6": {
-            "author": "좌구명",
-            "period": "춘추시대(BC 556-BC 451)",
+            "author": [
+                "좌구명"
+            ],
+            "period": "춘추시대",
+            "period_detail": "BC 556-BC 451",
             "sibu": "經",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "춘추좌씨전7": {
-            "author": "좌구명",
-            "period": "춘추시대(BC 556-BC 451)",
+            "author": [
+                "좌구명"
+            ],
+            "period": "춘추시대",
+            "period_detail": "BC 556-BC 451",
             "sibu": "經",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "춘추좌씨전8": {
-            "author": "좌구명",
-            "period": "춘추시대(BC 556-BC 451)",
+            "author": [
+                "좌구명"
+            ],
+            "period": "춘추시대",
+            "period_detail": "BC 556-BC 451",
             "sibu": "經",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "자치통감강목1": {
-            "author": "주희",
-            "period": "남송시대(1130-1200)",
+            "author": [
+                "주희"
+            ],
+            "period": "남송시대",
+            "period_detail": "1130-1200",
             "sibu": "史",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "자치통감강목2": {
-            "author": "주희",
-            "period": "남송시대(1130-1200)",
+            "author": [
+                "주희"
+            ],
+            "period": "남송시대",
+            "period_detail": "1130-1200",
             "sibu": "史",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "자치통감강목3": {
-            "author": "주희",
-            "period": "남송시대(1130-1200)",
+            "author": [
+                "주희"
+            ],
+            "period": "남송시대",
+            "period_detail": "1130-1200",
             "sibu": "史",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "자치통감강목4": {
-            "author": "주희",
-            "period": "남송시대(1130-1200)",
+            "author": [
+                "주희"
+            ],
+            "period": "남송시대",
+            "period_detail": "1130-1200",
             "sibu": "史",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "자치통감강목5": {
-            "author": "주희",
-            "period": "남송시대(1130-1200)",
+            "author": [
+                "주희"
+            ],
+            "period": "남송시대",
+            "period_detail": "1130-1200",
             "sibu": "史",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "자치통감강목6": {
-            "author": "주희",
-            "period": "남송시대(1130-1200)",
+            "author": [
+                "주희"
+            ],
+            "period": "남송시대",
+            "period_detail": "1130-1200",
             "sibu": "史",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "자치통감강목7": {
-            "author": "주희",
-            "period": "남송시대(1130-1200)",
+            "author": [
+                "주희"
+            ],
+            "period": "남송시대",
+            "period_detail": "1130-1200",
             "sibu": "史",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당시삼백수1": {
-            "author": "손수",
-            "period": "청대(18세기)",
+            "author": [
+                "손수"
+            ],
+            "period": "청대",
+            "period_detail": "18세기",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당시삼백수2": {
-            "author": "손수",
-            "period": "청대(18세기)",
+            "author": [
+                "손수"
+            ],
+            "period": "청대",
+            "period_detail": "18세기",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당시삼백수3": {
-            "author": "손수",
-            "period": "청대(18세기)",
+            "author": [
+                "손수"
+            ],
+            "period": "청대",
+            "period_detail": "18세기",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초한유1": {
-            "author": "한유",
-            "period": "당대(768-824)",
+            "author": [
+                "한유"
+            ],
+            "period": "당대",
+            "period_detail": "768-824",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초한유2": {
-            "author": "한유",
-            "period": "당대(768-824)",
+            "author": [
+                "한유"
+            ],
+            "period": "당대",
+            "period_detail": "768-824",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초한유3": {
-            "author": "한유",
-            "period": "당대(768-824)",
+            "author": [
+                "한유"
+            ],
+            "period": "당대",
+            "period_detail": "768-824",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초유종원1": {
-            "author": "유종원",
-            "period": "당대(773-819)",
+            "author": [
+                "유종원"
+            ],
+            "period": "당대",
+            "period_detail": "773-819",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초유종원2": {
-            "author": "유종원",
-            "period": "당대(773-819)",
+            "author": [
+                "유종원"
+            ],
+            "period": "당대",
+            "period_detail": "773-819",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초구양수1": {
-            "author": "구양수",
-            "period": "북송시대(1007-1072)",
+            "author": [
+                "구양수"
+            ],
+            "period": "북송시대",
+            "period_detail": "1007-1072",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초구양수2": {
-            "author": "구양수",
-            "period": "북송시대(1007-1072)",
+            "author": [
+                "구양수"
+            ],
+            "period": "북송시대",
+            "period_detail": "1007-1072",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초구양수3": {
-            "author": "구양수",
-            "period": "북송시대(1007-1072)",
+            "author": [
+                "구양수"
+            ],
+            "period": "북송시대",
+            "period_detail": "1007-1072",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초구양수4": {
-            "author": "구양수",
-            "period": "북송시대(1007-1072)",
+            "author": [
+                "구양수"
+            ],
+            "period": "북송시대",
+            "period_detail": "1007-1072",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초구양수5": {
-            "author": "구양수",
-            "period": "북송시대(1007-1072)",
+            "author": [
+                "구양수"
+            ],
+            "period": "북송시대",
+            "period_detail": "1007-1072",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초구양수6": {
-            "author": "구양수",
-            "period": "북송시대(1007-1072)",
+            "author": [
+                "구양수"
+            ],
+            "period": "북송시대",
+            "period_detail": "1007-1072",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초소순1": {
-            "author": "소순",
-            "period": "북송시대(1009-1066)",
+            "author": [
+                "소순"
+            ],
+            "period": "북송시대",
+            "period_detail": "1009-1066",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초소식1": {
-            "author": "소식",
-            "period": "북송시대(1037-1101)",
+            "author": [
+                "소식"
+            ],
+            "period": "북송시대",
+            "period_detail": "1037-1101",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초소식2": {
-            "author": "소식",
-            "period": "북송시대(1037-1101)",
+            "author": [
+                "소식"
+            ],
+            "period": "북송시대",
+            "period_detail": "1037-1101",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초소식3": {
-            "author": "소식",
-            "period": "북송시대(1037-1101)",
+            "author": [
+                "소식"
+            ],
+            "period": "북송시대",
+            "period_detail": "1037-1101",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초소식4": {
-            "author": "소식",
-            "period": "북송시대(1037-1101)",
+            "author": [
+                "소식"
+            ],
+            "period": "북송시대",
+            "period_detail": "1037-1101",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초소식5": {
-            "author": "소식",
-            "period": "북송시대(1037-1101)",
+            "author": [
+                "소식"
+            ],
+            "period": "북송시대",
+            "period_detail": "1037-1101",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초소철1": {
-            "author": "소철",
-            "period": "북송시대(1039-1112)",
+            "author": [
+                "소철"
+            ],
+            "period": "북송시대",
+            "period_detail": "1039-1112",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초소철2": {
-            "author": "소철",
-            "period": "북송시대(1039-1112)",
+            "author": [
+                "소철"
+            ],
+            "period": "북송시대",
+            "period_detail": "1039-1112",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초증공1": {
-            "author": "증공",
-            "period": "북송시대(1019-1083)",
+            "author": [
+                "증공"
+            ],
+            "period": "북송시대",
+            "period_detail": "1019-1083",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초왕안석1": {
-            "author": "왕안석",
-            "period": "북송시대(1021-1086)",
+            "author": [
+                "왕안석"
+            ],
+            "period": "북송시대",
+            "period_detail": "1021-1086",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초왕안석2": {
-            "author": "왕안석",
-            "period": "북송시대(1021-1086)",
+            "author": [
+                "왕안석"
+            ],
+            "period": "북송시대",
+            "period_detail": "1021-1086",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         },
         "당송팔대가문초왕안석3": {
-            "author": "왕안석",
-            "period": "북송시대(1021-1086)",
+            "author": [
+                "왕안석"
+            ],
+            "period": "북송시대",
+            "period_detail": "1021-1086",
             "sibu": "集",
-            "translator": "한국고전번역원"
+            "translator": [
+                "한국고전번역원"
+            ]
         }
     },
-    "default_translator": "한국고전번역원",
-    "sibu_map": {
-        "1": "經",
-        "2": "史",
-        "3": "子",
-        "4": "集"
-    }
+    "people": {
+        "공자": {
+            "period": "BC 551-BC 479",
+            "role": [
+                "author"
+            ]
+        },
+        "맹자": {
+            "period": "BC 372-BC 289",
+            "role": [
+                "author"
+            ]
+        },
+        "좌구명": {
+            "period": "BC 556-BC 451",
+            "role": [
+                "author"
+            ]
+        },
+        "주희": {
+            "period": "1130-1200",
+            "role": [
+                "author",
+                "commentator"
+            ]
+        },
+        "한유": {
+            "period": "768-824",
+            "role": [
+                "author"
+            ]
+        },
+        "유종원": {
+            "period": "773-819",
+            "role": [
+                "author"
+            ]
+        },
+        "구양수": {
+            "period": "1007-1072",
+            "role": [
+                "author"
+            ]
+        },
+        "소식": {
+            "period": "1037-1101",
+            "role": [
+                "author"
+            ]
+        },
+        "소철": {
+            "period": "1039-1112",
+            "role": [
+                "author"
+            ]
+        },
+        "소순": {
+            "period": "1009-1066",
+            "role": [
+                "author"
+            ]
+        },
+        "증공": {
+            "period": "1019-1083",
+            "role": [
+                "author"
+            ]
+        },
+        "왕안석": {
+            "period": "1021-1086",
+            "role": [
+                "author"
+            ]
+        },
+        "손수": {
+            "period": "18세기",
+            "role": [
+                "compiler"
+            ]
+        },
+        "한국고전번역원": {
+            "role": [
+                "translator"
+            ]
+        },
+        "성백효": {
+            "role": [
+                "translator"
+            ]
+        },
+        "김동주": {
+            "role": [
+                "translator"
+            ]
+        }
+    },
+    "periods": [
+        "춘추시대",
+        "전국시대",
+        "전한시대",
+        "후한시대",
+        "위진남북조시대",
+        "당대",
+        "북송시대",
+        "남송시대",
+        "원대",
+        "명대",
+        "청대",
+        "미상"
+    ],
+    "sibu_options": [
+        "經",
+        "史",
+        "子",
+        "集"
+    ],
+    "default_translator": "한국고전번역원"
 }

@@ -1,23 +1,31 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>서종 메타데이터 편집기</title>
+    <title>서종 메타데이터 편집기 v2</title>
     <style>
         :root {
-            --bg-dark: #1a1a2e;
-            --bg-card: #16213e;
+            --bg-dark: #0f0f1a;
+            --bg-card: #1a1a2e;
+            --bg-input: #16213e;
             --accent: #0f3460;
             --primary: #e94560;
+            --secondary: #7b2cbf;
             --text: #eaeaea;
-            --text-dim: #a0a0a0;
+            --text-dim: #8a8a9a;
             --success: #00d9a5;
             --warning: #ffc107;
+            --info: #00b4d8;
         }
-        
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             font-family: 'Segoe UI', system-ui, sans-serif;
             background: var(--bg-dark);
@@ -25,228 +33,251 @@
             min-height: 100vh;
             padding: 20px;
         }
-        
+
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
-        
+
         header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
+            margin-bottom: 25px;
             padding-bottom: 20px;
             border-bottom: 1px solid var(--accent);
         }
-        
+
         h1 {
-            font-size: 1.8rem;
-            background: linear-gradient(135deg, var(--primary), #ff6b6b);
+            font-size: 1.6rem;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        
+
         .header-actions {
             display: flex;
             gap: 10px;
         }
-        
+
         button {
-            padding: 10px 20px;
+            padding: 10px 18px;
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             font-weight: 600;
             transition: all 0.2s;
         }
-        
+
         .btn-primary {
             background: var(--primary);
             color: white;
         }
-        
+
         .btn-primary:hover {
             background: #ff6b6b;
             transform: translateY(-2px);
         }
-        
+
         .btn-secondary {
             background: var(--accent);
             color: var(--text);
         }
-        
+
         .btn-secondary:hover {
             background: #1a4a7a;
         }
-        
+
         .btn-success {
             background: var(--success);
             color: #000;
         }
-        
-        .btn-success:hover {
-            background: #00ffb8;
+
+        .btn-info {
+            background: var(--info);
+            color: #000;
         }
-        
-        .stats {
+
+        .tabs {
             display: flex;
-            gap: 20px;
+            gap: 5px;
             margin-bottom: 20px;
-        }
-        
-        .stat-card {
             background: var(--bg-card);
-            padding: 15px 25px;
+            padding: 5px;
             border-radius: 10px;
-            border-left: 4px solid var(--primary);
         }
-        
-        .stat-value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--primary);
-        }
-        
-        .stat-label {
-            font-size: 0.85rem;
+
+        .tab {
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
             color: var(--text-dim);
+            transition: all 0.2s;
         }
-        
-        .toolbar {
+
+        .tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .tab:hover:not(.active) {
+            background: var(--accent);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .stats {
             display: flex;
             gap: 15px;
             margin-bottom: 20px;
             flex-wrap: wrap;
         }
-        
+
+        .stat-card {
+            background: var(--bg-card);
+            padding: 12px 20px;
+            border-radius: 10px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .stat-value {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .search-box,
+        .filter-select {
+            padding: 10px 14px;
+            border: 2px solid var(--accent);
+            border-radius: 8px;
+            background: var(--bg-input);
+            color: var(--text);
+            font-size: 0.9rem;
+        }
+
         .search-box {
             flex: 1;
             min-width: 200px;
-            padding: 12px 15px;
-            border: 2px solid var(--accent);
-            border-radius: 8px;
-            background: var(--bg-card);
-            color: var(--text);
-            font-size: 1rem;
         }
-        
-        .search-box:focus {
+
+        .search-box:focus,
+        .filter-select:focus {
             outline: none;
             border-color: var(--primary);
         }
-        
-        .filter-select {
-            padding: 12px 15px;
-            border: 2px solid var(--accent);
-            border-radius: 8px;
-            background: var(--bg-card);
-            color: var(--text);
-            font-size: 0.9rem;
-            cursor: pointer;
-        }
-        
+
         .table-container {
             background: var(--bg-card);
             border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            overflow-x: auto;
         }
-        
+
         table {
             width: 100%;
             border-collapse: collapse;
+            min-width: 900px;
         }
-        
-        th, td {
-            padding: 15px;
+
+        th,
+        td {
+            padding: 12px 15px;
             text-align: left;
             border-bottom: 1px solid var(--accent);
         }
-        
+
         th {
             background: var(--accent);
             font-weight: 600;
+            font-size: 0.75rem;
             text-transform: uppercase;
-            font-size: 0.8rem;
             letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
         }
-        
+
         tr:hover {
-            background: rgba(233, 69, 96, 0.1);
+            background: rgba(233, 69, 96, 0.08);
         }
-        
-        .editable-cell {
-            cursor: pointer;
-            padding: 8px 12px;
-            border-radius: 6px;
-            transition: background 0.2s;
-        }
-        
-        .editable-cell:hover {
-            background: var(--accent);
-        }
-        
-        select.cell-select {
-            width: 100%;
-            padding: 8px;
-            border: 2px solid var(--accent);
-            border-radius: 6px;
-            background: var(--bg-dark);
-            color: var(--text);
-            font-size: 0.9rem;
-        }
-        
-        input.cell-input {
-            width: 100%;
-            padding: 8px;
-            border: 2px solid var(--accent);
-            border-radius: 6px;
-            background: var(--bg-dark);
-            color: var(--text);
-            font-size: 0.9rem;
-        }
-        
-        input.cell-input:focus, select.cell-select:focus {
-            outline: none;
-            border-color: var(--primary);
-        }
-        
+
         .tag {
             display: inline-block;
             padding: 4px 10px;
             margin: 2px;
             background: var(--accent);
-            border-radius: 20px;
-            font-size: 0.8rem;
-        }
-        
-        .tag-remove {
-            margin-left: 5px;
-            cursor: pointer;
-            color: var(--primary);
-        }
-        
-        .sibu-經 { border-left: 4px solid #4CAF50; }
-        .sibu-史 { border-left: 4px solid #2196F3; }
-        .sibu-子 { border-left: 4px solid #FF9800; }
-        .sibu-集 { border-left: 4px solid #9C27B0; }
-        
-        .action-btn {
-            padding: 6px 12px;
-            margin: 0 3px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
+            border-radius: 15px;
             font-size: 0.75rem;
         }
-        
+
+        .tag.author {
+            background: #2d4a22;
+            border-left: 3px solid #4CAF50;
+        }
+
+        .tag.translator {
+            background: #1a3a5c;
+            border-left: 3px solid #2196F3;
+        }
+
+        .tag.sibu-經 {
+            background: #1a4a1a;
+        }
+
+        .tag.sibu-史 {
+            background: #1a3a5c;
+        }
+
+        .tag.sibu-子 {
+            background: #4a3a1a;
+        }
+
+        .tag.sibu-集 {
+            background: #3a1a4a;
+        }
+
+        .tag-remove {
+            margin-left: 6px;
+            cursor: pointer;
+            opacity: 0.7;
+        }
+
+        .tag-remove:hover {
+            opacity: 1;
+            color: var(--primary);
+        }
+
+        .action-btn {
+            padding: 5px 10px;
+            margin: 0 2px;
+            border-radius: 5px;
+            font-size: 0.7rem;
+        }
+
         .action-btn.delete {
             background: #ff4444;
             color: white;
         }
-        
+
         .modal {
             display: none;
             position: fixed;
@@ -254,31 +285,35 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0, 0, 0, 0.85);
             z-index: 1000;
             align-items: center;
             justify-content: center;
+            overflow-y: auto;
+            padding: 20px;
         }
-        
+
         .modal.active {
             display: flex;
         }
-        
+
         .modal-content {
             background: var(--bg-card);
-            padding: 30px;
+            padding: 25px;
             border-radius: 15px;
-            width: 90%;
-            max-width: 500px;
+            width: 100%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
         }
-        
+
         .modal-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
         }
-        
+
         .modal-close {
             background: none;
             border: none;
@@ -286,49 +321,121 @@
             font-size: 1.5rem;
             cursor: pointer;
         }
-        
+
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 18px;
         }
-        
+
         .form-group label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             font-weight: 600;
             color: var(--text-dim);
+            font-size: 0.85rem;
         }
-        
-        .form-group input, .form-group select {
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
             width: 100%;
-            padding: 12px;
+            padding: 10px 12px;
             border: 2px solid var(--accent);
             border-radius: 8px;
-            background: var(--bg-dark);
+            background: var(--bg-input);
             color: var(--text);
-            font-size: 1rem;
+            font-size: 0.9rem;
         }
-        
-        .translator-tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-            margin-top: 10px;
-        }
-        
-        .translator-input-row {
+
+        .form-row {
             display: flex;
             gap: 10px;
         }
-        
-        .translator-input-row input {
+
+        .form-row>* {
             flex: 1;
         }
-        
+
+        .tag-input-container {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .tag-input-container input {
+            flex: 1;
+        }
+
+        .tag-input-container select {
+            width: 200px;
+        }
+
+        .tags-display {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            min-height: 30px;
+            padding: 8px;
+            background: var(--bg-dark);
+            border-radius: 8px;
+        }
+
+        .period-input-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .period-input-row select {
+            width: 150px;
+        }
+
+        .period-input-row input {
+            flex: 1;
+        }
+
+        .people-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+        }
+
+        .person-card {
+            background: var(--bg-input);
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid var(--secondary);
+        }
+
+        .person-name {
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 5px;
+        }
+
+        .person-period {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+
+        .person-roles {
+            margin-top: 8px;
+        }
+
+        .json-output {
+            background: var(--bg-dark);
+            padding: 15px;
+            border-radius: 10px;
+            max-height: 400px;
+            overflow: auto;
+            font-family: 'Consolas', monospace;
+            font-size: 0.8rem;
+            white-space: pre-wrap;
+        }
+
         .toast {
             position: fixed;
             bottom: 30px;
             right: 30px;
-            padding: 15px 25px;
+            padding: 12px 20px;
             background: var(--success);
             color: #000;
             border-radius: 10px;
@@ -336,472 +443,608 @@
             transform: translateY(100px);
             opacity: 0;
             transition: all 0.3s;
+            z-index: 9999;
         }
-        
+
         .toast.show {
             transform: translateY(0);
             opacity: 1;
         }
-        
-        .json-output {
-            background: var(--bg-dark);
-            padding: 20px;
-            border-radius: 10px;
-            max-height: 400px;
-            overflow: auto;
-            font-family: monospace;
-            font-size: 0.85rem;
-            white-space: pre-wrap;
-        }
     </style>
 </head>
+
 <body>
     <div class="container">
         <header>
-            <h1>📚 서종 메타데이터 편집기</h1>
+            <h1>📚 서종 메타데이터 편집기 v2</h1>
             <div class="header-actions">
                 <button class="btn-secondary" onclick="loadFromFile()">📂 불러오기</button>
-                <button class="btn-primary" onclick="openAddModal()">➕ 서목 추가</button>
                 <button class="btn-success" onclick="exportJSON()">💾 JSON 저장</button>
             </div>
         </header>
-        
-        <div class="stats">
-            <div class="stat-card">
-                <div class="stat-value" id="totalBooks">0</div>
-                <div class="stat-label">총 서목</div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('books')">📖 서목 관리</div>
+            <div class="tab" onclick="switchTab('people')">👤 인물 관리</div>
+        </div>
+
+        <!-- 서목 관리 탭 -->
+        <div class="tab-content active" id="tab-books">
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalBooks">0</div>
+                    <div class="stat-label">총 서목</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalAuthors">0</div>
+                    <div class="stat-label">저자 수</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalTranslators">0</div>
+                    <div class="stat-label">역자 수</div>
+                </div>
             </div>
-            <div class="stat-card">
-                <div class="stat-value" id="totalAuthors">0</div>
-                <div class="stat-label">저자 수</div>
+
+            <div class="toolbar">
+                <input type="text" class="search-box" id="searchBox" placeholder="🔍 검색...">
+                <select class="filter-select" id="filterSibu">
+                    <option value="">전체 사부</option>
+                    <option value="經">經</option>
+                    <option value="史">史</option>
+                    <option value="子">子</option>
+                    <option value="集">集</option>
+                </select>
+                <button class="btn-primary" onclick="openBookModal()">➕ 서목 추가</button>
             </div>
-            <div class="stat-card">
-                <div class="stat-value" id="totalTranslators">0</div>
-                <div class="stat-label">역자 수</div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>서목명</th>
+                            <th>저자</th>
+                            <th>시대</th>
+                            <th>세부연도</th>
+                            <th>사부</th>
+                            <th>역자</th>
+                            <th>작업</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bookTable"></tbody>
+                </table>
             </div>
         </div>
-        
-        <div class="toolbar">
-            <input type="text" class="search-box" id="searchBox" placeholder="🔍 서목명, 저자, 역자 검색...">
-            <select class="filter-select" id="filterSibu">
-                <option value="">전체 사부</option>
-                <option value="經">經 (경)</option>
-                <option value="史">史 (사)</option>
-                <option value="子">子 (자)</option>
-                <option value="集">集 (집)</option>
-            </select>
-            <select class="filter-select" id="filterPeriod">
-                <option value="">전체 시대</option>
-            </select>
-        </div>
-        
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>서목명</th>
-                        <th>저자</th>
-                        <th>시대</th>
-                        <th>사부</th>
-                        <th>역자</th>
-                        <th>작업</th>
-                    </tr>
-                </thead>
-                <tbody id="bookTable">
-                </tbody>
-            </table>
+
+        <!-- 인물 관리 탭 -->
+        <div class="tab-content" id="tab-people">
+            <div class="toolbar">
+                <input type="text" class="search-box" id="searchPeople" placeholder="🔍 인물 검색...">
+                <button class="btn-primary" onclick="openPersonModal()">➕ 인물 추가</button>
+            </div>
+
+            <div class="people-grid" id="peopleGrid"></div>
         </div>
     </div>
-    
-    <!-- 서목 추가/편집 모달 -->
-    <div class="modal" id="addModal">
+
+    <!-- 서목 편집 모달 -->
+    <div class="modal" id="bookModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 id="modalTitle">📖 서목 추가</h2>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
+                <h2 id="bookModalTitle">📖 서목 추가</h2>
+                <button class="modal-close" onclick="closeBookModal()">&times;</button>
             </div>
-            <form id="bookForm">
+            <form id="bookForm" onsubmit="saveBook(event)">
                 <input type="hidden" id="editingBook">
+
                 <div class="form-group">
                     <label>서목명 *</label>
                     <input type="text" id="bookName" required placeholder="예: 논어집주1">
                 </div>
+
                 <div class="form-group">
-                    <label>저자 *</label>
-                    <input type="text" id="author" required placeholder="예: 공자">
+                    <label>저자 (복수 선택 가능)</label>
+                    <div class="tag-input-container">
+                        <select id="authorSelect">
+                            <option value="">-- 기존 인물 선택 --</option>
+                        </select>
+                        <button type="button" class="btn-secondary" onclick="addAuthorFromSelect()">추가</button>
+                    </div>
+                    <div class="tag-input-container">
+                        <input type="text" id="authorInput" placeholder="새 저자명 직접 입력">
+                        <button type="button" class="btn-secondary" onclick="addAuthorFromInput()">추가</button>
+                    </div>
+                    <div class="tags-display" id="authorTags"></div>
                 </div>
+
                 <div class="form-group">
                     <label>시대</label>
-                    <select id="period">
-                        <option value="춘추시대">춘추시대</option>
-                        <option value="전국시대">전국시대</option>
-                        <option value="전한시대">전한시대</option>
-                        <option value="후한시대">후한시대</option>
-                        <option value="위진남북조시대">위진남북조시대</option>
-                        <option value="당대">당대</option>
-                        <option value="북송시대">북송시대</option>
-                        <option value="남송시대">남송시대</option>
-                        <option value="원대">원대</option>
-                        <option value="명대">명대</option>
-                        <option value="청대">청대</option>
-                        <option value="미상">미상</option>
-                    </select>
+                    <div class="period-input-row">
+                        <select id="periodSelect">
+                            <option value="춘추시대">춘추시대</option>
+                            <option value="전국시대">전국시대</option>
+                            <option value="전한시대">전한시대</option>
+                            <option value="후한시대">후한시대</option>
+                            <option value="위진남북조시대">위진남북조</option>
+                            <option value="당대">당대</option>
+                            <option value="북송시대">북송시대</option>
+                            <option value="남송시대">남송시대</option>
+                            <option value="원대">원대</option>
+                            <option value="명대">명대</option>
+                            <option value="청대">청대</option>
+                            <option value="미상">미상</option>
+                        </select>
+                        <input type="text" id="periodDetail" placeholder="세부연도 (예: 1130-1200, BC 551-BC 479)">
+                    </div>
                 </div>
+
                 <div class="form-group">
                     <label>사부 분류</label>
-                    <select id="sibu">
+                    <select id="sibuSelect">
                         <option value="經">經 (경부)</option>
                         <option value="史">史 (사부)</option>
                         <option value="子">子 (자부)</option>
                         <option value="集">集 (집부)</option>
                     </select>
                 </div>
+
                 <div class="form-group">
-                    <label>역자 (복수 가능)</label>
-                    <div class="translator-input-row">
-                        <input type="text" id="translatorInput" placeholder="역자명 입력 후 추가">
-                        <button type="button" class="btn-secondary" onclick="addTranslator()">추가</button>
+                    <label>역자 (복수 선택 가능)</label>
+                    <div class="tag-input-container">
+                        <select id="translatorSelect">
+                            <option value="">-- 기존 인물 선택 --</option>
+                        </select>
+                        <button type="button" class="btn-secondary" onclick="addTranslatorFromSelect()">추가</button>
                     </div>
-                    <div class="translator-tags" id="translatorTags"></div>
+                    <div class="tag-input-container">
+                        <input type="text" id="translatorInput" placeholder="새 역자명 직접 입력">
+                        <button type="button" class="btn-secondary" onclick="addTranslatorFromInput()">추가</button>
+                    </div>
+                    <div class="tags-display" id="translatorTags"></div>
                 </div>
+
                 <button type="submit" class="btn-primary" style="width:100%">저장</button>
             </form>
         </div>
     </div>
-    
-    <!-- JSON 보기 모달 -->
+
+    <!-- 인물 편집 모달 -->
+    <div class="modal" id="personModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="personModalTitle">👤 인물 추가</h2>
+                <button class="modal-close" onclick="closePersonModal()">&times;</button>
+            </div>
+            <form id="personForm" onsubmit="savePerson(event)">
+                <input type="hidden" id="editingPerson">
+
+                <div class="form-group">
+                    <label>이름 *</label>
+                    <input type="text" id="personName" required placeholder="예: 공자">
+                </div>
+
+                <div class="form-group">
+                    <label>생몰연도</label>
+                    <input type="text" id="personPeriod" placeholder="예: BC 551-BC 479, 1130-1200">
+                </div>
+
+                <div class="form-group">
+                    <label>역할</label>
+                    <div style="display:flex;gap:15px;flex-wrap:wrap;">
+                        <label><input type="checkbox" id="roleAuthor" value="author"> 저자</label>
+                        <label><input type="checkbox" id="roleCommentator" value="commentator"> 주석자</label>
+                        <label><input type="checkbox" id="roleCompiler" value="compiler"> 편찬자</label>
+                        <label><input type="checkbox" id="roleTranslator" value="translator"> 역자</label>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-primary" style="width:100%">저장</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- JSON 출력 모달 -->
     <div class="modal" id="jsonModal">
-        <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-content" style="max-width:900px">
             <div class="modal-header">
                 <h2>📄 JSON 출력</h2>
                 <button class="modal-close" onclick="closeJsonModal()">&times;</button>
             </div>
-            <p style="margin-bottom:15px;color:var(--text-dim)">아래 내용을 복사하여 <code>book_metadata.json</code>에 저장하세요.</p>
+            <p style="margin-bottom:12px;color:var(--text-dim);font-size:0.85rem">
+                아래 JSON을 <code>book_metadata.json</code>에 저장하세요.
+            </p>
             <div class="json-output" id="jsonOutput"></div>
-            <button class="btn-primary" style="margin-top:15px" onclick="copyJSON()">📋 클립보드 복사</button>
+            <button class="btn-primary" style="margin-top:12px" onclick="copyJSON()">📋 클립보드 복사</button>
         </div>
     </div>
-    
-    <div class="toast" id="toast">저장되었습니다!</div>
-    
+
+    <div class="toast" id="toast"></div>
     <input type="file" id="fileInput" accept=".json" style="display:none">
 
     <script>
-        // 데이터 저장소
-        let metadata = {
-            _description: "서종별 메타데이터. 코드에서 하드코딩 대신 이 파일을 참조합니다.",
-            _last_updated: new Date().toISOString().split('T')[0],
-            books: {},
-            default_translator: "한국고전번역원",
-            periods: [
-                "춘추시대", "전국시대", "전한시대", "후한시대", 
-                "위진남북조시대", "당대", "북송시대", "남송시대", 
-                "원대", "명대", "청대", "미상"
-            ],
-            sibu_options: ["經", "史", "子", "集"]
-        };
-        
+        let metadata = { books: {}, people: {}, default_translator: "한국고전번역원" };
+        let currentAuthors = [];
         let currentTranslators = [];
-        
-        // 초기화
-        document.addEventListener('DOMContentLoaded', () => {
+
+        document.addEventListener('DOMContentLoaded', init);
+
+        function init() {
             loadDefaultData();
-            setupEventListeners();
-        });
-        
-        function loadDefaultData() {
-            // 기본 데이터 (book_metadata.json 내용)
-            metadata.books = {
-                "예기집설대전1": {"author": "주희", "period": "남송시대(1130-1200)", "sibu": "經", "translator": ["한국고전번역원"]},
-                "예기집설대전2": {"author": "주희", "period": "남송시대(1130-1200)", "sibu": "經", "translator": ["한국고전번역원"]},
-                "춘추좌씨전1": {"author": "좌구명", "period": "춘추시대(BC 556-BC 451)", "sibu": "經", "translator": ["한국고전번역원"]},
-                "춘추좌씨전2": {"author": "좌구명", "period": "춘추시대(BC 556-BC 451)", "sibu": "經", "translator": ["한국고전번역원"]},
-                "춘추좌씨전3": {"author": "좌구명", "period": "춘추시대(BC 556-BC 451)", "sibu": "經", "translator": ["한국고전번역원"]},
-                "춘추좌씨전4": {"author": "좌구명", "period": "춘추시대(BC 556-BC 451)", "sibu": "經", "translator": ["한국고전번역원"]},
-                "춘추좌씨전5": {"author": "좌구명", "period": "춘추시대(BC 556-BC 451)", "sibu": "經", "translator": ["한국고전번역원"]},
-                "춘추좌씨전6": {"author": "좌구명", "period": "춘추시대(BC 556-BC 451)", "sibu": "經", "translator": ["한국고전번역원"]},
-                "춘추좌씨전7": {"author": "좌구명", "period": "춘추시대(BC 556-BC 451)", "sibu": "經", "translator": ["한국고전번역원"]},
-                "춘추좌씨전8": {"author": "좌구명", "period": "춘추시대(BC 556-BC 451)", "sibu": "經", "translator": ["한국고전번역원"]},
-                "자치통감강목1": {"author": "주희", "period": "남송시대(1130-1200)", "sibu": "史", "translator": ["한국고전번역원"]},
-                "자치통감강목2": {"author": "주희", "period": "남송시대(1130-1200)", "sibu": "史", "translator": ["한국고전번역원"]},
-                "자치통감강목3": {"author": "주희", "period": "남송시대(1130-1200)", "sibu": "史", "translator": ["한국고전번역원"]},
-                "자치통감강목4": {"author": "주희", "period": "남송시대(1130-1200)", "sibu": "史", "translator": ["한국고전번역원"]},
-                "자치통감강목5": {"author": "주희", "period": "남송시대(1130-1200)", "sibu": "史", "translator": ["한국고전번역원"]},
-                "자치통감강목6": {"author": "주희", "period": "남송시대(1130-1200)", "sibu": "史", "translator": ["한국고전번역원"]},
-                "자치통감강목7": {"author": "주희", "period": "남송시대(1130-1200)", "sibu": "史", "translator": ["한국고전번역원"]},
-                "당시삼백수1": {"author": "손수", "period": "청대(18세기)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당시삼백수2": {"author": "손수", "period": "청대(18세기)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당시삼백수3": {"author": "손수", "period": "청대(18세기)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초한유1": {"author": "한유", "period": "당대(768-824)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초한유2": {"author": "한유", "period": "당대(768-824)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초한유3": {"author": "한유", "period": "당대(768-824)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초유종원1": {"author": "유종원", "period": "당대(773-819)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초유종원2": {"author": "유종원", "period": "당대(773-819)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초구양수1": {"author": "구양수", "period": "북송시대(1007-1072)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초구양수2": {"author": "구양수", "period": "북송시대(1007-1072)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초구양수3": {"author": "구양수", "period": "북송시대(1007-1072)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초구양수4": {"author": "구양수", "period": "북송시대(1007-1072)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초구양수5": {"author": "구양수", "period": "북송시대(1007-1072)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초구양수6": {"author": "구양수", "period": "북송시대(1007-1072)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초소순1": {"author": "소순", "period": "북송시대(1009-1066)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초소식1": {"author": "소식", "period": "북송시대(1037-1101)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초소식2": {"author": "소식", "period": "북송시대(1037-1101)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초소식3": {"author": "소식", "period": "북송시대(1037-1101)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초소식4": {"author": "소식", "period": "북송시대(1037-1101)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초소식5": {"author": "소식", "period": "북송시대(1037-1101)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초소철1": {"author": "소철", "period": "북송시대(1039-1112)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초소철2": {"author": "소철", "period": "북송시대(1039-1112)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초증공1": {"author": "증공", "period": "북송시대(1019-1083)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초왕안석1": {"author": "왕안석", "period": "북송시대(1021-1086)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초왕안석2": {"author": "왕안석", "period": "북송시대(1021-1086)", "sibu": "集", "translator": ["한국고전번역원"]},
-                "당송팔대가문초왕안석3": {"author": "왕안석", "period": "북송시대(1021-1086)", "sibu": "集", "translator": ["한국고전번역원"]}
-            };
-            renderTable();
-            updateStats();
-            updatePeriodFilter();
+            setupListeners();
         }
-        
-        function setupEventListeners() {
-            document.getElementById('searchBox').addEventListener('input', renderTable);
-            document.getElementById('filterSibu').addEventListener('change', renderTable);
-            document.getElementById('filterPeriod').addEventListener('change', renderTable);
-            document.getElementById('bookForm').addEventListener('submit', saveBook);
+
+        function loadDefaultData() {
+            // 기본 데이터 로드
+            fetch('book_metadata.json')
+                .then(r => r.json())
+                .then(data => {
+                    metadata = data;
+                    renderAll();
+                })
+                .catch(() => {
+                    // 로컬 파일 접근 불가 시 기본 데이터 사용
+                    metadata = getDefaultMetadata();
+                    renderAll();
+                });
+        }
+
+        function getDefaultMetadata() {
+            return {
+                books: {
+                    "예기집설대전1": { author: ["주희"], period: "남송시대", period_detail: "1130-1200", sibu: "經", translator: ["한국고전번역원"] },
+                    "춘추좌씨전1": { author: ["좌구명"], period: "춘추시대", period_detail: "BC 556-BC 451", sibu: "經", translator: ["한국고전번역원"] },
+                    "당송팔대가문초한유1": { author: ["한유"], period: "당대", period_detail: "768-824", sibu: "集", translator: ["한국고전번역원"] }
+                },
+                people: {
+                    "주희": { period: "1130-1200", role: ["author", "commentator"] },
+                    "좌구명": { period: "BC 556-BC 451", role: ["author"] },
+                    "한유": { period: "768-824", role: ["author"] },
+                    "한국고전번역원": { role: ["translator"] }
+                },
+                default_translator: "한국고전번역원"
+            };
+        }
+
+        function setupListeners() {
+            document.getElementById('searchBox').addEventListener('input', renderBookTable);
+            document.getElementById('filterSibu').addEventListener('change', renderBookTable);
+            document.getElementById('searchPeople').addEventListener('input', renderPeopleGrid);
             document.getElementById('fileInput').addEventListener('change', handleFileLoad);
         }
-        
-        function renderTable() {
+
+        function renderAll() {
+            renderBookTable();
+            renderPeopleGrid();
+            updateStats();
+            populateSelects();
+        }
+
+        function renderBookTable() {
             const search = document.getElementById('searchBox').value.toLowerCase();
-            const sibuFilter = document.getElementById('filterSibu').value;
-            const periodFilter = document.getElementById('filterPeriod').value;
-            
+            const sibu = document.getElementById('filterSibu').value;
             const tbody = document.getElementById('bookTable');
             tbody.innerHTML = '';
-            
-            Object.entries(metadata.books)
+
+            Object.entries(metadata.books || {})
                 .filter(([name, data]) => {
-                    if (search && !name.toLowerCase().includes(search) && 
-                        !data.author?.toLowerCase().includes(search) &&
-                        !(Array.isArray(data.translator) ? data.translator.join(',') : data.translator || '').toLowerCase().includes(search)) {
-                        return false;
-                    }
-                    if (sibuFilter && data.sibu !== sibuFilter) return false;
-                    if (periodFilter && !data.period?.includes(periodFilter)) return false;
+                    if (search && !name.toLowerCase().includes(search)) return false;
+                    if (sibu && data.sibu !== sibu) return false;
                     return true;
                 })
                 .sort((a, b) => a[0].localeCompare(b[0], 'ko'))
                 .forEach(([name, data]) => {
+                    const authors = Array.isArray(data.author) ? data.author : [data.author || '미상'];
                     const translators = Array.isArray(data.translator) ? data.translator : [data.translator || metadata.default_translator];
-                    const tr = document.createElement('tr');
-                    tr.className = `sibu-${data.sibu}`;
-                    tr.innerHTML = `
-                        <td><strong>${name}</strong></td>
-                        <td>${data.author || '미상'}</td>
-                        <td>${data.period || '미상'}</td>
-                        <td><span class="tag">${data.sibu || '未詳'}</span></td>
-                        <td>${translators.map(t => `<span class="tag">${t}</span>`).join('')}</td>
-                        <td>
-                            <button class="action-btn btn-secondary" onclick="editBook('${name}')">✏️</button>
-                            <button class="action-btn delete" onclick="deleteBook('${name}')">🗑️</button>
-                        </td>
+
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong>${name}</strong></td>
+                            <td>${authors.map(a => `<span class="tag author">${a}</span>`).join('')}</td>
+                            <td>${data.period || '미상'}</td>
+                            <td>${data.period_detail || '-'}</td>
+                            <td><span class="tag sibu-${data.sibu}">${data.sibu || '未詳'}</span></td>
+                            <td>${translators.map(t => `<span class="tag translator">${t}</span>`).join('')}</td>
+                            <td>
+                                <button class="action-btn btn-secondary" onclick="editBook('${name}')">✏️</button>
+                                <button class="action-btn delete" onclick="deleteBook('${name}')">🗑️</button>
+                            </td>
+                        </tr>
                     `;
-                    tbody.appendChild(tr);
                 });
         }
-        
+
+        function renderPeopleGrid() {
+            const search = document.getElementById('searchPeople').value.toLowerCase();
+            const grid = document.getElementById('peopleGrid');
+            grid.innerHTML = '';
+
+            Object.entries(metadata.people || {})
+                .filter(([name]) => !search || name.toLowerCase().includes(search))
+                .sort((a, b) => a[0].localeCompare(b[0], 'ko'))
+                .forEach(([name, data]) => {
+                    const roles = (data.role || []).map(r => {
+                        const labels = { author: '저자', commentator: '주석자', compiler: '편찬자', translator: '역자' };
+                        return `<span class="tag">${labels[r] || r}</span>`;
+                    }).join('');
+
+                    grid.innerHTML += `
+                        <div class="person-card">
+                            <div class="person-name">${name}</div>
+                            <div class="person-period">${data.period || '-'}</div>
+                            <div class="person-roles">${roles}</div>
+                            <div style="margin-top:10px">
+                                <button class="action-btn btn-secondary" onclick="editPerson('${name}')">✏️</button>
+                                <button class="action-btn delete" onclick="deletePerson('${name}')">🗑️</button>
+                            </div>
+                        </div>
+                    `;
+                });
+        }
+
         function updateStats() {
-            const books = Object.keys(metadata.books);
-            const authors = new Set(Object.values(metadata.books).map(b => b.author));
-            const translators = new Set(Object.values(metadata.books).flatMap(b => 
-                Array.isArray(b.translator) ? b.translator : [b.translator]
-            ).filter(Boolean));
-            
+            const books = Object.keys(metadata.books || {});
+            const authors = new Set(Object.values(metadata.books || {}).flatMap(b => b.author || []));
+            const translators = new Set(Object.values(metadata.books || {}).flatMap(b => b.translator || []));
+
             document.getElementById('totalBooks').textContent = books.length;
             document.getElementById('totalAuthors').textContent = authors.size;
             document.getElementById('totalTranslators').textContent = translators.size;
         }
-        
-        function updatePeriodFilter() {
-            const periods = new Set(Object.values(metadata.books).map(b => {
-                const match = b.period?.match(/^([가-힣]+)/);
-                return match ? match[1] : null;
-            }).filter(Boolean));
-            
-            const select = document.getElementById('filterPeriod');
-            select.innerHTML = '<option value="">전체 시대</option>';
-            [...periods].sort().forEach(p => {
-                select.innerHTML += `<option value="${p}">${p}</option>`;
+
+        function populateSelects() {
+            const people = Object.entries(metadata.people || {});
+
+            const authorSelect = document.getElementById('authorSelect');
+            const translatorSelect = document.getElementById('translatorSelect');
+
+            authorSelect.innerHTML = '<option value="">-- 기존 인물 선택 --</option>';
+            translatorSelect.innerHTML = '<option value="">-- 기존 인물 선택 --</option>';
+
+            people.forEach(([name, data]) => {
+                if ((data.role || []).some(r => ['author', 'commentator', 'compiler'].includes(r))) {
+                    authorSelect.innerHTML += `<option value="${name}">${name} (${data.period || '-'})</option>`;
+                }
+                if ((data.role || []).includes('translator')) {
+                    translatorSelect.innerHTML += `<option value="${name}">${name}</option>`;
+                }
             });
         }
-        
-        function openAddModal() {
-            document.getElementById('modalTitle').textContent = '📖 서목 추가';
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.tab:nth-child(${tab === 'books' ? 1 : 2})`).classList.add('active');
+            document.getElementById(`tab-${tab}`).classList.add('active');
+        }
+
+        // Book Modal
+        function openBookModal() {
+            document.getElementById('bookModalTitle').textContent = '📖 서목 추가';
             document.getElementById('bookForm').reset();
             document.getElementById('editingBook').value = '';
             document.getElementById('bookName').disabled = false;
+            currentAuthors = [];
             currentTranslators = [];
+            renderAuthorTags();
             renderTranslatorTags();
-            document.getElementById('addModal').classList.add('active');
+            populateSelects();
+            document.getElementById('bookModal').classList.add('active');
         }
-        
+
         function editBook(name) {
             const data = metadata.books[name];
-            document.getElementById('modalTitle').textContent = '✏️ 서목 편집';
+            document.getElementById('bookModalTitle').textContent = '✏️ 서목 편집';
             document.getElementById('editingBook').value = name;
             document.getElementById('bookName').value = name;
             document.getElementById('bookName').disabled = true;
-            document.getElementById('author').value = data.author || '';
-            
-            const periodBase = data.period?.match(/^([가-힣]+)/)?.[1] || '미상';
-            document.getElementById('period').value = periodBase;
-            document.getElementById('sibu').value = data.sibu || '子';
-            
-            currentTranslators = Array.isArray(data.translator) ? [...data.translator] : [data.translator || metadata.default_translator];
+            document.getElementById('periodSelect').value = data.period || '미상';
+            document.getElementById('periodDetail').value = data.period_detail || '';
+            document.getElementById('sibuSelect').value = data.sibu || '子';
+
+            currentAuthors = Array.isArray(data.author) ? [...data.author] : [data.author].filter(Boolean);
+            currentTranslators = Array.isArray(data.translator) ? [...data.translator] : [data.translator].filter(Boolean);
+
+            renderAuthorTags();
             renderTranslatorTags();
-            
-            document.getElementById('addModal').classList.add('active');
+            populateSelects();
+            document.getElementById('bookModal').classList.add('active');
         }
-        
-        function closeModal() {
-            document.getElementById('addModal').classList.remove('active');
+
+        function closeBookModal() { document.getElementById('bookModal').classList.remove('active'); }
+
+        function addAuthorFromSelect() {
+            const val = document.getElementById('authorSelect').value;
+            if (val && !currentAuthors.includes(val)) {
+                currentAuthors.push(val);
+                renderAuthorTags();
+            }
         }
-        
-        function addTranslator() {
-            const input = document.getElementById('translatorInput');
-            const name = input.value.trim();
-            if (name && !currentTranslators.includes(name)) {
-                currentTranslators.push(name);
+
+        function addAuthorFromInput() {
+            const val = document.getElementById('authorInput').value.trim();
+            if (val && !currentAuthors.includes(val)) {
+                currentAuthors.push(val);
+                renderAuthorTags();
+                // 새 인물이면 people에도 추가
+                if (!metadata.people[val]) {
+                    metadata.people[val] = { role: ['author'] };
+                    populateSelects();
+                }
+            }
+            document.getElementById('authorInput').value = '';
+        }
+
+        function removeAuthor(name) {
+            currentAuthors = currentAuthors.filter(a => a !== name);
+            renderAuthorTags();
+        }
+
+        function renderAuthorTags() {
+            document.getElementById('authorTags').innerHTML = currentAuthors.map(a =>
+                `<span class="tag author">${a}<span class="tag-remove" onclick="removeAuthor('${a}')">&times;</span></span>`
+            ).join('');
+        }
+
+        function addTranslatorFromSelect() {
+            const val = document.getElementById('translatorSelect').value;
+            if (val && !currentTranslators.includes(val)) {
+                currentTranslators.push(val);
                 renderTranslatorTags();
             }
-            input.value = '';
         }
-        
+
+        function addTranslatorFromInput() {
+            const val = document.getElementById('translatorInput').value.trim();
+            if (val && !currentTranslators.includes(val)) {
+                currentTranslators.push(val);
+                renderTranslatorTags();
+                if (!metadata.people[val]) {
+                    metadata.people[val] = { role: ['translator'] };
+                    populateSelects();
+                }
+            }
+            document.getElementById('translatorInput').value = '';
+        }
+
         function removeTranslator(name) {
             currentTranslators = currentTranslators.filter(t => t !== name);
             renderTranslatorTags();
         }
-        
+
         function renderTranslatorTags() {
-            const container = document.getElementById('translatorTags');
-            container.innerHTML = currentTranslators.map(t => 
-                `<span class="tag">${t}<span class="tag-remove" onclick="removeTranslator('${t}')">&times;</span></span>`
+            document.getElementById('translatorTags').innerHTML = currentTranslators.map(t =>
+                `<span class="tag translator">${t}<span class="tag-remove" onclick="removeTranslator('${t}')">&times;</span></span>`
             ).join('');
         }
-        
+
         function saveBook(e) {
             e.preventDefault();
-            
-            const editingBook = document.getElementById('editingBook').value;
             const name = document.getElementById('bookName').value.trim();
-            const author = document.getElementById('author').value.trim();
-            const period = document.getElementById('period').value;
-            const sibu = document.getElementById('sibu').value;
-            
-            if (!name || !author) {
-                alert('서목명과 저자는 필수입니다.');
-                return;
-            }
-            
+            if (!name) return;
+
             metadata.books[name] = {
-                author: author,
-                period: period,
-                sibu: sibu,
-                translator: currentTranslators.length > 0 ? currentTranslators : [metadata.default_translator]
+                author: currentAuthors.length ? currentAuthors : ['미상'],
+                period: document.getElementById('periodSelect').value,
+                period_detail: document.getElementById('periodDetail').value.trim() || null,
+                sibu: document.getElementById('sibuSelect').value,
+                translator: currentTranslators.length ? currentTranslators : [metadata.default_translator]
             };
-            
-            metadata._last_updated = new Date().toISOString().split('T')[0];
-            
-            closeModal();
-            renderTable();
-            updateStats();
-            updatePeriodFilter();
+
+            closeBookModal();
+            renderAll();
             showToast('저장되었습니다!');
         }
-        
+
         function deleteBook(name) {
             if (confirm(`"${name}"을(를) 삭제하시겠습니까?`)) {
                 delete metadata.books[name];
-                renderTable();
-                updateStats();
+                renderAll();
                 showToast('삭제되었습니다.');
             }
         }
-        
+
+        // Person Modal
+        function openPersonModal() {
+            document.getElementById('personModalTitle').textContent = '👤 인물 추가';
+            document.getElementById('personForm').reset();
+            document.getElementById('editingPerson').value = '';
+            document.getElementById('personName').disabled = false;
+            document.getElementById('personModal').classList.add('active');
+        }
+
+        function editPerson(name) {
+            const data = metadata.people[name];
+            document.getElementById('personModalTitle').textContent = '✏️ 인물 편집';
+            document.getElementById('editingPerson').value = name;
+            document.getElementById('personName').value = name;
+            document.getElementById('personName').disabled = true;
+            document.getElementById('personPeriod').value = data.period || '';
+
+            const roles = data.role || [];
+            document.getElementById('roleAuthor').checked = roles.includes('author');
+            document.getElementById('roleCommentator').checked = roles.includes('commentator');
+            document.getElementById('roleCompiler').checked = roles.includes('compiler');
+            document.getElementById('roleTranslator').checked = roles.includes('translator');
+
+            document.getElementById('personModal').classList.add('active');
+        }
+
+        function closePersonModal() { document.getElementById('personModal').classList.remove('active'); }
+
+        function savePerson(e) {
+            e.preventDefault();
+            const name = document.getElementById('personName').value.trim();
+            if (!name) return;
+
+            const roles = [];
+            if (document.getElementById('roleAuthor').checked) roles.push('author');
+            if (document.getElementById('roleCommentator').checked) roles.push('commentator');
+            if (document.getElementById('roleCompiler').checked) roles.push('compiler');
+            if (document.getElementById('roleTranslator').checked) roles.push('translator');
+
+            metadata.people[name] = {
+                period: document.getElementById('personPeriod').value.trim() || null,
+                role: roles
+            };
+
+            closePersonModal();
+            renderAll();
+            showToast('저장되었습니다!');
+        }
+
+        function deletePerson(name) {
+            if (confirm(`"${name}"을(를) 삭제하시겠습니까?`)) {
+                delete metadata.people[name];
+                renderAll();
+                showToast('삭제되었습니다.');
+            }
+        }
+
+        // JSON
         function exportJSON() {
-            // translator를 문자열 또는 배열로 정리
-            const exportData = {
-                _description: metadata._description,
+            const output = {
+                _description: "서종별 메타데이터. period_detail로 세부 연도 지정, author/translator는 복수 가능",
                 _last_updated: new Date().toISOString().split('T')[0],
-                books: {},
+                books: metadata.books,
+                people: metadata.people,
                 default_translator: metadata.default_translator
             };
-            
-            Object.entries(metadata.books).forEach(([name, data]) => {
-                exportData.books[name] = {
-                    author: data.author,
-                    period: data.period,
-                    sibu: data.sibu,
-                    translator: Array.isArray(data.translator) && data.translator.length === 1 
-                        ? data.translator[0] 
-                        : data.translator
-                };
-            });
-            
-            document.getElementById('jsonOutput').textContent = JSON.stringify(exportData, null, 2);
+            document.getElementById('jsonOutput').textContent = JSON.stringify(output, null, 2);
             document.getElementById('jsonModal').classList.add('active');
         }
-        
-        function closeJsonModal() {
-            document.getElementById('jsonModal').classList.remove('active');
-        }
-        
+
+        function closeJsonModal() { document.getElementById('jsonModal').classList.remove('active'); }
+
         function copyJSON() {
-            const text = document.getElementById('jsonOutput').textContent;
-            navigator.clipboard.writeText(text).then(() => {
-                showToast('클립보드에 복사되었습니다!');
-            });
+            navigator.clipboard.writeText(document.getElementById('jsonOutput').textContent);
+            showToast('클립보드에 복사되었습니다!');
         }
-        
-        function loadFromFile() {
-            document.getElementById('fileInput').click();
-        }
-        
+
+        function loadFromFile() { document.getElementById('fileInput').click(); }
+
         function handleFileLoad(e) {
             const file = e.target.files[0];
             if (!file) return;
-            
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
-                    if (data.books) {
-                        metadata = { ...metadata, ...data };
-                        // translator를 배열로 정규화
-                        Object.keys(metadata.books).forEach(name => {
-                            const t = metadata.books[name].translator;
-                            if (t && !Array.isArray(t)) {
-                                metadata.books[name].translator = [t];
-                            }
-                        });
-                        renderTable();
-                        updateStats();
-                        updatePeriodFilter();
-                        showToast('파일을 불러왔습니다!');
-                    } else {
-                        alert('유효한 메타데이터 JSON이 아닙니다.');
-                    }
+                    metadata = { ...metadata, ...data };
+                    renderAll();
+                    showToast('파일을 불러왔습니다!');
                 } catch (err) {
                     alert('JSON 파싱 오류: ' + err.message);
                 }
             };
             reader.readAsText(file);
         }
-        
-        function showToast(message) {
+
+        function showToast(msg) {
             const toast = document.getElementById('toast');
-            toast.textContent = message;
+            toast.textContent = msg;
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 2000);
         }
     </script>
 </body>
+
 </html>
