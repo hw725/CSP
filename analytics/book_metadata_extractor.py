@@ -1,111 +1,161 @@
+"""서종 메타데이터 추출기
+
+메타데이터는 book_metadata.json에서 로드됩니다.
+코드에 하드코딩하지 않고 JSON 파일을 수정하여 메타데이터를 관리합니다.
+"""
+
+import json
 import re
-from typing import Dict, Tuple, Optional
+from pathlib import Path
+from typing import Dict, Optional
 import logging
 
 logger = logging.getLogger(__name__)
 
+# 메타데이터 JSON 파일 경로
+METADATA_FILE = Path(__file__).parent / "book_metadata.json"
+
+
 class BookMetadataExtractor:
-    def __init__(self):
-        self.basic_text_mappings = {
-            '논어': '공자', '맹자': '맹자', '관자': '관중', '안씨가훈': '안지추'
+    """서종 메타데이터 추출기
+    
+    사용법:
+        extractor = BookMetadataExtractor()
+        metadata = extractor.get_metadata("당송팔대가문초한유1")
+        # {'author': '한유', 'period': '당대(768-824)', 'sibu': '集', 'translator': '한국고전번역원'}
+    """
+    
+    def __init__(self, metadata_file: Path = METADATA_FILE):
+        self.metadata_file = metadata_file
+        self._metadata: Dict = {}
+        self._load_metadata()
+    
+    def _load_metadata(self) -> None:
+        """JSON 파일에서 메타데이터 로드"""
+        try:
+            if self.metadata_file.exists():
+                with open(self.metadata_file, 'r', encoding='utf-8') as f:
+                    self._metadata = json.load(f)
+                logger.info(f"메타데이터 로드 완료: {len(self._metadata.get('books', {}))}개 서종")
+            else:
+                logger.warning(f"메타데이터 파일 없음: {self.metadata_file}")
+                self._metadata = {"books": {}, "default_translator": "한국고전번역원"}
+        except Exception as e:
+            logger.error(f"메타데이터 로드 실패: {e}")
+            self._metadata = {"books": {}, "default_translator": "한국고전번역원"}
+    
+    def reload(self) -> None:
+        """메타데이터 다시 로드 (파일 변경 시)"""
+        self._load_metadata()
+    
+    @property
+    def books(self) -> Dict[str, Dict]:
+        """등록된 모든 서종 메타데이터"""
+        return self._metadata.get("books", {})
+    
+    @property
+    def default_translator(self) -> str:
+        return self._metadata.get("default_translator", "한국고전번역원")
+    
+    def get_metadata(self, book_name: str) -> Dict[str, str]:
+        """서종명으로 메타데이터 조회
+        
+        Args:
+            book_name: 서종명 (예: "당송팔대가문초한유1")
+        
+        Returns:
+            메타데이터 딕셔너리 {author, period, sibu, translator}
+        """
+        # 정확히 일치하는 경우
+        if book_name in self.books:
+            meta = self.books[book_name].copy()
+            meta.setdefault("translator", self.default_translator)
+            return meta
+        
+        # 숫자 제거 후 매칭 시도 (예: "춘추좌씨전1" -> "춘추좌씨전")
+        base_name = re.sub(r'\d+$', '', book_name)
+        for key, meta in self.books.items():
+            if re.sub(r'\d+$', '', key) == base_name:
+                result = meta.copy()
+                result.setdefault("translator", self.default_translator)
+                return result
+        
+        # 부분 매칭 시도
+        for key, meta in self.books.items():
+            if key in book_name or book_name in key:
+                result = meta.copy()
+                result.setdefault("translator", self.default_translator)
+                return result
+        
+        # 매칭 실패 시 기본값
+        logger.warning(f"메타데이터 없음: {book_name}")
+        return {
+            "author": "미상",
+            "period": "미상",
+            "sibu": "未詳",
+            "translator": self.default_translator
         }
-        self.default_translator = '한국고전번역원'
-        
-        # 작가별 시대 정보 (추론용)
-        self.author_period_map = {
-            '공자': '춘추시대(BC 551-479)',
-            '맹자': '전국시대(BC 372-289)', 
-            '관중': '춘추시대(BC ?-645)',
-            '안지추': '북제시대(531-591)',
-            '양웅': '전한시대(BC 53-AD 18)',
-            '한유': '당대(768-824)',
-            '유종원': '당대(773-819)',
-            '구양수': '북송시대(1007-1072)',
-            '소식': '북송시대(1037-1101)',
-            '소철': '북송시대(1009-1066)',
-            '소순': '북송시대(1039-1112)',
-            '증공': '북송시대(1019-1083)',
-            '왕안석': '북송시대(1021-1086)',
-            '주희': '남송시대(1130-1200)',
-            '진덕수': '남송시대(1178-1235)',
-            '육지': '당대(754-805)',  # 수정: 삼국위시대 -> 당대
-            '송기채': '조선시대(역자)',
-            '정태현': '조선시대(역자)',
-            '이상하': '조선시대(역자)',
-            '성백효': '조선시대(역자)',
-            '김동주': '조선시대(역자)',
-            '신용호': '조선시대(역자)',
-            '허호구': '조선시대(역자)',
-        }
     
-    def extract_jti_code_from_filename(self, filename: str) -> Optional[str]:
-        jti_match = re.search(r'jti_([0-9a-z]+)', filename.lower())
-        if jti_match:
-            return jti_match.group(1)
-        return None
+    def get_author(self, book_name: str) -> str:
+        """저자 조회"""
+        return self.get_metadata(book_name).get("author", "미상")
     
-    def get_sibu_classification(self, book_name: str) -> str:
-        jti_code = self.extract_jti_code_from_filename(book_name)
-        if jti_code and len(jti_code) > 0:
-            sibu_map = {'1': '經', '2': '史', '3': '子', '4': '集'}
-            return sibu_map.get(jti_code[0], '未詳')
-        return '子' if '관자' in book_name else '未詳'
+    def get_period(self, book_name: str) -> str:
+        """시대 조회"""
+        return self.get_metadata(book_name).get("period", "미상")
     
-    def extract_text_name_from_filename(self, filename: str) -> Optional[str]:
-        bracket_match = re.search(r'\[.*?\]([^_\-0-9]+)', filename)
-        if bracket_match:
-            text_name = bracket_match.group(1).strip()
-            text_name = re.sub(r'\d+$', '', text_name).strip()
-            return text_name if text_name else None
-        
-        simple_match = re.search(r'^([가-힣]+)', filename)
-        return simple_match.group(1) if simple_match else None
+    def get_sibu(self, book_name: str) -> str:
+        """사부 분류 조회"""
+        return self.get_metadata(book_name).get("sibu", "未詳")
     
-    def get_basic_author_from_text_name(self, text_name: str) -> str:
-        for name, author in self.basic_text_mappings.items():
-            if name in text_name:
-                return author
-        
-        if '당송팔대가문초' in text_name:
-            authors = ['한유', '유종원', '구양수', '소식', '소철', '소순', '증공', '왕안석']
-            for author in authors:
-                if author in text_name:
-                    return author
-        
-        return '미상'
+    def get_translator(self, book_name: str) -> str:
+        """역자 조회"""
+        return self.get_metadata(book_name).get("translator", self.default_translator)
     
-    def get_period_from_author(self, author_name: str) -> str:
-        """작가명으로부터 시대 정보 추론"""
-        if not author_name or author_name == '미상':
-            return '미상'
-        return self.author_period_map.get(author_name, '미상')
+    # === 하위 호환성을 위한 레거시 메서드 ===
     
     def extract_metadata(self, book_name: str) -> Dict[str, str]:
-        author, translator = self.extract_author_translator(book_name)
-        period = self.get_period_from_author(author)
+        """레거시 호환: get_metadata와 동일"""
+        meta = self.get_metadata(book_name)
         return {
-            'author': author, 
-            'translator': translator,
-            'period': period,
-            'sibu_classification': self.get_sibu_classification(book_name)
+            "author": meta.get("author", "미상"),
+            "translator": meta.get("translator", self.default_translator),
+            "period": meta.get("period", "미상"),
+            "sibu_classification": meta.get("sibu", "未詳")
         }
     
-    def extract_author_translator(self, book_name: str) -> Tuple[str, str]:
-        try:
-            text_name = self.extract_text_name_from_filename(book_name)
-            if text_name:
-                author = self.get_basic_author_from_text_name(text_name)
-                return author, self.default_translator
-            return '미상', self.default_translator
-        except Exception as e:
-            logger.error(f'작가/역자 정보 추출 중 오류: {e}')
-            return '미상', self.default_translator
+    def extract_author_translator(self, book_name: str) -> tuple:
+        """레거시 호환: (author, translator) 튜플 반환"""
+        meta = self.get_metadata(book_name)
+        return meta.get("author", "미상"), meta.get("translator", self.default_translator)
     
     def get_detailed_author_info(self, book_name: str) -> Dict[str, str]:
-        author, translator = self.extract_author_translator(book_name)
-        return {
-            'author': author,
-            'translator': translator,
-            'period': self.get_period_from_author(author),
-            'sibu_classification': self.get_sibu_classification(book_name),
-        }
+        """레거시 호환: extract_metadata와 동일"""
+        return self.extract_metadata(book_name)
+
+
+# 싱글톤 인스턴스 (편의용)
+_extractor_instance: Optional[BookMetadataExtractor] = None
+
+def get_extractor() -> BookMetadataExtractor:
+    """싱글톤 메타데이터 추출기 반환"""
+    global _extractor_instance
+    if _extractor_instance is None:
+        _extractor_instance = BookMetadataExtractor()
+    return _extractor_instance
+
+
+if __name__ == "__main__":
+    # 테스트
+    extractor = BookMetadataExtractor()
+    
+    test_books = [
+        "당송팔대가문초한유1",
+        "춘추좌씨전3",
+        "예기집설대전1",
+        "unknown_book"
+    ]
+    
+    for book in test_books:
+        meta = extractor.get_metadata(book)
+        print(f"{book}: {meta}")
