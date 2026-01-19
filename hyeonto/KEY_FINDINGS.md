@@ -102,7 +102,7 @@
 
 ### 발견 1: K=4 → K=24 분화 패턴
 
-**SA 클러스터 분화** (cluster_flow_sa 분석):
+**SA 클러스터 분화** (cluster_flow_phrase 분석):
 
 | K=4 | 주요 K=24 분화처 | 해석 |
 |:---|:---|:---|
@@ -143,8 +143,8 @@
 | `exploratory/pa_sa_sankey/pa_k4_sa_k4_sankey.html` | PA(K=4) ↔ SA(K=4) |
 | `exploratory/pa_sa_sankey/pa_k4_sa_k24_sankey.html` | PA(K=4) ↔ SA(K=24) |
 | `exploratory/pa_sa_sankey/pa_k14_sa_k24_sankey.html` | PA(K=14) ↔ SA(K=24) |
-| `exploratory/cluster_flow_pa/cluster_flow_k4_to_k14.html` | PA K=4 → K=14 분화 |
-| `exploratory/cluster_flow_sa/cluster_flow_k4_to_k24.html` | SA K=4 → K=24 분화 |
+| `exploratory/cluster_flow_p2s/cluster_flow_k4_to_k14.html` | PA K=4 → K=14 분화 |
+| `exploratory/cluster_flow_s2p/cluster_flow_k4_to_k24.html` | SA K=4 → K=24 분화 |
 
 ### 통합 대시보드
 
@@ -167,8 +167,8 @@
 
 **상세 분석 보고서:**
 - 전체 통합 리포트: [FINAL_ANALYSIS_REPORT.md](reports/FINAL_ANALYSIS_REPORT.md)
-- PA 상세 프로파일: [pa_boundary_v6_full/pa_cluster_profile.md](reports/pa_boundary_v6_full/pa_cluster_profile.md)
-- SA 상세 프로파일: [sa_boundary_v6_full/sa_cluster_profile.md](reports/sa_boundary_v6_full/sa_cluster_profile.md)
+- PA 상세 프로파일: [pa_boundary_v6_full/sentence_cluster_profile.md](reports/pa_boundary_v6_full/sentence_cluster_profile.md)
+- SA 상세 프로파일: [sa_boundary_v6_full/phrase_cluster_profile.md](reports/sa_boundary_v6_full/phrase_cluster_profile.md)
 - SA K=24 심층 프로파일: [sa_boundary_k24_full/sa_deep_profile.md](reports/sa_boundary_k24_full/sa_deep_profile.md)
 - 편향 검증 보고서: [BIAS_VALIDATION.md](BIAS_VALIDATION.md)
 

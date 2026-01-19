@@ -535,7 +535,7 @@ def run_pa_output_integrity_report(pa_output: Path, source_paragraphs: Path) -> 
     # 가능하면 실제 PA 분할기를 사용해 'PA가 만든 문장 경계'와 1:1로 비교한다.
     # (과거에는 pa.sentence_splitter가 torch import 때문에 Windows에서 실패했으나, 현재는 torch optional.)
     try:
-        from pa.sentence_splitter import split_target_sentences_advanced as _pa_split_target
+        from p2s.sentence_splitter import split_target_sentences_advanced as _pa_split_target
     except Exception:
         _pa_split_target = None
 
@@ -964,7 +964,7 @@ def run_full_43books_report() -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="무결성 리포트")
     parser.add_argument("--input", type=str, help="PA 결과 파일 경로(.csv/.xlsx)")
-    parser.add_argument("--source", type=str, help="원본 문단 파일 경로(.csv/.xlsx). (무결성 검증 모드) 기본: datasets/pd/test_10.csv")
+    parser.add_argument("--source", type=str, help="원본 문단 파일 경로(.csv/.xlsx). (무결성 검증 모드) 기본: datasets/sentenceragraph/test_10.csv")
 
     parser.add_argument("--gold", type=str, help="정답(문장 단위) 파일 경로(.csv/.xlsx). columns: 문단식별자,문장식별자,원문,번역문,book_name")
     parser.add_argument("--pids", nargs="*", help="필터: 문단식별자 목록(공백 구분). 예: --pids 10 12")
@@ -974,7 +974,7 @@ def main() -> int:
     parser.add_argument("--extract", action="store_true", help="정답(gold) 파일에서 부분 추출")
     parser.add_argument("--out", type=str, help="(추출 모드) 저장 경로(.csv)")
     parser.add_argument("--out-paragraph", type=str, help="(추출 모드) 문단 단위로 재구성한 파일 저장 경로(.csv)")
-    parser.add_argument("--sa-gold", type=str, help="(추출 모드) SA 정답(구병렬) 파일 경로(.csv/.xlsx). 기본: datasets/sa/test_100.csv")
+    parser.add_argument("--sa-gold", type=str, help="(추출 모드) SA 정답(구병렬) 파일 경로(.csv/.xlsx). 기본: datasets/s2p/test_100.csv")
     parser.add_argument("--out-sa", type=str, help="(추출 모드) SA 정답(구병렬) subset 저장 경로(.csv). 기본: <out>_sa_gold.csv")
     args = parser.parse_args()
 
@@ -997,7 +997,7 @@ def main() -> int:
         if args.sa_gold:
             sa_gold_path = Path(args.sa_gold)
         else:
-            default_sa = Path("datasets/sa/test_100.csv")
+            default_sa = Path("datasets/s2p/test_100.csv")
             sa_gold_path = default_sa if default_sa.exists() else None
         if sa_gold_path is not None and not sa_gold_path.exists():
             raise SystemExit(f"--sa-gold 파일이 존재하지 않습니다: {sa_gold_path}")
@@ -1037,11 +1037,11 @@ def main() -> int:
             source = Path(args.source)
         else:
             # 기본값: 로컬 테스트에서 가장 많이 쓰는 파일
-            source = Path("datasets/pd/test_10.csv")
+            source = Path("datasets/sentenceragraph/test_10.csv")
 
         if not source.exists():
             raise SystemExit(
-                "--source를 지정해야 합니다. 기본값 datasets/pd/test_10.csv가 존재하지 않습니다."
+                "--source를 지정해야 합니다. 기본값 datasets/sentenceragraph/test_10.csv가 존재하지 않습니다."
             )
 
         return run_pa_output_integrity_report(pa_output=pa_output, source_paragraphs=source)

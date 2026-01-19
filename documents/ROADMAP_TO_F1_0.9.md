@@ -133,7 +133,7 @@ python scripts/grid_search_pa_weights.py \
 **목표**: 근소한 차이 케이스 특수 처리
 
 **구현 방향**:
-1. `pa/sentence_splitter.py`에 ensemble voting 로직 추가:
+1. `p2s/sentence_splitter.py`에 ensemble voting 로직 추가:
    ```python
    if best_score < second_score + 0.03:
        # 근소한 차이 → similarity 비교
@@ -192,7 +192,7 @@ python scripts/grid_search_pa_weights.py \
 - 최선 조합 자동 선택
 
 ### 3. 설정 기반 PA 실행
-**파일**: `pa/main.py` 수정 (필요 시)  
+**파일**: `p2s/main.py` 수정 (필요 시)  
 **기능**:
 - `--config` 인자로 JSON 설정 파일 로드
 - (필요 시) 실험용 설정을 설정 파일에서 읽어 적용

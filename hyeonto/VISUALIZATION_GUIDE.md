@@ -35,8 +35,8 @@
 ## 🔀 2. 클러스터 분화 Sankey (K=4 → K=14/24)
 
 **경로**: 
-- `reports/exploratory/cluster_flow_pa/cluster_flow_k4_to_k14.html`
-- `reports/exploratory/cluster_flow_sa/cluster_flow_k4_to_k24.html`
+- `reports/exploratory/cluster_flow_p2s/cluster_flow_k4_to_k14.html`
+- `reports/exploratory/cluster_flow_s2p/cluster_flow_k4_to_k24.html`
 
 ### 해석 방법
 

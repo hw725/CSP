@@ -12,7 +12,7 @@ SA (Semantic Alignment) 패키지
 - 사용자 입력 구조 완전 보존
 """
 
-from .sa_aligner import (
+from .s2p_aligner import (
     # 핵심 분할 함수들
     split_src_meaning_units,
     split_tgt_meaning_units, 

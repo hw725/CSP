@@ -215,7 +215,7 @@ try:
     # 🆕 하이브리드 한국어 토크나이저 초기화
     hybrid_korean_tokenizer = get_hybrid_korean_tokenizer()
     
-    # 로그는 pa/main.py에서만 출력한다(여기서 중복 출력 금지).
+    # 로그는 p2s/main.py에서만 출력한다(여기서 중복 출력 금지).
     
 except Exception as e:
     siku_tokenizer = None

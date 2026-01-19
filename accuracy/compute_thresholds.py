@@ -183,9 +183,9 @@ def run(gt_path: str, pred_path: str, label: str):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--pa-gt', default='accuracy/pa03.xlsx')
-    ap.add_argument('--pa-pred', default='pa/output_test.xlsx')
+    ap.add_argument('--pa-pred', default='p2s/output_test.xlsx')
     ap.add_argument('--sa-gt', default='accuracy/sa01.xlsx')
-    ap.add_argument('--sa-pred', default='sa/output_test.xlsx')
+    ap.add_argument('--sa-pred', default='s2p/output_test.xlsx')
     ap.add_argument('--base', default=None, help='옵션: 공통 기본 경로. 지정 시 상대 경로에 prefix로 사용')
     args = ap.parse_args()
 

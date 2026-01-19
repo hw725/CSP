@@ -31,14 +31,14 @@ if str(project_root) not in sys.path:
 
 # PA/SA/Accuracy 모듈 import
 try:
-    from pa.aligner import process_paragraph_alignment
+    from p2s.aligner import process_paragraph_alignment
     PA_AVAILABLE = True
 except ImportError as e:
     PA_AVAILABLE = False
     logging.warning(f"⚠️ PA 모듈을 로드할 수 없습니다: {e}")
 
 try:
-    from sa.sa_aligner import process_sa_alignment
+    from s2p.s2p_aligner import process_sa_alignment
     SA_AVAILABLE = True
 except ImportError:
     SA_AVAILABLE = False

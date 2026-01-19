@@ -94,7 +94,7 @@ for idx, book in enumerate(books, 1):
         # - Multi-Vector 임베딩 유지 (정확도 우선)
         # - 캐시 자동 활성화
         result = subprocess.run(
-            ["python", "pa/main.py", para_parallel, str(pa_output), 
+            ["python", "p2s/main.py", para_parallel, str(pa_output), 
              "--embedder", "bge",
              "--max-workers", "16",
              "--batch-size", "256"],
@@ -149,7 +149,7 @@ for idx, book in enumerate(books, 1):
             # - Multi-Vector 임베딩 유지 (정확도 우선)
             # - 캐시 자동 활성화 (5-10배 반복 텍스트 빠름)
             result = subprocess.run(
-                ["python", "sa/main.py", str(sa_input_file), str(sa_output), 
+                ["python", "s2p/main.py", str(sa_input_file), str(sa_output), 
                  "--embedder", "bge",
                  "--max-workers", "16",
                  "--chunk-size", "512"],

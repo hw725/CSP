@@ -35,7 +35,7 @@ free -h
 df -h
 
 # 4. 단일 책 테스트 (시간 측정)
-time python pa/main.py \
+time python p2s/main.py \
   xlsx/당송팔대가문초한유3/당송팔대가문초한유3_문단병렬.xlsx \
   output.xlsx \
   --embedder bge
@@ -49,13 +49,13 @@ time python pa/main.py \
 
 ```bash
 # 작은 배치 (메모리 부족 시)
-python pa/main.py input.xlsx output.xlsx --batch-size 16
+python p2s/main.py input.xlsx output.xlsx --batch-size 16
 
 # 중간 배치 (균형)
-python pa/main.py input.xlsx output.xlsx --batch-size 64
+python p2s/main.py input.xlsx output.xlsx --batch-size 64
 
 # 큰 배치 (메모리 충분 시)
-python pa/main.py input.xlsx output.xlsx --batch-size 256
+python p2s/main.py input.xlsx output.xlsx --batch-size 256
 ```
 
 **영향**:
@@ -72,13 +72,13 @@ python pa/main.py input.xlsx output.xlsx --batch-size 256
 
 ```bash
 # 최소 워커 (메모리 절약)
-python pa/main.py input.xlsx output.xlsx --max-workers 1
+python p2s/main.py input.xlsx output.xlsx --max-workers 1
 
 # 최적 워커 (일반적)
-python pa/main.py input.xlsx output.xlsx --max-workers 4
+python p2s/main.py input.xlsx output.xlsx --max-workers 4
 
 # 최대 워커 (고성능)
-python pa/main.py input.xlsx output.xlsx --max-workers 8
+python p2s/main.py input.xlsx output.xlsx --max-workers 8
 ```
 
 **영향**:
@@ -93,13 +93,13 @@ python pa/main.py input.xlsx output.xlsx --max-workers 8
 
 ```bash
 # BGE (권장, 정확도 높음)
-python pa/main.py input.xlsx output.xlsx --embedder bge
+python p2s/main.py input.xlsx output.xlsx --embedder bge
 
 # m3e (빠름)
-python pa/main.py input.xlsx output.xlsx --embedder m3e
+python p2s/main.py input.xlsx output.xlsx --embedder m3e
 
 # 캐시 활용 (반복 처리 시 빠름)
-python pa/main.py input.xlsx output.xlsx --embedder bge --cache-embeddings
+python p2s/main.py input.xlsx output.xlsx --embedder bge --cache-embeddings
 ```
 
 **모델 비교**:
@@ -122,11 +122,11 @@ nvidia-smi --query-gpu=memory.free --format=csv --loop=1
 
 # 3. 혼합 정밀도 (fp16, 더 빠름)
 export TORCH_DTYPE=fp16
-python pa/main.py input.xlsx output.xlsx
+python p2s/main.py input.xlsx output.xlsx
 
 # 4. 단일 GPU 사용
 export CUDA_VISIBLE_DEVICES=0
-python pa/main.py input.xlsx output.xlsx
+python p2s/main.py input.xlsx output.xlsx
 ```
 
 ---
@@ -137,10 +137,10 @@ python pa/main.py input.xlsx output.xlsx
 
 ```bash
 # 첫 실행 (캐시 생성)
-python sa/main.py input.xlsx output.xlsx
+python s2p/main.py input.xlsx output.xlsx
 
 # 두 번째 실행 (캐시 사용, 빠름)
-python sa/main.py input.xlsx output.xlsx  # 자동으로 캐시 사용
+python s2p/main.py input.xlsx output.xlsx  # 자동으로 캐시 사용
 ```
 
 **캐시 위치**:
@@ -172,7 +172,7 @@ similarity = euclidean_distance(a, b)
 python batch_43books.py
 
 # 병렬 처리 (GNU Parallel)
-ls xlsx/*/`*_문단병렬.xlsx | parallel 'python pa/main.py {}'
+ls xlsx/*/`*_문단병렬.xlsx | parallel 'python p2s/main.py {}'
 ```
 
 **주의**: GPU 메모리 공유로 인한 성능 저하 가능
@@ -195,7 +195,7 @@ python batch_43books.py --books 당송팔대가문초한유3 춘추좌씨전1
 
 ```bash
 # PA만 실행 (평가 제외)
-python pa/main.py input.xlsx output.xlsx --skip-eval
+python p2s/main.py input.xlsx output.xlsx --skip-eval
 
 # 배치에서도 마찬가지
 export SKIP_EVAL=1
@@ -328,11 +328,11 @@ grep "메모리" logs/*.log
 
 ```bash
 # 최적화 전
-time python pa/main.py input.xlsx output.xlsx --batch-size 32
+time python p2s/main.py input.xlsx output.xlsx --batch-size 32
 # real    10m42s
 
 # 최적화 후
-time python pa/main.py input.xlsx output.xlsx --batch-size 256 --max-workers 8
+time python p2s/main.py input.xlsx output.xlsx --batch-size 256 --max-workers 8
 # real     3m15s
 ```
 

@@ -289,11 +289,14 @@ class AccuracyEvaluator:
         """데이터 파일들 로드"""
         try:
             self.log(f"정답 파일 로딩: {self.ground_truth_file}")
-            self.gt_data = pd.read_excel(self.ground_truth_file)
+            if self.ground_truth_file.endswith('.xlsx'):
+                self.gt_data = pd.read_excel(self.ground_truth_file, engine='openpyxl')
+            else:
+                self.gt_data = pd.read_csv(self.ground_truth_file)
             
             self.log(f"예측 파일 로딩: {self.prediction_file}")
             if self.prediction_file.endswith('.xlsx'):
-                self.pred_data = pd.read_excel(self.prediction_file)
+                self.pred_data = pd.read_excel(self.prediction_file, engine='openpyxl')
             else:
                 self.pred_data = pd.read_csv(self.prediction_file)
                 
@@ -2400,7 +2403,7 @@ def main():
     parser = argparse.ArgumentParser(description='관자 원문 분할 정확도 평가')
     parser.add_argument('ground_truth', help='정답 파일 경로 (구병렬 기준)')
     parser.add_argument('prediction', help='예측 파일 경로 (output01 등)')
-    parser.add_argument('--output', '-o', help='결과 저장 파일 경로', default='test_results/sa/row_eval_combined_similarity.xlsx')
+    parser.add_argument('--output', '-o', help='결과 저장 파일 경로', default='test_results/s2p/row_eval_combined_similarity.xlsx')
     parser.add_argument('--csv-dir', help='각 시트를 CSV로도 저장할 디렉터리 경로(미지정 시 자동 생성)', default=None)
     parser.add_argument('--unit', choices=['sentence', 'row'], default='row', help='평가 단위: row(행 단위) 또는 sentence(식별자 그룹)')
     parser.add_argument('--project', choices=['pa', 'sa'], default='sa', help='프로젝트 유형에 따른 임계값 적용')

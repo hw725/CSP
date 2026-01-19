@@ -395,7 +395,7 @@ git clone https://github.com/hw725/CSP.git
 
 2. **단일 책 처리 실행** (5분)
    ```bash
-   docker-compose run csp python pa/main.py input.xlsx output.xlsx
+   docker-compose run csp python p2s/main.py input.xlsx output.xlsx
    ```
 
 3. **결과 확인** (5분)

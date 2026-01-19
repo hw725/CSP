@@ -2442,7 +2442,7 @@ def process_paragraph_file(
         raise RuntimeError(
             "PA 입력 파일이 문장 단위로 보입니다(컬럼 '문장식별자' 존재). "
             "PA(문단→문장) 파이프라인 입력은 PD 형식(문단 단위: 문단식별자/원문/번역문/book_name)이어야 합니다. "
-            "예: datasets/pd/test_100.csv 를 input으로 사용하고, 평가는 datasets/pa/test_100_from_pd.csv 를 gold로 사용하세요."
+            "예: datasets/sentenceragraph/test_100.csv 를 input으로 사용하고, 평가는 datasets/p2s/test_100_from_pd.csv 를 gold로 사용하세요."
         )
 
     # 진행률 초기화

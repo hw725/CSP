@@ -17,13 +17,13 @@
 
 ### `pa_boundary_k4_full/` & `sa_boundary_k4_full/`
 - 거시적(Macro) 관점의 4대 장르 대분류 클러스터링 결과
-- 주요 산출물: `pa_cluster_profile.md`, `sa_cluster_profile.md`
+- 주요 산출물: `sentence_cluster_profile.md`, `phrase_cluster_profile.md`
 
 ### `pa_boundary_k14_full/` & `sa_boundary_k24_full/`
 - 미시적(Micro) 관점의 기능별 세부 클러스터링 결과
 - **[sa_deep_profile.md](sa_boundary_k24_full/sa_deep_profile.md)**: SA K=24 심층 분석 (Lift, Entropy, Syntactic Guess)
 
-### `optimal_k_pa/` & `optimal_k_sa_v3/`
+### `optimal_k_p2s/` & `optimal_k_sa_v3/`
 - 최적 K값 탐색 결과 (Elbow Method, Silhouette Score 등)
 
 ---
@@ -33,9 +33,9 @@
 ### `exploratory/`
 탐색적 분석 및 클러스터 분화 시각화
 - `pa_sa_sankey/`: PA ↔ SA 다중 해상도 Sankey 다이어그램
-- `cluster_flow_pa/`: PA K=4 → K=14 분화 흐름
-- `cluster_flow_sa/`: SA K=4 → K=24 분화 흐름
-- `outliers_pa/`, `ngram_sa/`: 이상치 및 N-gram 분석 결과
+- `cluster_flow_p2s/`: PA K=4 → K=14 분화 흐름
+- `cluster_flow_s2p/`: SA K=4 → K=24 분화 흐름
+- `outliers_p2s/`, `ngram_s2p/`: 이상치 및 N-gram 분석 결과
 
 ### `crossmatch_v6/`
 PA(v6) ↔ SA(v6) 교차 분석
@@ -62,7 +62,7 @@ PA(문장 단위) 표준 분석 (87,943건)
 SA(구 단위) 표준 분석 (294,889건)
 - `sa_boundary_clusters.csv`: 원본 데이터
 - `visualization/`: 고급 산점도
-- `sa_cluster_profile.md`: 표준 프로파일
+- `phrase_cluster_profile.md`: 표준 프로파일
 
 ---
 

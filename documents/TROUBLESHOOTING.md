@@ -106,10 +106,10 @@ timeout: Command exceeded 600 seconds
 # timeout 600 → 1200
 
 # 2. 배치 크기 감소
-python pa/main.py input.xlsx output.xlsx --batch-size 32
+python p2s/main.py input.xlsx output.xlsx --batch-size 32
 
 # 3. 워커 수 감소
-python pa/main.py input.xlsx output.xlsx --max-workers 2
+python p2s/main.py input.xlsx output.xlsx --max-workers 2
 
 # 4. GPU 메모리 확인
 nvidia-smi
@@ -161,7 +161,7 @@ GT: "其執以來。見此君子。" → 3개 문장 (더 세밀)
 ls -la xlsx/책이름/
 
 # 2. PA 실행 (필요시)
-python pa/main.py \
+python p2s/main.py \
   xlsx/책이름/책이름_문단병렬.xlsx \
   xlsx/책이름/책이름_문장병렬.xlsx
 
@@ -245,7 +245,7 @@ docker-compose run csp python batch_43books.py
 **진단**:
 ```bash
 # 같은 책으로 단일 테스트
-python pa/main.py \
+python p2s/main.py \
   xlsx/책이름/책이름_문단병렬.xlsx \
   test_output.xlsx
 ```
@@ -266,7 +266,7 @@ python pa/main.py \
 **진단**:
 ```bash
 # SA 단일 테스트
-python sa/main.py \
+python s2p/main.py \
   xlsx/책이름/책이름_문장병렬.xlsx \
   test_output.xlsx
 ```
@@ -387,14 +387,14 @@ grep -n "smart_match" accuracy/accuracy_evaluator.py
 **최적화**:
 ```bash
 # 1. 배치 크기 증가
-python pa/main.py input.xlsx output.xlsx --batch-size 128
+python p2s/main.py input.xlsx output.xlsx --batch-size 128
 
 # 2. 워커 수 증가
-python pa/main.py input.xlsx output.xlsx --max-workers 8
+python p2s/main.py input.xlsx output.xlsx --max-workers 8
 
 # 3. GPU 메모리 최대화
 export CUDA_VISIBLE_DEVICES=0
-python pa/main.py input.xlsx output.xlsx
+python p2s/main.py input.xlsx output.xlsx
 ```
 
 ---
@@ -408,7 +408,7 @@ RuntimeError: CUDA out of memory
 **해결**:
 ```bash
 # 배치 크기 감소
-python pa/main.py input.xlsx output.xlsx --batch-size 32
+python p2s/main.py input.xlsx output.xlsx --batch-size 32
 
 # GPU 메모리 정리
 nvidia-smi --query-gpu=memory.free --format=csv
@@ -449,7 +449,7 @@ tail -100 logs/*.log
 
 A: 오류난 책부터 수동으로 재시작 가능합니다.
 ```bash
-python pa/main.py xlsx/책이름/책이름_문단병렬.xlsx output.xlsx
+python p2s/main.py xlsx/책이름/책이름_문단병렬.xlsx output.xlsx
 ```
 
 **Q: 평가 없이 PA/SA만 실행?**
@@ -457,12 +457,12 @@ python pa/main.py xlsx/책이름/책이름_문단병렬.xlsx output.xlsx
 A: GT 파일이 없으면 자동으로 건너뜀.
 ```bash
 # 또는 직접 실행
-python pa/main.py input.xlsx output.xlsx
+python p2s/main.py input.xlsx output.xlsx
 ```
 
 **Q: 결과 파일 구조 변경?**
 
-A: `pa/main.py`의 `save_results()` 함수 수정.
+A: `p2s/main.py`의 `save_results()` 함수 수정.
 
 ---
 

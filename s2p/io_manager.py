@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # 무결성 모듈 import (패키지 경로)
 try:
-    from sa.punctuation import integrity_guard, safe_mask_brackets, safe_restore_brackets, get_integrity_status
+    from s2p.punctuation import integrity_guard, safe_mask_brackets, safe_restore_brackets, get_integrity_status
 except ImportError as e:
     logger.warning(f"⚠️ 무결성 모듈 import 실패: {e}")
     logger.warning("   무결성 검증이 비활성화되고 텍스트 손실 위험 증가")
@@ -83,63 +83,37 @@ class SafeFileProcessor:
             # 2. 청크 단위로 처리
             results = []
             chunks = self._create_chunks(df)
+            total_rows = len(df)
+            processed_rows = 0
             
-            if not self.verbose:
-                # 기본 모드: 간단한 시작 메시지와 통합 진행률
-                print(f"📊 SA 처리 시작: {len(df):,}개 행")
-                
-                # 🔧 깔끔한 통합 진행률 막대 시작  
-                try:
-                    start_unified_progress(
-                        total=len(df),
-                        description="🔄 SA 처리",
-                        unit="행",
-                        mininterval=1.0,   # 1초마다 업데이트
-                        maxinterval=3.0,   # 최대 3초 간격
-                    )
-                    use_progress_bar = True
-                except Exception as e:
-                    logger.warning(f"진행률 시작 실패: {e}")
-                    use_progress_bar = False
-            else:
-                # verbose 모드에서는 진행률 막대 없이 상세 로그만
-                use_progress_bar = False
+            print(f"📊 SA 처리 시작: {total_rows:,}개 행 ({len(chunks)}개 청크)")
+            
+            # 진행률 출력 간격 (10행마다 또는 1% 단위)
+            progress_interval = max(10, total_rows // 100)
             
             for i, chunk in enumerate(chunks):
                 if self.verbose:
                     logger.info(f"청크 {i+1}/{len(chunks)} 처리 중...")
                 
+                # 행 단위 업데이트를 위한 콜백
+                def update_progress():
+                    nonlocal processed_rows
+                    processed_rows += 1
+                    if processed_rows % progress_interval == 0 or processed_rows == total_rows:
+                        pct = processed_rows * 100 // total_rows
+                        print(f"🔄 SA 처리: {processed_rows:,}/{total_rows:,} ({pct}%) 성공={self.processed_count} 실패={self.error_count}", flush=True)
+
                 chunk_results = self._process_chunk_with_integrity(
-                    chunk, processing_function, f"{file_id}_chunk_{i}", **kwargs
+                    chunk, processing_function, f"{file_id}_chunk_{i}", 
+                    progress_callback=update_progress,
+                    **kwargs
                 )
                 
                 if chunk_results:
                     results.extend(chunk_results)
-                    self.processed_count += len(chunk_results)
-                else:
-                    self.error_count += len(chunk)
-                
-                # 🔧 청크 단위 진행률 업데이트 (조용하게)
-                if use_progress_bar:
-                    try:
-                        update_unified_progress(
-                            n=len(chunk),
-                            성공=self.processed_count,
-                            실패=self.error_count
-                        )
-                    except:
-                        pass
             
-            # 🔧 진행률 완료 처리
-            if use_progress_bar:
-                try:
-                    if results:
-                        result_count = len(pd.DataFrame(results)) if results else 0
-                        finish_unified_progress(f"완료: {result_count:,}개 구문")
-                    else:
-                        finish_unified_progress("완료 (결과 없음)")
-                except:
-                    pass
+            # 완료 메시지
+            print(f"✅ SA 처리 완료: {self.processed_count:,}개 구문 생성")
             
             # 3. 결과 저장 및 검증
             if results:
@@ -156,12 +130,16 @@ class SafeFileProcessor:
                         with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
                             result_df.to_excel(writer, index=False, sheet_name='results')
                     
-                    # 🆕 빠른 무결성 검증 (문자 수 기반)
+                    # 🆕 빠른 무결성 검증 (문자 수 기반, 공백 무시)
                     try:
-                        original_src = ''.join(df['원문'].fillna('').astype(str))
-                        original_tgt = ''.join(df['번역문'].fillna('').astype(str))
-                        result_src = ''.join(result_df['원문'].fillna('').astype(str))
-                        result_tgt = ''.join(result_df['번역문'].fillna('').astype(str))
+                        # 공백, 줄바꿈, 탭 제거 후 순수 문자만 비교
+                        def normalize_text(series):
+                            return ''.join(series.fillna('').astype(str)).replace(' ', '').replace('\n', '').replace('\t', '')
+
+                        original_src = normalize_text(df['원문'])
+                        original_tgt = normalize_text(df['번역문'])
+                        result_src = normalize_text(result_df['원문'])
+                        result_tgt = normalize_text(result_df['번역문'])
                         
                         losses = []
                         
@@ -267,6 +245,7 @@ class SafeFileProcessor:
         chunk: pd.DataFrame, 
         processing_function,
         chunk_id: str,
+        progress_callback=None,
         **kwargs
     ) -> List[Dict]:
         """청크 단위 무결성 보장 처리 (안전 버전)"""
@@ -529,7 +508,7 @@ def process_file(
     
     try:
         # SA 처리 함수 import (패키지 경로)
-        from sa.sa_aligner import process_single_row, reset_segment_counter  # 🆕 SA 얼라이너에서 import
+        from s2p.s2p_aligner import process_single_row, reset_segment_counter  # 🆕 SA 얼라이너에서 import
 
         # 구식별자를 파일 단위로 리셋해 누적 증가하도록 설정
         reset_segment_counter()
@@ -759,7 +738,7 @@ def safe_process_sa_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Di
     try:
         # 🔧 process_single_row 캐싱 (매번 import 안 하도록)
         if not hasattr(safe_process_sa_row, '_process_func'):
-            from sa.sa_aligner import process_single_row
+            from s2p.s2p_aligner import process_single_row
             safe_process_sa_row._process_func = process_single_row
         
         # 경계 모델 사용 시 모델 로드 (캐싱)
@@ -767,7 +746,7 @@ def safe_process_sa_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Di
         
         if use_boundary_model and not hasattr(safe_process_sa_row, '_boundary_model'):
             # 🆕 Cross-Attention SA 경계 모델 사용
-            from common.sa_crossattn_boundary_loader import get_crossattn_boundary_tagger
+            from common.s2p_crossattn_boundary_loader import get_crossattn_boundary_tagger
             
             device = kwargs.get('device', 'cuda')
             

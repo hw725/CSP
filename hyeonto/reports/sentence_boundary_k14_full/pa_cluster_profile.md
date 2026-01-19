@@ -1,6 +1,6 @@
 # 📂 전체 클러스터 상세 프로파일 (Unified Master Profile)
 
-- **데이터**: hyeonto/datasets/pa_merged_v2.csv (통합본)
+- **데이터**: hyeonto/datasets/sentence_merged_v2.csv (통합본)
 - **분석 레벨**: 문장 경계(Boundary) 비지도 군집화 (K=16)
 - **가중치**: 사서(5x), 서경(3x), 시경/주역(2x) 반영
 

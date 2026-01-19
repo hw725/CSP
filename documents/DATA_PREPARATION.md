@@ -543,7 +543,7 @@ XLSX 정제 완료 후, 준비된 데이터로 **PA/SA 처리** 시작:
 
 ```bash
 # 단일 책 처리
-docker-compose run --rm csp python pa/main.py \
+docker-compose run --rm csp python p2s/main.py \
   xlsx/당송팔대가문초한유3/당송팔대가문초한유3_문단병렬.xlsx \
   output.xlsx
 

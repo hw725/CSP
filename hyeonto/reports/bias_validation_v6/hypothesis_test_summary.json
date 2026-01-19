@@ -1,6 +1,6 @@
 {
   "analysis_date": "2026-01-12T23:06:07.416036",
-  "data_file": "hyeonto/reports/pa_boundary_v6_full/boundary_clusters.csv",
+  "data_file": "hyeonto/reports/sentence_boundary_v6_full/boundary_clusters.csv",
   "data_rows": 87943,
   "target_cluster": "12",
   "target_canonicity": 48.791455874086566,

@@ -22,7 +22,7 @@
 ```bash
 # PA 이상치 탐지
 docker exec csp-workspace python scripts/detect_outliers_boundary.py \
-    --input hyeonto/datasets/pa_merged_v2.csv \
+    --input hyeonto/datasets/sentence_merged_v2.csv \
     --out-dir hyeonto/reports/exploratory/outliers_pa \
     --analysis-type PA \
     --k 16 \
@@ -32,7 +32,7 @@ docker exec csp-workspace python scripts/detect_outliers_boundary.py \
 
 # SA 이상치 탐지
 docker exec csp-workspace python scripts/detect_outliers_boundary.py \
-    --input hyeonto/datasets/sa_merged_v2.csv \
+    --input hyeonto/datasets/phrase_merged_v2.csv \
     --out-dir hyeonto/reports/exploratory/outliers_sa \
     --analysis-type SA \
     --k 16 \
@@ -46,7 +46,7 @@ docker exec csp-workspace python scripts/detect_outliers_boundary.py \
 ```bash
 # SA 데이터로 n-gram 분석 (구 단위가 연쇄 패턴이 더 촘촘함)
 docker exec csp-workspace python scripts/analyze_ngram_sequences.py \
-    --input hyeonto/reports/sa_boundary_v6_full/sa_boundary_clusters.csv \
+    --input hyeonto/reports/phrase_boundary_v6_full/sa_boundary_clusters.csv \
     --out-dir hyeonto/reports/exploratory/ngram_sa \
     --analysis-type SA \
     --n-values 2,3
@@ -57,7 +57,7 @@ docker exec csp-workspace python scripts/analyze_ngram_sequences.py \
 ```bash
 # SA 데이터로 공기 네트워크 분석 (데이터량 풍부)
 docker exec csp-workspace python scripts/analyze_cooccurrence_network.py \
-    --input hyeonto/reports/sa_boundary_v6_full/sa_boundary_clusters.csv \
+    --input hyeonto/reports/phrase_boundary_v6_full/sa_boundary_clusters.csv \
     --out-dir hyeonto/reports/exploratory/cooccurrence_sa \
     --analysis-type SA \
     --top-hanja 100 \
@@ -70,8 +70,8 @@ docker exec csp-workspace python scripts/analyze_cooccurrence_network.py \
 ```bash
 # PA + SA 통합 음운 분석
 docker exec csp-workspace python scripts/analyze_phonetic_patterns.py \
-    --input-pa hyeonto/reports/pa_boundary_v6_full/boundary_clusters.csv \
-    --input-sa hyeonto/reports/sa_boundary_v6_full/sa_boundary_clusters.csv \
+    --input-pa hyeonto/reports/sentence_boundary_v6_full/boundary_clusters.csv \
+    --input-sa hyeonto/reports/phrase_boundary_v6_full/sa_boundary_clusters.csv \
     --out-dir hyeonto/reports/exploratory/phonetic \
     --min-freq 100
 ```
@@ -84,17 +84,17 @@ docker exec csp-workspace python scripts/analyze_phonetic_patterns.py \
 
 ```
 exploratory/
-├── outliers_pa/
+├── outliers_p2s/
 │   ├── outliers_pa.csv
 │   └── outlier_analysis_pa.md
-├── outliers_sa/
+├── outliers_s2p/
 │   ├── outliers_sa.csv
 │   └── outlier_analysis_sa.md
-├── ngram_sa/
+├── ngram_s2p/
 │   ├── 2gram_frequency_sa.csv
 │   ├── 3gram_frequency_sa.csv
 │   └── ngram_analysis_sa.md
-├── cooccurrence_sa/
+├── cooccurrence_s2p/
 │   ├── cooccurrence_matrix_sa.csv
 │   ├── associations_sa.csv
 │   ├── cooccurrence_network_sa.html

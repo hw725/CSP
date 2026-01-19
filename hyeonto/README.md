@@ -43,7 +43,7 @@ hyeonto/
 │   ├── pa_boundary_k14_full/          # PA K=14 클러스터링 (미시적)
 │   ├── sa_boundary_k4_full/           # SA K=4 클러스터링 (거시적)
 │   ├── sa_boundary_k24_full/          # SA K=24 클러스터링 (미시적) + 심층 프로파일
-│   ├── optimal_k_pa/                  # PA 최적 K값 분석
+│   ├── optimal_k_p2s/                  # PA 최적 K값 분석
 │   ├── optimal_k_sa_v3/               # SA 최적 K값 분석
 │   ├── crossmatch_v6/                 # PA-SA 교차 분석 (Sankey)
 │   └── exploratory/                   # 탐색적 분석 (Sankey, 비교, 흐름)
@@ -108,7 +108,7 @@ hyeonto/
 ### 1단계: 최적 K값 분석 (선택)
 ```bash
 docker exec csp-workspace python scripts/find_optimal_k.py \
-    --csv hyeonto/datasets/pa_merged_v2.csv \
+    --csv hyeonto/datasets/sentence_merged_v2.csv \
     --out-dir hyeonto/reports/optimal_k_pa \
     --k-min 4 --k-max 32 --k-step 2 \
     --device-id 0 --seed 42
@@ -118,15 +118,15 @@ docker exec csp-workspace python scripts/find_optimal_k.py \
 ```bash
 # K=4 (거시적)
 docker exec csp-workspace python scripts/cluster_pa_boundary_functions.py \
-    --input hyeonto/datasets/pa_merged_v2.csv \
-    --out-dir hyeonto/reports/pa_boundary_k4_full \
+    --input hyeonto/datasets/sentence_merged_v2.csv \
+    --out-dir hyeonto/reports/sentence_boundary_k4_full \
     --k 4 --load-embeddings hyeonto/cache/pa_embeddings.npy \
     --use-src --use-tgt --seed 42
 
 # K=14 (미시적)
 docker exec csp-workspace python scripts/cluster_pa_boundary_functions.py \
-    --input hyeonto/datasets/pa_merged_v2.csv \
-    --out-dir hyeonto/reports/pa_boundary_k14_full \
+    --input hyeonto/datasets/sentence_merged_v2.csv \
+    --out-dir hyeonto/reports/sentence_boundary_k14_full \
     --k 14 --load-embeddings hyeonto/cache/pa_embeddings.npy \
     --use-src --use-tgt --seed 42
 ```
@@ -135,15 +135,15 @@ docker exec csp-workspace python scripts/cluster_pa_boundary_functions.py \
 ```bash
 # K=4 (거시적)
 docker exec csp-workspace python scripts/cluster_sa_boundary_functions.py \
-    --input hyeonto/datasets/sa_merged_v2.csv \
-    --out-dir hyeonto/reports/sa_boundary_k4_full \
+    --input hyeonto/datasets/phrase_merged_v2.csv \
+    --out-dir hyeonto/reports/phrase_boundary_k4_full \
     --k 4 --load-embeddings hyeonto/cache/sa_embeddings.npy \
     --use-src --use-tgt --seed 42
 
 # K=24 (미시적)
 docker exec csp-workspace python scripts/cluster_sa_boundary_functions.py \
-    --input hyeonto/datasets/sa_merged_v2.csv \
-    --out-dir hyeonto/reports/sa_boundary_k24_full \
+    --input hyeonto/datasets/phrase_merged_v2.csv \
+    --out-dir hyeonto/reports/phrase_boundary_k24_full \
     --k 24 --load-embeddings hyeonto/cache/sa_embeddings.npy \
     --use-src --use-tgt --seed 42
 ```
@@ -151,15 +151,15 @@ docker exec csp-workspace python scripts/cluster_sa_boundary_functions.py \
 ### 4단계: 심층 프로파일링 (K=24 SA)
 ```bash
 docker exec csp-workspace python scripts/profile_deep_sa.py \
-    --csv hyeonto/reports/sa_boundary_k24_full/sa_boundary_clusters.csv \
-    --out-dir hyeonto/reports/sa_boundary_k24_full
+    --csv hyeonto/reports/phrase_boundary_k24_full/sa_boundary_clusters.csv \
+    --out-dir hyeonto/reports/phrase_boundary_k24_full
 ```
 
 ### 5단계: PA-SA Sankey 시각화
 ```bash
 docker exec csp-workspace python scripts/visualize_pa_sa_sankey.py \
-    --pa-csv hyeonto/reports/pa_boundary_k4_full/boundary_clusters.csv \
-    --sa-csv hyeonto/reports/sa_boundary_k4_full/sa_boundary_clusters.csv \
+    --pa-csv hyeonto/reports/sentence_boundary_k4_full/boundary_clusters.csv \
+    --sa-csv hyeonto/reports/phrase_boundary_k4_full/sa_boundary_clusters.csv \
     --pa-k 4 --sa-k 4 \
     --out-dir hyeonto/reports/exploratory/pa_sa_sankey
 ```

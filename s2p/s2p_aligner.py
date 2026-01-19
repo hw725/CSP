@@ -1216,7 +1216,7 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
     
     if use_boundary_model:
         try:
-            from sa.io_manager import safe_process_sa_row
+            from s2p.io_manager import safe_process_sa_row
 
             boundary_model = getattr(safe_process_sa_row, '_boundary_model', None)
             alignment_model = getattr(safe_process_sa_row, '_alignment_model', None)

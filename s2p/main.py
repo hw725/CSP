@@ -76,14 +76,14 @@ def _preload_models(use_boundary_model: bool = False, device: str = 'cuda', verb
         
         # 2. SA 처리 함수 캐싱
         if verbose: print("  - SA Aligner 모듈 로드 중...")
-        from sa.sa_aligner import process_single_row
-        from sa.io_manager import safe_process_sa_row
+        from s2p.s2p_aligner import process_single_row
+        from s2p.io_manager import safe_process_sa_row
         safe_process_sa_row._process_func = process_single_row
         
         # 3. 경계 모델 로드 (옵션)
         if use_boundary_model:
             if verbose: print("  - Cross-Attention 경계 모델 로드 중...")
-            from common.sa_crossattn_boundary_loader import get_crossattn_boundary_tagger
+            from common.s2p_crossattn_boundary_loader import get_crossattn_boundary_tagger
             safe_process_sa_row._boundary_model = get_crossattn_boundary_tagger(device=device)
             # 워밍업
             try:
@@ -160,9 +160,14 @@ def main():
     parser.add_argument('--no-hybrid-embed', action='store_true',
                        help='하이브리드 임베딩 비활성화 (기본: 활성화, 한자/한글 세분화)')
     
+    parser.add_argument('--batch-size', type=int, default=32,
+                       help='임베딩 배치 크기 (기본: 32)')
+    
     # 새로운 모델 옵션
-    parser.add_argument('--use-boundary-model', action='store_true',
-                       help='새로운 boundary_multitask + alignment 모델 사용')
+    parser.add_argument('--use-boundary-model', action='store_false', dest='no_boundary_model',
+                       help='새로운 boundary_multitask 모델 사용 안 함')
+    parser.set_defaults(no_boundary_model=False) # 기본적으로 사용함
+
     parser.add_argument('--boundary-threshold', type=float, default=0.55,
                        help='경계 모델 threshold (기본: 0.55, 범위: 0.0-1.0)')
     parser.add_argument('--device', default='cuda', choices=['cuda', 'cpu'],
@@ -202,7 +207,7 @@ def main():
 
     # SuPar 안전 로딩 준비 (torch 2.6 weights_only 대응)
     try:
-        from sa.sa_aligner import _prepare_supar_safe_loading  # 패키지 경로로 수정
+        from s2p.s2p_aligner import _prepare_supar_safe_loading  # 패키지 경로로 수정
         _prepare_supar_safe_loading()
     except Exception:
         pass
@@ -217,12 +222,17 @@ def main():
             print("⚡ 순차 분할 모드 (임베더 미사용)")
         print()
     else:
-        print("🚀 SA (Sentence Aligner) 시작")
-        print(f"⚙️ 설정: 임베더={args.embedder}, 워커={args.max_workers}, 청크={args.chunk_size}")
+        # 설정 출력
+        args.use_boundary_model = not args.no_boundary_model
         if args.embedder == 'none':
+            print("🚀 SA (Sentence Aligner) 시작")
+            print(f"⚙️ 설정: 임베더=none, 청크={args.chunk_size}, 배치={args.batch_size}")
             print("⚡ 순차 분할 모드 (임베더 미사용, 빠른 처리)")
         else:
+            print("🚀 SA (Sentence Aligner) 시작")
+            print(f"⚙️ 설정: 임베더={args.embedder}, 청크={args.chunk_size}, 배치={args.batch_size}, 모델={args.use_boundary_model}")
             print("📊 BGE 임베더 사용 (기본)")
+
     # 🔧 기본 모드에서는 시작 메시지 제거 (io_manager에서 처리)
     
     start_time = time.time()
@@ -235,7 +245,7 @@ def main():
     
     try:
         # io_manager의 process_file 함수 호출
-        from sa.io_manager import process_file
+        from s2p.io_manager import process_file
         
         # 출력 디렉터리 생성 보장
         try:
