@@ -2557,7 +2557,14 @@ def process_paragraph_file(
                     pass
 
                 if not alignments:
-                    raise RuntimeError(f"문단 {original_para_id}: 결과가 비었습니다 (baseline/refine/strict 모두 실패)")
+                    # 🛡️ 결과가 비어도 절대 누락시키지 않음 - 원본을 1:1로 fallback
+                    if verbose:
+                        print(f"⚠️ 문단 {original_para_id}: 분할 결과 없음 - 원본 1:1 fallback")
+                    alignments = [{
+                        '원문': src_paragraph.strip(),
+                        '번역문': tgt_paragraph.strip(),
+                        'similarity': 1.0,
+                    }]
             else:
                 # 기존 BGE/순차 방식
                 alignments = process_paragraph_alignment(
@@ -2787,20 +2794,26 @@ def process_paragraph_file(
                 except:
                     pass
         
-        elif verbose:
-            print(f"⚠️ 문단 {idx + 1}: 빈 원문 또는 번역문 건너뜀")
-            # 빈 문단도 진행률 업데이트
-            if use_progress_bar:
-                try:
-                    update_unified_progress(1)
-                except:
-                    pass
-
         else:
-            # 빈 문단도 진행률 업데이트 (비-verbose)
+            # 🛡️ 빈 문단이어도 절대 누락시키지 않음 - 원본을 그대로 결과에 추가
+            if verbose:
+                print(f"⚠️ 문단 {idx + 1}: 빈 원문 또는 번역문 - 원본 그대로 추가")
+            
+            fallback_alignment = {
+                '원문': src_paragraph.strip() if src_paragraph else '',
+                '번역문': tgt_paragraph.strip() if tgt_paragraph else '',
+                'similarity': 1.0,
+                '문단식별자': original_para_id,
+                '문장식별자': global_sent_idx,
+            }
+            if book_name:
+                fallback_alignment['book_name'] = book_name
+            global_sent_idx += 1
+            all_results.append(fallback_alignment)
+            
             if use_progress_bar:
                 try:
-                    update_unified_progress(1)
+                    update_unified_progress(1, 처리됨=len(all_results))
                 except:
                     pass
     
