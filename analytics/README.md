@@ -2,7 +2,7 @@
 
 코퍼스 분석 및 시각화 도구 모음.
 
-## 주요 파일
+## 주요 스크립트
 
 | 파일 | 설명 |
 |------|------|
@@ -10,7 +10,13 @@
 | `cluster_visualizer.py` | 시각화 및 클러스터링 분석기 |
 | `monitoring_dashboard.py` | 실시간 모니터링 대시보드 생성 |
 | `book_metadata_extractor.py` | 서종 메타데이터 추출기 |
-| `book_metadata_editor.html` | 메타데이터 GUI 편집기 |
+
+## 메타데이터 관리
+
+| 파일 | 설명 |
+|------|------|
+| `book_metadata.json` | 서종별 메타데이터 (저자, 시대, 사부, 역자, 레이어 등) |
+| `book_metadata_editor.html` | 메타데이터 GUI 편집기 (브라우저에서 열기) |
 
 ## 보조 스크립트
 
@@ -24,11 +30,7 @@
 
 ## 디렉토리
 
-- `data/` - 분석 결과 데이터 (db, csv, xlsx, log)
-- `utils/` - 유틸리티 스크립트
-- `logs/` - 로그 파일
+- `data/` - 분석 결과 데이터 (gitignore)
+- `utils/` - 공통 유틸리티 (`text_normalizer.py` 등)
+- `logs/` - 로그 파일 (gitignore)
 - `visualization_results/` - 시각화 결과
-
-## 메타데이터 스키마
-
-`book_metadata.json` 참조. GUI 편집: `book_metadata_editor.html` 사용.
