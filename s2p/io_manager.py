@@ -66,11 +66,15 @@ class SafeFileProcessor:
             logger.info(f"입력 데이터 로드: {len(df)}개 행")
             
             # 🔧 NaN 값 필터링 (원문/번역문 중 하나라도 NaN이면 제외)
+            # 🔧 NaN 값 처리 (원문/번역문 NaN -> 빈 문자열로 대체하여 행 유지)
             original_rows = len(df)
-            df = df.dropna(subset=['원문', '번역문'], how='any')
-            if len(df) < original_rows:
-                filtered_out = original_rows - len(df)
-                logger.info(f"⚠️ NaN 행 {filtered_out}개 제외 → {len(df)}개 행 처리")
+            df['원문'] = df['원문'].fillna('').astype(str)
+            df['번역문'] = df['번역문'].fillna('').astype(str)
+            
+            # 빈 행 로깅만 수행
+            empty_rows = len(df[ (df['원문'].str.strip() == '') & (df['번역문'].str.strip() == '') ])
+            if empty_rows > 0:
+                logger.info(f"⚠️ 빈 원문/번역문 {empty_rows}개 포함 (누락 방지를 위해 유지)")
             
             if len(df) == 0:
                 logger.error("❌ 유효한 데이터 없음 (모두 NaN)")
@@ -564,28 +568,30 @@ def process_file_fallback(input_file: str, output_file: str, **kwargs) -> bool:
         else:
             df = pd.read_excel(input_file)
         
-        # 🔧 NaN 값 필터링
+        # 🔧 NaN 값 처리
         original_rows = len(df)
-        df = df.dropna(subset=['원문', '번역문'], how='any')
-        if len(df) < original_rows:
-            filtered_out = original_rows - len(df)
-            logger.info(f"⚠️ NaN 행 {filtered_out}개 제외 → {len(df)}개 행 처리")
+        df['원문'] = df['원문'].fillna('').astype(str)
+        df['번역문'] = df['번역문'].fillna('').astype(str)
+        
+        empty_rows = len(df[ (df['원문'].str.strip() == '') & (df['번역문'].str.strip() == '') ])
+        if empty_rows > 0:
+            logger.info(f"⚠️ 빈 원문/번역문 {empty_rows}개 포함 (누락 방지를 위해 유지)")
         
         results = []
         for idx, row in df.iterrows():
             src_text = str(row.get('원문', ''))
             tgt_text = str(row.get('번역문', ''))
             
-            if src_text.strip() and tgt_text.strip():
-                results.append({
-                    '문장식별자': idx + 1,
-                    '원문': src_text,
-                    '번역문': tgt_text,
-                    '분할방법': 'fallback_mode',
-                    '유사도': 1.0,
-                    '원문_토큰수': len(src_text.split()),
-                    '번역문_토큰수': len(tgt_text.split())
-                })
+            # 🛡️ 어떤 경우에도 절대 누락시키지 않음
+            results.append({
+                '문장식별자': idx + 1,
+                '원문': src_text.strip() if src_text.strip() else src_text,
+                '번역문': tgt_text.strip() if tgt_text.strip() else tgt_text,
+                '분할방법': 'fallback_mode',
+                '유사도': 1.0,
+                '원문_토큰수': len(src_text.split()) if src_text.strip() else 0,
+                '번역문_토큰수': len(tgt_text.split()) if tgt_text.strip() else 0
+            })
         
         if results:
             result_df = pd.DataFrame(results)
