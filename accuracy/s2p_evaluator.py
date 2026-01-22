@@ -109,12 +109,16 @@ def evaluate_src_exact_subset(
             similarities.append(calculate_similarity(gold_tgt, pred_tgt))
     
     total = len(common_keys)
+    precision = exact_matches / total if total > 0 else 0
+    recall = exact_matches / total if total > 0 else 0  # src exact subset에서는 P=R=F1
     f1 = exact_matches / total if total > 0 else 0
     avg_similarity = sum(similarities) / len(similarities) if similarities else 0
     
     return {
         'src_exact_match_count': total,
         'target_exact_match_count': exact_matches,
+        'target_precision': precision,
+        'target_recall': recall,
         'target_f1': f1,
         'target_avg_similarity': avg_similarity,
         'target_sim_ge_90': sum(1 for s in similarities if s >= 0.9) / len(similarities) if similarities else 0,
@@ -130,9 +134,11 @@ def print_results(results: Dict[str, float]):
     print(f"원문 Exact Match: {results['src_exact_match_count']:,}개")
     print(f"번역문 Exact Match: {results['target_exact_match_count']:,}개")
     print("-" * 50)
+    print(f"번역문 Precision: {results['target_precision']:.4f} ({results['target_precision']*100:.2f}%)")
+    print(f"번역문 Recall: {results['target_recall']:.4f} ({results['target_recall']*100:.2f}%)")
     print(f"번역문 F1: {results['target_f1']:.4f} ({results['target_f1']*100:.2f}%)")
-    print(f"번역문 평균 유사도: {results['target_avg_similarity']:.4f} ({results['target_avg_similarity']*100:.2f}%)")
     print("-" * 50)
+    print(f"번역문 평균 유사도: {results['target_avg_similarity']:.4f} ({results['target_avg_similarity']*100:.2f}%)")
     print(f"유사도 >= 0.9: {results['target_sim_ge_90']*100:.1f}%")
     print(f"유사도 >= 0.8: {results['target_sim_ge_80']*100:.1f}%")
     print("=" * 50)
