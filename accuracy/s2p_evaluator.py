@@ -51,6 +51,22 @@ def evaluate_src_exact_subset(
     gold_df['_src_norm'] = gold_df['원문'].apply(normalize_text)
     pred_df['_src_norm'] = pred_df['원문'].apply(normalize_text)
     
+    # 전역 무결성 체크
+    pred_src_global = normalize_text(''.join(pred_df['원문'].astype(str)))
+    gold_src_global = normalize_text(''.join(gold_df['원문'].astype(str)))
+    is_global_integrity_ok = (pred_src_global == gold_src_global)
+    
+    integrity_details = ""
+    if not is_global_integrity_ok:
+        integrity_details = f"Gold 길이: {len(gold_src_global)}, Pred 길이: {len(pred_src_global)}\n"
+        min_len = min(len(gold_src_global), len(pred_src_global))
+        for i in range(min_len):
+            if gold_src_global[i] != pred_src_global[i]:
+                integrity_details += f"첫 불일치 위치: {i}\n"
+                integrity_details += f"Gold (snippet): ...{gold_src_global[max(0, i-10):i+10]}...\n"
+                integrity_details += f"Pred (snippet): ...{pred_src_global[max(0, i-10):i+10]}...\n"
+                break
+
     # Gold/Pred 모두 문장식별자 사용
     gold_df['_key'] = list(zip(
         gold_df['book_name'].fillna(''), 
@@ -115,6 +131,8 @@ def evaluate_src_exact_subset(
     avg_similarity = sum(similarities) / len(similarities) if similarities else 0
     
     return {
+        'global_integrity': is_global_integrity_ok,
+        'integrity_details': integrity_details,
         'src_exact_match_count': total,
         'target_exact_match_count': exact_matches,
         'target_precision': precision,
@@ -131,6 +149,14 @@ def print_results(results: Dict[str, float]):
     print("\n" + "=" * 50)
     print("📊 S2P 평가 결과 (src exact subset)")
     print("=" * 50)
+    if results.get('global_integrity'):
+        print("전역 무결성 (원문 보존): PASS")
+    else:
+        print("전역 무결성 (원문 보존): FAIL")
+        print("-" * 50)
+        print(results.get('integrity_details', '').strip())
+        print("-" * 50)
+    
     print(f"원문 Exact Match: {results['src_exact_match_count']:,}개")
     print(f"번역문 Exact Match: {results['target_exact_match_count']:,}개")
     print("-" * 50)
