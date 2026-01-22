@@ -387,7 +387,8 @@ class EmbeddingManager:
         texts: List[str],
         batch_size: int = DEFAULT_BATCH_SIZE,
         show_batch_progress: bool = False,
-        use_multi_vector: bool = True
+        use_multi_vector: bool = True,
+        save_to_disk: bool = True  # 🔧 추가된 파라미터
     ) -> np.ndarray:
         """프로세스 안전한 임베딩 계산 - BGE-M3 multi-vector 지원"""
         
@@ -514,8 +515,8 @@ class EmbeddingManager:
                 self._cache[cache_key] = emb
                 result_list[indices_to_embed[i]] = emb
             
-            # 🚀 디스크 캐시 저장 (새 임베딩이 추가된 경우)
-            if len(to_embed) > 0:
+            # 🚀 디스크 캐시 저장 (새 임베딩이 추가된 경우 & save_to_disk=True일 때만)
+            if len(to_embed) > 0 and save_to_disk:
                 self._save_disk_cache()
 
         return np.array(result_list)

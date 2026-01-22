@@ -2490,6 +2490,7 @@ def process_paragraph_file(
         src_paragraph = str(row.get('원문', ''))
         tgt_paragraph = str(row.get('번역문', ''))
         original_para_id = row.get('문단식별자', idx + 1)  # 문단식별자를 미리 가져옴
+        original_sent_id = row.get('문장식별자')  # 🔧 원본 문장식별자 추출
         book_name = str(row.get('book_name', '')).strip()
 
         dp_debug_out: str | None = None
@@ -2795,13 +2796,17 @@ def process_paragraph_file(
             except Exception:
                 pass
             
-            # 문단식별자 추가 + 문장식별자 추가 (이미 위에서 original_para_id 정의됨)
+            # 문단식별자 추가 + 문장식별자 유지 (원본 있으면 유지, 없으면 생성)
             for a in alignments:
                 a['문단식별자'] = original_para_id
                 if book_name:
                     a['book_name'] = book_name
-                a['문장식별자'] = global_sent_idx
-                global_sent_idx += 1
+                # 🔧 원본 문장식별자 유지 (없을 때만 새로 생성)
+                if original_sent_id is not None:
+                    a['문장식별자'] = original_sent_id
+                else:
+                    a['문장식별자'] = global_sent_idx
+                    global_sent_idx += 1
             
             all_results.extend(alignments)
 
@@ -2832,11 +2837,15 @@ def process_paragraph_file(
                 '번역문': tgt_paragraph.strip() if tgt_paragraph else '',
                 'similarity': 1.0,
                 '문단식별자': original_para_id,
-                '문장식별자': global_sent_idx,
             }
+            # 🔧 원본 문장식별자 유지 (없을 때만 새로 생성)
+            if original_sent_id is not None:
+                fallback_alignment['문장식별자'] = original_sent_id
+            else:
+                fallback_alignment['문장식별자'] = global_sent_idx
+                global_sent_idx += 1
             if book_name:
                 fallback_alignment['book_name'] = book_name
-            global_sent_idx += 1
             all_results.append(fallback_alignment)
             
             if use_progress_bar:

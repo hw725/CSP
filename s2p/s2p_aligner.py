@@ -666,16 +666,31 @@ def _split_tgt_by_src_units_semantic(src_units: List[str], tgt_text: str, min_to
             logger.debug(f"✅ {embedder_name.upper()} 임베더로 순서 보장 의미 매칭 시작 (device_id={embedder_device_id})")
         
         # 원문 단위별 임베딩
-        src_embeddings = compute_embeddings_func(
-            src_units, 
-            batch_size=batch_size
-        )
+        try:
+            src_embeddings = compute_embeddings_func(
+                src_units, 
+                batch_size=batch_size,
+                save_to_disk=False  # 🚀 최적화: 개별 계산 시 디스크 저장 생략
+            )
+        except TypeError:
+            # save_to_disk 인자를 지원하지 않는 임베더(OpenAI 등)를 위한 폴백
+            src_embeddings = compute_embeddings_func(
+                src_units, 
+                batch_size=batch_size
+            )
         
         # 번역문 토큰들의 임베딩 (augmented 사용)
-        tgt_embeddings = compute_embeddings_func(
-            tgt_tokens_aug, 
-            batch_size=batch_size
-        )
+        try:
+            tgt_embeddings = compute_embeddings_func(
+                tgt_tokens_aug, 
+                batch_size=batch_size,
+                save_to_disk=False  # 🚀 최적화: 개별 계산 시 디스크 저장 생략
+            )
+        except TypeError:
+            tgt_embeddings = compute_embeddings_func(
+                tgt_tokens_aug, 
+                batch_size=batch_size
+            )
         
         # 🎯 순서 보장 Dynamic Programming (가중치 파라미터 전달)
         # DP에 원문 단위/텍스트 컨텍스트도 전달(구문 힌트용)
