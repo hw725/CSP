@@ -489,6 +489,17 @@ def split_tgt_meaning_units(text: str, src_units_count: int, src_units: List[str
     if not text or not text.strip() or src_units_count <= 0:
         return [''] * max(1, src_units_count)
     
+    # 🚀 사전 계산된 경계 결과가 있으면 바로 사용 (배치 최적화)
+    precomputed_segments = kwargs.get('_precomputed_tgt_segments')
+    if precomputed_segments is not None:
+        if len(precomputed_segments) == src_units_count:
+            logger.debug(f"🚀 사전 계산된 경계 결과 사용: {len(precomputed_segments)}개 세그먼트")
+            return precomputed_segments
+        else:
+            # 개수 불일치 시에도 사전 계산 결과를 기반으로 조정
+            logger.debug(f"⚠️ 사전 계산 결과 개수 불일치: {len(precomputed_segments)}개 vs 원문 {src_units_count}개")
+            # 사전 계산 결과가 있으면 on-the-fly 경계 추론 생략 가능 (process_single_row에서 처리)
+    
     tgt_tokens = text.split()
     N, T = src_units_count, len(tgt_tokens)
     
@@ -1223,30 +1234,35 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
             threshold = float(kwargs.get('boundary_threshold', 0.5))
 
             if boundary_model is not None:
-                # 🆕 Cross-Attention 모델은 (src, tgt) 인자 필요
-                try:
-                    import inspect
-                    sig = inspect.signature(boundary_model.segment_text)
-                    if 'src_text' in sig.parameters or len(sig.parameters) >= 2:
+                # 🚀 사전 계산된 경계 결과 사용 (배치 최적화)
+                tgt_units_by_model = kwargs.get('_precomputed_tgt_segments')
+                
+                if tgt_units_by_model is None:
+                    try:
+                        import inspect
+                        sig = inspect.signature(boundary_model.segment_text)
+                        if 'src_text' in sig.parameters or len(sig.parameters) >= 2:
+                            tgt_units_by_model = boundary_model.segment_text(
+                                str(source_text),
+                                str(translation_text),
+                                n_segments=len(src_units) if len(src_units) > 1 else None,
+                                threshold=threshold,
+                            )
+                        else:
+                            tgt_units_by_model = boundary_model.segment_text(
+                                str(translation_text),
+                                task='sa',
+                                threshold=threshold,
+                            )
+                        logger.debug(f"DEBUG: 모델 예측 세그먼트 (On-the-fly): {len(tgt_units_by_model)}")
+                    except TypeError:
                         tgt_units_by_model = boundary_model.segment_text(
-                            str(source_text),
                             str(translation_text),
-                            n_segments=len(src_units) if len(src_units) > 1 else None, # 🆕 원문이 2개 이상일 때만 힌트 사용
                             threshold=threshold,
                         )
-                    else:
-                        tgt_units_by_model = boundary_model.segment_text(
-                            str(translation_text),
-                            task='sa',
-                            threshold=threshold,
-                        )
-                    logger.debug(f"DEBUG: 모델 예측 세그먼트 수: {len(tgt_units_by_model)}")
-                except TypeError:
-                     tgt_units_by_model = boundary_model.segment_text(
-                        str(translation_text),
-                        threshold=threshold,
-                    )
-                     logger.debug(f"DEBUG: 폴백 모델 예측 세그먼트 수: {len(tgt_units_by_model)}")
+                        logger.debug(f"DEBUG: 폴백 모델 예측 세그먼트 (On-the-fly): {len(tgt_units_by_model)}")
+                else:
+                    logger.debug(f"🚀 사전 계산된 경계 결과 사용 (Batch): {len(tgt_units_by_model)}개")
 
                 # 너무 극단적인 분할(0개/1개)은 이득이 없으므로 스킵
                 if tgt_units_by_model and len(tgt_units_by_model) >= 2:

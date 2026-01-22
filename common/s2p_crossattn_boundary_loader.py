@@ -170,6 +170,103 @@ class CrossAttnBoundaryTaggerLoader:
         ids += [0] * (max_len - len(ids))
         return torch.tensor([ids], dtype=torch.long, device=self.device)
     
+    def _encode_batch(self, texts: List[str], vocab: Dict, max_len: int) -> torch.Tensor:
+        """🚀 배치 인코딩 - 여러 텍스트를 한 번에 인코딩"""
+        batch_ids = []
+        for text in texts:
+            ids = [vocab.get(ch, 0) for ch in text][:max_len]
+            ids += [0] * (max_len - len(ids))
+            batch_ids.append(ids)
+        return torch.tensor(batch_ids, dtype=torch.long, device=self.device)
+    
+    def segment_text_batch(self, src_texts: List[str], tgt_texts: List[str], 
+                          n_segments_list: List[int] = None,
+                          threshold: float = 0.55, huento_bonus: float = 0.15, **kwargs) -> List[List[str]]:
+        """🚀 배치 경계 분할 - 여러 (원문, 번역문) 쌍을 한 번에 처리
+        
+        Args:
+            src_texts: 원문 텍스트 리스트
+            tgt_texts: 번역문 텍스트 리스트
+            n_segments_list: 각 행의 목표 세그먼트 개수 리스트. None이면 threshold 기준
+            threshold: 경계 확률 임계값
+            huento_bonus: 현토 보너스
+            
+        Returns:
+            각 행의 분할된 번역문 세그먼트 리스트의 리스트
+        """
+        if not src_texts or not tgt_texts:
+            return []
+        
+        if len(src_texts) != len(tgt_texts):
+            raise ValueError("src_texts와 tgt_texts 길이가 다릅니다")
+        
+        batch_size = len(src_texts)
+        
+        # 배치 인코딩
+        with torch.no_grad():
+            src_batch = self._encode_batch(src_texts, self.src_vocab, self.src_max_len)
+            tgt_batch = self._encode_batch(tgt_texts, self.tgt_vocab, self.tgt_max_len)
+            
+            # 배치 순방향 추론
+            logits, attn_weights = self.model.forward_with_attention(src_batch, tgt_batch)
+            probs_batch = torch.sigmoid(logits).cpu().numpy()  # [batch, tgt_max_len]
+            attn_batch = attn_weights.cpu().numpy()  # [batch, tgt_max_len, src_max_len]
+        
+        results = []
+        for i in range(batch_size):
+            src_text = src_texts[i]
+            tgt_text = tgt_texts[i]
+            n_segments = n_segments_list[i] if n_segments_list else None
+            
+            if not tgt_text.strip():
+                results.append([tgt_text] if tgt_text else [])
+                continue
+            
+            probs = probs_batch[i][:len(tgt_text)]
+            attn = attn_batch[i][:len(tgt_text), :len(src_text)]
+            
+            # 현토 보너스 적용
+            huento_positions = self._extract_huento_positions(src_text)
+            if huento_positions and len(probs) > 0:
+                for src_pos in huento_positions:
+                    if src_pos >= attn.shape[1]:
+                        continue
+                    attn_col = attn[:, src_pos]
+                    top_tgt_indices = attn_col.argsort()[-3:][::-1]
+                    for rank, tgt_idx in enumerate(top_tgt_indices):
+                        if 0 < tgt_idx < len(probs):
+                            weight = huento_bonus * (1.0 - rank * 0.3) * min(1.0, attn_col[tgt_idx] * 5)
+                            probs[tgt_idx] = min(1.0, probs[tgt_idx] + weight)
+            
+            # 세그먼트 추출
+            if n_segments is not None and n_segments > 1:
+                prob_positions = [(probs[j], j) for j in range(1, len(probs))]
+                prob_positions.sort(reverse=True)
+                top_positions = sorted([pos for _, pos in prob_positions[:n_segments - 1]])
+                
+                segments = []
+                start = 0
+                for pos in top_positions:
+                    segments.append(tgt_text[start:pos])
+                    start = pos
+                segments.append(tgt_text[start:])
+                segments = [s for s in segments if s.strip()]
+                results.append(segments if segments else [tgt_text])
+            else:
+                # threshold 기준 분할
+                segments = []
+                start = 0
+                for j, prob in enumerate(probs):
+                    if prob >= threshold and j > start:
+                        segments.append(tgt_text[start:j])
+                        start = j
+                if start < len(tgt_text):
+                    segments.append(tgt_text[start:])
+                segments = [s for s in segments if s.strip()]
+                results.append(segments if segments else [tgt_text])
+        
+        return results
+    
     def segment_text(self, src_text: str, tgt_text: str, n_segments: int = None, 
                       threshold: float = 0.55, huento_bonus: float = 0.15, **kwargs) -> List[str]:
         """원문과 번역문을 기반으로 번역문을 경계에서 분할

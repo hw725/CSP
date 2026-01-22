@@ -167,15 +167,17 @@ def main():
                        help='OpenAI API 키')
     
     # 🚀 병렬 처리 옵션 추가
-    parser.add_argument('--max-workers', type=int, default=16,
-                       help='병렬 워커 수 (기본: 16, BGE/OpenAI 모두 지원)')
-    parser.add_argument('--batch-size', type=int, default=256,
-                       help='배치 크기 (기본: 256, BGE/OpenAI 모두 지원)')
+    parser.add_argument('--max-workers', type=int, default=4,
+                       help='병렬 워커 수 (기본: 4)')
+    parser.add_argument('--batch-size', type=int, default=64,
+                       help='배치 크기 (기본: 64)')
     parser.add_argument('--device', default='cuda', choices=['cuda', 'cpu'],
                        help='디바이스 (기본: cuda, GPU 미지원시 자동 cpu)')
     
-    parser.add_argument('--use-boundary-model', action='store_true',
-                       help='새로운 boundary_multitask + alignment 모델 사용')
+    parser.add_argument('--use-boundary-model', action='store_true', default=True,
+                       help='경계 모델 사용 (기본: 활성화)')
+    parser.add_argument('--no-boundary-model', action='store_false', dest='use_boundary_model',
+                       help='경계 모델 비활성화 (BGE 방식으로 폴백)')
     
     parser.add_argument('--boundary-threshold', type=float, default=0.70,
                        help='경계 모델 threshold (기본: 0.70, 범위: 0.0-1.0)')

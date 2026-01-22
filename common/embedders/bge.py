@@ -9,6 +9,9 @@
 import logging
 import numpy as np
 import os
+import hashlib
+import pickle
+from pathlib import Path
 from typing import List, Optional, Callable
 
 try:
@@ -21,7 +24,8 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 # 전역 설정 - GPU 최적화
-DEFAULT_BATCH_SIZE = 32  # GPU 성능 최적화를 위해 증가
+DEFAULT_BATCH_SIZE = 128  # 🚀 배치 크기 증가 (32 → 128)
+DISK_CACHE_DIR = Path('.cache/embeddings')  # 디스크 캐시 디렉토리
 DEFAULT_EMBEDDING_MODEL = 'BAAI/bge-m3'
 
 class EmbeddingManager:
@@ -40,7 +44,7 @@ class EmbeddingManager:
     - 프로세스 안전 락 시스템
     """
     
-    def __init__(self, model_name: str = DEFAULT_EMBEDDING_MODEL, fallback_to_dummy: bool = True, device_id=None):
+    def __init__(self, model_name: str = DEFAULT_EMBEDDING_MODEL, fallback_to_dummy: bool = True, device_id=None, use_disk_cache: bool = True):
         self.model_name = model_name
         self.model = None
         self._cache = {}
@@ -53,6 +57,40 @@ class EmbeddingManager:
         self._api_version_checked = False
         self._use_legacy_api = False  # True면 구버전 API
         self._fallback_vectorizer = None
+        
+        # 🚀 디스크 캐시 설정
+        self._use_disk_cache = use_disk_cache
+        if use_disk_cache:
+            DISK_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            self._load_disk_cache()
+    
+    def _get_cache_path(self) -> Path:
+        """디스크 캐시 파일 경로 반환"""
+        return DISK_CACHE_DIR / f"bge_cache_{self.model_name.replace('/', '_')}.pkl"
+    
+    def _load_disk_cache(self):
+        """디스크에서 캐시 로드"""
+        cache_path = self._get_cache_path()
+        if cache_path.exists():
+            try:
+                with open(cache_path, 'rb') as f:
+                    self._cache = pickle.load(f)
+                logger.info(f"✅ 디스크 캐시 로드: {len(self._cache)}개 항목")
+            except Exception as e:
+                logger.warning(f"⚠️ 디스크 캐시 로드 실패: {e}")
+                self._cache = {}
+    
+    def _save_disk_cache(self):
+        """캐시를 디스크에 저장"""
+        if not self._use_disk_cache:
+            return
+        cache_path = self._get_cache_path()
+        try:
+            with open(cache_path, 'wb') as f:
+                pickle.dump(self._cache, f)
+            logger.debug(f"💾 디스크 캐시 저장: {len(self._cache)}개 항목")
+        except Exception as e:
+            logger.warning(f"⚠️ 디스크 캐시 저장 실패: {e}")
 
     def _get_fallback_vectorizer(self):
         if self._fallback_vectorizer is not None:
@@ -475,6 +513,10 @@ class EmbeddingManager:
                 cache_key = txt + cache_suffix
                 self._cache[cache_key] = emb
                 result_list[indices_to_embed[i]] = emb
+            
+            # 🚀 디스크 캐시 저장 (새 임베딩이 추가된 경우)
+            if len(to_embed) > 0:
+                self._save_disk_cache()
 
         return np.array(result_list)
 

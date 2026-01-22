@@ -2523,43 +2523,52 @@ def process_paragraph_file(
         if src_paragraph.strip() and tgt_paragraph.strip():
             if use_boundary_model:
                 # strict baseline: (경계모델 후보 + alignment 선택)
-                alignments_base = process_paragraph_alignment_with_boundary_model(
-                    src_paragraph=src_paragraph,
-                    tgt_paragraph=tgt_paragraph,
-                    boundary_model=boundary_model,
-                    alignment_model=alignment_pa,
-                    threshold=boundary_threshold,
-                    boundary_min_len=boundary_min_len,
-                    tgt_split_max_length=max_length,
-                    adjacent_refine_max_shift_tokens=(4 if enable_refine else 1),
-                    enable_adjacent_boundary_refine=enable_adjacent_boundary_refine,
-                    boundary_bonus_factor=boundary_bonus_factor,
-                    shift_penalty_factor=shift_penalty_factor,
-                    enable_src_marker_boundary_bonus=enable_src_marker_boundary_bonus,
-                    enable_src_marker_whitespace_dp_bonus=enable_src_marker_whitespace_dp_bonus,
-                    verbose=verbose,
-                    trace=_trace,
-                    dp_debug_out=dp_debug_out,
-                    # JSON serialization safety: pandas가 numpy scalar로 읽으면 json.dumps가 실패할 수 있음
-                    dp_debug_meta={"book_name": str(book_name), "paragraph_id": (dp_debug_pid if dp_debug_pid is not None else str(original_para_id))},
-                )
-
-                # strict baseline이 비는 건 원칙적으로 없어야 하지만, 방어적으로 유지
-                alignments = alignments_base
-
                 try:
-                    _trace(
-                        "after_model_alignment",
-                        src_segments=[a.get('원문', '') for a in (alignments or [])],
-                        tgt_segments=[a.get('번역문', '') for a in (alignments or [])],
+                    alignments_base = process_paragraph_alignment_with_boundary_model(
+                        src_paragraph=src_paragraph,
+                        tgt_paragraph=tgt_paragraph,
+                        boundary_model=boundary_model,
+                        alignment_model=alignment_pa,
+                        threshold=boundary_threshold,
+                        boundary_min_len=boundary_min_len,
+                        tgt_split_max_length=max_length,
+                        adjacent_refine_max_shift_tokens=(4 if enable_refine else 1),
+                        enable_adjacent_boundary_refine=enable_adjacent_boundary_refine,
+                        boundary_bonus_factor=boundary_bonus_factor,
+                        shift_penalty_factor=shift_penalty_factor,
+                        enable_src_marker_boundary_bonus=enable_src_marker_boundary_bonus,
+                        enable_src_marker_whitespace_dp_bonus=enable_src_marker_whitespace_dp_bonus,
+                        verbose=verbose,
+                        trace=_trace,
+                        dp_debug_out=dp_debug_out,
+                        # JSON serialization safety: pandas가 numpy scalar로 읽으면 json.dumps가 실패할 수 있음
+                        dp_debug_meta={"book_name": str(book_name), "paragraph_id": (dp_debug_pid if dp_debug_pid is not None else str(original_para_id))},
                     )
-                except Exception:
-                    pass
 
-                if not alignments:
-                    # 🛡️ 결과가 비어도 절대 누락시키지 않음 - 원본을 1:1로 fallback
-                    if verbose:
-                        print(f"⚠️ 문단 {original_para_id}: 분할 결과 없음 - 원본 1:1 fallback")
+                    # strict baseline이 비는 건 원칙적으로 없어야 하지만, 방어적으로 유지
+                    alignments = alignments_base
+
+                    try:
+                        _trace(
+                            "after_model_alignment",
+                            src_segments=[a.get('원문', '') for a in (alignments or [])],
+                            tgt_segments=[a.get('번역문', '') for a in (alignments or [])],
+                        )
+                    except Exception:
+                        pass
+
+                    if not alignments:
+                        # 🛡️ Zero Drop Mandate: 결과가 비어도 절대 누락시키지 않음 - 원본을 1:1로 fallback
+                        if verbose:
+                            print(f"⚠️ 문단 {original_para_id}: 분할 결과 없음 - 원본 1:1 fallback")
+                        alignments = [{
+                            '원문': src_paragraph.strip(),
+                            '번역문': tgt_paragraph.strip(),
+                            'similarity': 1.0,
+                        }]
+                except Exception as e:
+                    # 🛡️ Zero Drop Mandate: 예외 발생 시에도 절대 누락시키지 않음
+                    logger.warning(f"⚠️ 문단 {original_para_id} 처리 중 예외 발생 - 원본 1:1 fallback: {e}")
                     alignments = [{
                         '원문': src_paragraph.strip(),
                         '번역문': tgt_paragraph.strip(),
@@ -2567,18 +2576,37 @@ def process_paragraph_file(
                     }]
             else:
                 # 기존 BGE/순차 방식
-                alignments = process_paragraph_alignment(
-                        src_paragraph,
-                        tgt_paragraph,
-                        embedder_name=embedder_name,
-                        max_length=max_length,
-                        similarity_threshold=similarity_threshold,
-                        device=device,
-                        quality_threshold=0.8,
-                        use_spacy_tokenizer=False,
-                        max_workers=max_workers,
-                        batch_size=batch_size,
-                    )
+                try:
+                    alignments = process_paragraph_alignment(
+                            src_paragraph,
+                            tgt_paragraph,
+                            embedder_name=embedder_name,
+                            max_length=max_length,
+                            similarity_threshold=similarity_threshold,
+                            device=device,
+                            quality_threshold=0.8,
+                            use_spacy_tokenizer=False,
+                            max_workers=max_workers,
+                            batch_size=batch_size,
+                        )
+                    
+                    # 🛡️ Zero Drop Mandate: 결과가 비어도 절대 누락시키지 않음
+                    if not alignments:
+                        if verbose:
+                            print(f"⚠️ 문단 {original_para_id}: BGE 분할 결과 없음 - 원본 1:1 fallback")
+                        alignments = [{
+                            '원문': src_paragraph.strip(),
+                            '번역문': tgt_paragraph.strip(),
+                            'similarity': 1.0,
+                        }]
+                except Exception as e:
+                    # 🛡️ Zero Drop Mandate: 예외 발생 시에도 절대 누락시키지 않음
+                    logger.warning(f"⚠️ 문단 {original_para_id} BGE 처리 중 예외 발생 - 원본 1:1 fallback: {e}")
+                    alignments = [{
+                        '원문': src_paragraph.strip(),
+                        '번역문': tgt_paragraph.strip(),
+                        'similarity': 1.0,
+                    }]
 
             # 🔧 최종 보정: [-…] 블록을 문장 경계에 걸치지 않도록 원문 조각에 원자적으로 붙임
             try:
@@ -2795,7 +2823,7 @@ def process_paragraph_file(
                     pass
         
         else:
-            # 🛡️ 빈 문단이어도 절대 누락시키지 않음 - 원본을 그대로 결과에 추가
+            # 🛡️ Zero Drop Mandate: 빈 문단이어도 절대 누락시키지 않음
             if verbose:
                 print(f"⚠️ 문단 {idx + 1}: 빈 원문 또는 번역문 - 원본 그대로 추가")
             

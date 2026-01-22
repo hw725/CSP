@@ -5,7 +5,7 @@ import time
 import logging
 import pandas as pd
 from typing import List, Dict, Any, Optional, Tuple
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
 import traceback
 import hashlib
@@ -84,18 +84,116 @@ class SafeFileProcessor:
             file_id = f"file_{hashlib.md5(input_file.encode()).hexdigest()[:8]}"
             self._register_file_integrity(df, file_id)
             
+            # 🚀 임베딩 사전 계산 (성능 최적화)
+            # 모든 원문/번역문 텍스트에 대한 임베딩을 한 번에 계산하여 캐시에 저장
+            embedder_name = kwargs.get('embedder_name', 'bge')
+            if embedder_name.lower() != 'none':
+                try:
+                    print("🔄 임베딩 사전 계산 중 (최적화)...", flush=True)
+                    from common.embedders.bge import get_embedding_manager
+                    manager = get_embedding_manager()
+                    
+                    # 모든 텍스트 수집 (원문 + 번역문 + 토큰 분할)
+                    all_texts = set()
+                    for _, row in df.iterrows():
+                        src = str(row.get('원문', '')).strip()
+                        tgt = str(row.get('번역문', '')).strip()
+                        if src:
+                            all_texts.add(src)
+                            # 원문 토큰 (공백 분할)
+                            for token in src.split():
+                                if token.strip():
+                                    all_texts.add(token.strip())
+                        if tgt:
+                            all_texts.add(tgt)
+                            # 번역문 토큰 (공백 분할)
+                            for token in tgt.split():
+                                if token.strip():
+                                    all_texts.add(token.strip())
+                    
+                    all_texts_list = list(all_texts)
+                    print(f"   수집된 텍스트: {len(all_texts_list)}개", flush=True)
+                    
+                    # 대형 배치로 임베딩 계산 (캐시에 자동 저장됨)
+                    batch_size = kwargs.get('batch_size', 64)
+                    if all_texts_list:
+                        _ = manager.compute_embeddings_with_cache(
+                            all_texts_list, 
+                            batch_size=batch_size,
+                            show_batch_progress=False
+                        )
+                    print(f"✅ 임베딩 사전 계산 완료 ({len(all_texts_list)}개)", flush=True)
+                except Exception as e:
+                    print(f"⚠️ 임베딩 사전 계산 실패 (행별 계산으로 폴백): {e}", flush=True)
+            
             # 2. 청크 단위로 처리
             results = []
             chunks = self._create_chunks(df)
             total_rows = len(df)
             processed_rows = 0
             
-            print(f"📊 SA 처리 시작: {total_rows:,}개 행 ({len(chunks)}개 청크)")
+            print(f"📊 SA 처리 시작: {total_rows:,}개 행 ({len(chunks)}개 청크)", flush=True)
             
             # 진행률 출력 간격 (10행마다 또는 1% 단위)
             progress_interval = max(10, total_rows // 100)
             
+            # 🚀 배치 경계 사전 계산 (성능 최적화)
+            use_boundary_model = kwargs.get('use_boundary_model', False)
+            batch_boundary_cache = {}  # {row_idx: boundary_segments}
+            
+            if use_boundary_model:
+                try:
+                    print("🔄 배치 경계 사전 계산 중 (GPU 최적화)...", flush=True)
+                    from common.s2p_crossattn_boundary_loader import get_crossattn_boundary_tagger
+                    boundary_model = get_crossattn_boundary_tagger(device=kwargs.get('device', 'cuda'))
+                    
+                    # 모든 행의 원문/번역문 수집
+                    all_src = []
+                    all_tgt = []
+                    all_n_segments = []
+                    row_indices = []
+                    
+                    for idx, row in df.iterrows():
+                        src = str(row.get('원문', '')).strip()
+                        tgt = str(row.get('번역문', '')).strip()
+                        if src and tgt:
+                            all_src.append(src)
+                            all_tgt.append(tgt)
+                            # 원문 구 개수 = 공백 분할 개수
+                            all_n_segments.append(len(src.split()))
+                            row_indices.append(idx)
+                    
+                    # 배치 처리 (GPU 메모리 제한으로 작은 배치로 나눔)
+                    batch_size = 32
+                    total_batches = (len(all_src) + batch_size - 1) // batch_size
+                    for batch_idx, batch_start in enumerate(range(0, len(all_src), batch_size)):
+                        batch_end = min(batch_start + batch_size, len(all_src))
+                        src_batch = all_src[batch_start:batch_end]
+                        tgt_batch = all_tgt[batch_start:batch_end]
+                        n_seg_batch = all_n_segments[batch_start:batch_end]
+                        idx_batch = row_indices[batch_start:batch_end]
+                        
+                        # 진행률 출력 (10배치마다)
+                        if batch_idx % 10 == 0 or batch_idx == total_batches - 1:
+                            print(f"  📍 경계 배치: {batch_idx+1}/{total_batches} ({(batch_idx+1)*100//total_batches}%)", flush=True)
+                        
+                        # 배치 경계 추론
+                        segments_batch = boundary_model.segment_text_batch(
+                            src_batch, tgt_batch, 
+                            n_segments_list=n_seg_batch,
+                            threshold=kwargs.get('boundary_threshold', 0.55)
+                        )
+                        
+                        # 캐시에 저장
+                        for idx, segments in zip(idx_batch, segments_batch):
+                            batch_boundary_cache[idx] = segments
+                    
+                    print(f"\n✅ 배치 경계 사전 계산 완료 ({len(batch_boundary_cache)}개)", flush=True)
+                except Exception as e:
+                    print(f"⚠️ 배치 경계 사전 계산 실패 (행별 계산으로 폴백): {e}", flush=True)
+            
             for i, chunk in enumerate(chunks):
+                print(f"🔧 청크 {i+1}/{len(chunks)} 시작 ({len(chunk)}행)...", flush=True)
                 if self.verbose:
                     logger.info(f"청크 {i+1}/{len(chunks)} 처리 중...")
                 
@@ -107,17 +205,35 @@ class SafeFileProcessor:
                         pct = processed_rows * 100 // total_rows
                         print(f"🔄 SA 처리: {processed_rows:,}/{total_rows:,} ({pct}%) 성공={self.processed_count} 실패={self.error_count}", flush=True)
 
+                # 🚀 배치 경계 캐시를 kwargs에 전달
+                chunk_kwargs = dict(kwargs)
+                chunk_kwargs['_boundary_cache'] = batch_boundary_cache
+
                 chunk_results = self._process_chunk_with_integrity(
                     chunk, processing_function, f"{file_id}_chunk_{i}", 
                     progress_callback=update_progress,
-                    **kwargs
+                    **chunk_kwargs
                 )
                 
                 if chunk_results:
                     results.extend(chunk_results)
+                    
+                    # 🚀 체크포인트: 청크 완료 시 중간 결과 저장
+                    checkpoint_path = Path(str(output_file).replace('.xlsx', '_checkpoint.csv'))
+                    try:
+                        chunk_df = pd.DataFrame(chunk_results)
+                        if i == 0:
+                            # 첫 청크: 헤더 포함하여 새 파일 생성
+                            chunk_df.to_csv(checkpoint_path, index=False, mode='w')
+                        else:
+                            # 이후 청크: 헤더 없이 append
+                            chunk_df.to_csv(checkpoint_path, index=False, mode='a', header=False)
+                        print(f"💾 체크포인트 저장: 청크 {i+1}/{len(chunks)} ({len(results):,}개 누적)", flush=True)
+                    except Exception as e:
+                        logger.warning(f"⚠️ 체크포인트 저장 실패: {e}")
             
             # 완료 메시지
-            print(f"✅ SA 처리 완료: {self.processed_count:,}개 구문 생성")
+            print(f"✅ SA 처리 완료: {self.processed_count:,}개 구문 생성", flush=True)
             
             # 3. 결과 저장 및 검증
             if results:
@@ -255,9 +371,18 @@ class SafeFileProcessor:
         """청크 단위 무결성 보장 처리 (안전 버전)"""
         
         results = []
+        chunk_size = len(chunk)
+        chunk_start_time = time.time()
         
-        for idx, row in chunk.iterrows():
+        for i, (idx, row) in enumerate(chunk.iterrows()):
             try:
+                # 🚀 행 단위 진행률 출력 (50행마다 새 줄로)
+                if i % 50 == 0 or i == chunk_size - 1:
+                    elapsed = time.time() - chunk_start_time
+                    rate = (i + 1) / elapsed if elapsed > 0 else 0
+                    eta = (chunk_size - i - 1) / rate if rate > 0 else 0
+                    print(f"  📍 청크 진행: {i+1}/{chunk_size} ({(i+1)*100//chunk_size}%) | {rate:.1f}행/초 | ETA: {eta:.0f}초", flush=True)
+                
                 # 행별 무결성 등록 (안전)
                 row_id = f"{chunk_id}_row_{idx}"
                 src_text = str(row.get('원문', ''))
@@ -279,9 +404,11 @@ class SafeFileProcessor:
                         # 행별 무결성 검증 (안전)
                         if self.integrity_enabled and self._verify_row_integrity(row, row_result, row_id):
                             results.extend(row_result if isinstance(row_result, list) else [row_result])
+                            self.processed_count += len(row_result) if isinstance(row_result, list) else 1
                         elif not self.integrity_enabled:
                             # 무결성 비활성화시 결과 그대로 사용
                             results.extend(row_result if isinstance(row_result, list) else [row_result])
+                            self.processed_count += len(row_result) if isinstance(row_result, list) else 1
                         else:
                             self.integrity_failures += 1
                             logger.warning(f"행 {idx} 무결성 실패, 스킵")
@@ -290,6 +417,10 @@ class SafeFileProcessor:
                 logger.error(f"행 {idx} 처리 실패: {e}")
                 self.error_count += 1
                 continue
+        
+        # 청크 완료 메시지
+        elapsed = time.time() - chunk_start_time
+        print(f"\n  ✅ 청크 완료: {chunk_size}행 처리 ({elapsed:.1f}초, {chunk_size/elapsed:.1f}행/초)", flush=True)
         
         return results
     
@@ -778,6 +909,13 @@ def safe_process_sa_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Di
         
         if not src_text.strip() or not tgt_text.strip():
             return []
+        
+        # 🚀 배치 경계 캐시 확인
+        boundary_cache = kwargs.get('_boundary_cache', {})
+        row_idx = getattr(row, 'name', None)  # DataFrame 인덱스
+        if row_idx is not None and row_idx in boundary_cache:
+            # 사전 계산된 경계 결과를 kwargs에 추가
+            kwargs['_precomputed_tgt_segments'] = boundary_cache[row_idx]
         
         # 🚨 마스킹 비활성화: 괄호 마스킹 없이 직접 처리
         # (PUA 토큰 분할 문제 해결을 위해 마스킹 로직 완전 우회)

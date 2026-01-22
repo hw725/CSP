@@ -215,6 +215,9 @@ def main():
     # use_parallel 계산 (기존 코드와 호환)
     use_parallel = not args.no_parallel
     
+    # 🔧 use_boundary_model 속성 설정 (verbose/non-verbose 모두에서 필요)
+    args.use_boundary_model = not args.no_boundary_model
+    
     if args.verbose:
         print("🚀 SA 파일 처리 시작:", args.input_file)
         print(f"⚙️  설정: 임베더={args.embedder}, 병렬={use_parallel}, 워커={args.max_workers}")
@@ -223,15 +226,14 @@ def main():
         print()
     else:
         # 설정 출력
-        args.use_boundary_model = not args.no_boundary_model
         if args.embedder == 'none':
             print("🚀 SA (Sentence Aligner) 시작")
             print(f"⚙️ 설정: 임베더=none, 청크={args.chunk_size}, 배치={args.batch_size}")
             print("⚡ 순차 분할 모드 (임베더 미사용, 빠른 처리)")
         else:
-            print("🚀 SA (Sentence Aligner) 시작")
-            print(f"⚙️ 설정: 임베더={args.embedder}, 청크={args.chunk_size}, 배치={args.batch_size}, 모델={args.use_boundary_model}")
-            print("📊 BGE 임베더 사용 (기본)")
+            print("🚀 SA (Sentence Aligner) 시작", flush=True)
+            print(f"⚙️ 설정: 임베더={args.embedder}, 청크={args.chunk_size}, 배치={args.batch_size}, 모델={args.use_boundary_model}", flush=True)
+            print("📊 BGE 임베더 사용 (기본)", flush=True)
 
     # 🔧 기본 모드에서는 시작 메시지 제거 (io_manager에서 처리)
     
@@ -239,9 +241,9 @@ def main():
     
     # 🆕 모델 사전 로드 (--preload-models 옵션)
     if args.preload_models:
-        print("🔄 모델 사전 로드 중...")
+        print("🔄 모델 사전 로드 중...", flush=True)
         _preload_models(args.use_boundary_model, args.device, args.verbose)
-        print("✅ 모델 로드 완료")
+        print("✅ 모델 로드 완료", flush=True)
     
     try:
         # io_manager의 process_file 함수 호출
@@ -254,6 +256,7 @@ def main():
                 os.makedirs(out_parent, exist_ok=True)
         except Exception:
             pass
+
 
         success = process_file(
             input_file=args.input_file,
