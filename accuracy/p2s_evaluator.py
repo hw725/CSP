@@ -162,16 +162,11 @@ def evaluate_p2s(
                 sim = calculate_similarity(pred_src_norm, gold_src_norm)
                 src_sims_on_sent_match.append(sim)
                 
-                # 원문 경계 F1: 이 문장의 원문이 일치하면 TP, 불일치하면 FP/FN
+                # 원문 F1: 원문이 정확히 일치하면 TP, 아니면 FN
                 if pred_src_norm == gold_src_norm:
                     tp += 1
                 else:
-                    # 부분 일치 시 유사도 기반으로 TP 계산 (threshold 0.9)
-                    if sim >= 0.9:
-                        tp += 1
-                    else:
-                        fp += 1
-                        fn += 1
+                    fn += 1
     
     p, r, f1 = calculate_prf1(tp, fp, fn)
     avg_src_sim = sum(src_sims_on_sent_match) / len(src_sims_on_sent_match) if src_sims_on_sent_match else 0
