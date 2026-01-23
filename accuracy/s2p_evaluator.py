@@ -125,9 +125,11 @@ def evaluate_src_exact_subset(
             similarities.append(calculate_similarity(gold_tgt, pred_tgt))
     
     total = len(common_keys)
-    precision = exact_matches / total if total > 0 else 0
-    recall = exact_matches / total if total > 0 else 0  # src exact subset에서는 P=R=F1
-    f1 = exact_matches / total if total > 0 else 0
+    tp = exact_matches
+    fn = total - exact_matches
+    precision = 1.0  # src exact subset에서만 보므로 FP 없음
+    recall = tp / total if total > 0 else 0
+    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0
     avg_similarity = sum(similarities) / len(similarities) if similarities else 0
     
     return {
