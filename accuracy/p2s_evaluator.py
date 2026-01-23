@@ -133,7 +133,6 @@ def evaluate_p2s(
     
     # 문장 단위 통계
     sent_tgt_exact_count = 0 
-    sent_tgt_total_match_subset = 0
     src_sims_on_sent_match = [] # 번역문 일치하는 문장들의 원문 유사도
     
     for key in common_keys:
@@ -152,24 +151,27 @@ def evaluate_p2s(
         if pred_tgt_norm == gold_tgt_norm:
             tgt_exact_ok += 1
             
-        # 문장 단위 비교(번역문이 일치하는 경우 원문 유사도 측정)
-        # 길이가 다르면 앞에서부터 가능한 만큼 비교
+        # 문장 단위 비교: 번역문이 일치하는 문장에서만 원문 F1 계산
         min_len = min(len(pred_tgt_norm), len(gold_tgt_norm))
         for i in range(min_len):
             if pred_tgt_norm[i] == gold_tgt_norm[i]:
                 sent_tgt_exact_count += 1
                 # 대응되는 원문의 유사도 계산
-                sim = calculate_similarity(normalize_text(pred_src[i]), normalize_text(gold_src[i]))
+                pred_src_norm = normalize_text(pred_src[i])
+                gold_src_norm = normalize_text(gold_src[i])
+                sim = calculate_similarity(pred_src_norm, gold_src_norm)
                 src_sims_on_sent_match.append(sim)
-        
-        # 원문 경계 F1 계산
-        pred_b = boundary_positions(pred_src)
-        gold_b = boundary_positions(gold_src)
-        inter = pred_b & gold_b
-        
-        tp += len(inter)
-        fp += len(pred_b - gold_b)
-        fn += len(gold_b - pred_b)
+                
+                # 원문 경계 F1: 이 문장의 원문이 일치하면 TP, 불일치하면 FP/FN
+                if pred_src_norm == gold_src_norm:
+                    tp += 1
+                else:
+                    # 부분 일치 시 유사도 기반으로 TP 계산 (threshold 0.9)
+                    if sim >= 0.9:
+                        tp += 1
+                    else:
+                        fp += 1
+                        fn += 1
     
     p, r, f1 = calculate_prf1(tp, fp, fn)
     avg_src_sim = sum(src_sims_on_sent_match) / len(src_sims_on_sent_match) if src_sims_on_sent_match else 0
