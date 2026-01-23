@@ -73,7 +73,7 @@ def compute_statistics(df: pd.DataFrame, metric_cols: list) -> dict:
     
     return stats
 
-def generate_report(results_dir: Path, output_dir: Path):
+def generate_report(results_dir: Path, output_dir: Path) -> None:
     """전체 평가 결과 보고서 생성"""
     
     print("="*70)
