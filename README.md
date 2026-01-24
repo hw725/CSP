@@ -140,5 +140,38 @@ CSP/
 
 ---
 
-**최종 업데이트**: 2026년 01월 23일 - P2S/S2P 전체 평가 결과 업데이트
+## 🐳 개발 환경
+
+### Docker (권장)
+GPU/CUDA 의존성과 재현성을 위해 Docker 사용을 권장합니다.
+
+```bash
+# 컨테이너 빌드 및 실행
+docker-compose up -d
+docker-compose exec csp bash
+
+# 헬퍼 스크립트 (Windows)
+./docker.ps1 python scripts/example.py
+```
+
+### 패키지 관리
+- **Docker**: `uv`를 사용한 고속 패키지 설치 (pip 대비 2-10배 빠름)
+- **로컬**: `.venv` + `requirements.txt` (torch 2.9.1)
+- **버전 차이**: Docker는 `torch==2.6.0` (공식 이미지 기준), 로컬은 `torch==2.9.1`
+
+### 보안 점검
+```powershell
+# 로컬 환경 취약점 점검
+./scripts/safety_check.ps1
+
+# Docker 환경 취약점 점검
+./scripts/safety_check.ps1 -Docker
+
+# 자동 수정 시도
+./scripts/safety_check.ps1 -Fix
+```
+
+---
+
+**최종 업데이트**: 2026년 01월 24일 - 개발 환경 문서화 및 보안 점검 스크립트 추가
 

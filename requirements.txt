@@ -6,10 +6,20 @@
 # ========================================
 # - 현재 방식: 수동 관리 + 주석으로 업데이트 이유 명시
 # - 주기적 업데이트 확인 (3~6개월마다):
-#   docker exec csp-container pip list --outdated
-# - 보안 취약점 확인:
-#   pip install safety
-#   safety check -r requirements.txt
+#   docker exec csp-workspace pip list --outdated
+# - 보안 취약점 확인 (scripts/safety_check.ps1 참조):
+#   pip install pip-audit  # safety 대체 (무료)
+#   pip-audit -r requirements.txt
+# ========================================
+#
+# ========================================
+# Docker vs 로컬(.venv) 환경 차이
+# ========================================
+# - torch: Docker=2.6.0 (베이스 이미지), 로컬=2.9.1
+#   → pytorch/pytorch:2.9.1 공식 이미지가 아직 없어 Docker는 2.6.0 유지
+#   → 기능 차이 거의 없음, CUDA 호환성 동일
+# - pyodbc/sqlalchemy: 로컬 전용 (Docker에서는 컨테이너 내 mssql 사용)
+# - jupyter/ipython: 로컬 개발 편의용
 # ========================================
 
 # ========================================

@@ -1,5 +1,12 @@
 # CSP Docker 환경 - PyTorch 2.6 기반
-# PyTorch 2.6.0이 Docker Hub의 최신 cuda12.4-cudnn9 이미지
+# ========================================
+# 버전 동기화 참고 (Dockerfile vs requirements.txt)
+# ========================================
+# - torch: Docker 베이스 이미지 2.6.0 유지 (requirements.txt는 2.9.1)
+#   → 이유: pytorch/pytorch:2.9.1 공식 이미지가 아직 없음
+#   → 로컬 .venv는 2.9.1 사용 가능, Docker는 2.6.0 고정
+# - 기타 패키지: requirements.txt와 동일 버전 유지
+# ========================================
 FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel
 
 # 시스템 패키지 설치 (한글/한자 폰트)
@@ -19,15 +26,16 @@ ENV PYTHONIOENCODING=utf-8
 # 폰트 캐시
 RUN fc-cache -fv
 
-# pip 업그레이드
-RUN python -m pip install --upgrade pip wheel setuptools
+# uv 설치 (pip 대비 2-10배 빠른 패키지 설치)
+# 참고: https://github.com/astral-sh/uv
+RUN pip install --no-cache-dir uv
 
 # PyTorch 검증
 RUN python -c "import torch; print(f'PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}')"
 
-# 필수 패키지 설치 (보안 및 성능 개선 버전)
+# 필수 패키지 설치 (uv 사용으로 빌드 속도 향상)
 # 주의: torch는 베이스 이미지(2.6.0)를 유지 (2.9.1 Docker 이미지 없음)
-RUN pip install --no-cache-dir \
+RUN uv pip install --system --no-cache \
     transformers==4.57.3 \
     datasets==3.2.0 \
     accelerate==1.10.0 \

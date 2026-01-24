@@ -637,7 +637,85 @@
                 <div class="json-output" id="jsonOutput"></div>
             </div>
             <div class="modal-footer">
+                <button class="btn" onclick="downloadJSON()">⬇️ 다운로드</button>
                 <button class="btn btn-primary" onclick="copyJSON()">📋 복사</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Person Modal -->
+    <div class="modal-overlay" id="personModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="personModalTitle">인물 추가</h3>
+                <button class="modal-close" onclick="closePersonModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editingPersonName">
+                <div class="form-section">
+                    <div class="form-section-header">인물 정보</div>
+                    <div class="form-section-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">이름 *</label>
+                                <input type="text" class="form-input" id="personName" placeholder="예: 주희">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">생몰연도</label>
+                                <input type="text" class="form-input" id="personPeriod" placeholder="예: 1130-1200 또는 BC 551-BC 479">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">역할 (복수 선택 가능)</label>
+                            <div style="display:flex; gap:16px; margin-top:8px">
+                                <label><input type="checkbox" id="roleAuthor" value="author"> 저자</label>
+                                <label><input type="checkbox" id="roleCommentator" value="commentator"> 주석가</label>
+                                <label><input type="checkbox" id="roleCompiler" value="compiler"> 편집자</label>
+                                <label><input type="checkbox" id="roleTranslator" value="translator"> 역자</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closePersonModal()">취소</button>
+                <button class="btn btn-primary" onclick="savePerson()">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Layer Type Modal -->
+    <div class="modal-overlay" id="layerTypeModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="layerTypeModalTitle">레이어 타입 추가</h3>
+                <button class="modal-close" onclick="closeLayerTypeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editingLayerTypeId">
+                <div class="form-section">
+                    <div class="form-section-header">레이어 타입 정보</div>
+                    <div class="form-section-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">ID *</label>
+                                <input type="text" class="form-input" id="layerTypeId" placeholder="예: 경">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">한자</label>
+                                <input type="text" class="form-input" id="layerTypeHanja" placeholder="예: 經">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">설명</label>
+                            <input type="text" class="form-input" id="layerTypeDesc" placeholder="예: 원경전">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeLayerTypeModal()">취소</button>
+                <button class="btn btn-primary" onclick="saveLayerType()">저장</button>
             </div>
         </div>
     </div>
@@ -728,7 +806,7 @@
                     });
             } else if (currentView === 'layers') {
                 (data.layer_types || []).forEach((lt, i) => {
-                    list.innerHTML += `<div class="list-item">
+                    list.innerHTML += `<div class="list-item" onclick="selectLayerType('${lt.id}')">
                         <div><div class="list-item-name">${lt.id} (${lt.hanja})</div>
                         <div class="list-item-meta">${lt.desc}</div></div>
                     </div>`;
@@ -809,9 +887,20 @@
             `;
         }
 
-        // Book Modal
+        // Open Add Modal based on current view
         function openAddModal() {
-            document.getElementById('bookModalTitle').textContent = currentView === 'books' ? '서목 추가' : '인물 추가';
+            if (currentView === 'books') {
+                openAddBookModal();
+            } else if (currentView === 'people') {
+                openAddPersonModal();
+            } else if (currentView === 'layers') {
+                openAddLayerTypeModal();
+            }
+        }
+
+        // Book Modal
+        function openAddBookModal() {
+            document.getElementById('bookModalTitle').textContent = '서목 추가';
             document.getElementById('editingBookName').value = '';
             document.getElementById('bookName').value = '';
             document.getElementById('bookName').disabled = false;
@@ -951,6 +1040,116 @@
             }
         }
 
+        // Person Modal
+        function openAddPersonModal() {
+            document.getElementById('personModalTitle').textContent = '인물 추가';
+            document.getElementById('editingPersonName').value = '';
+            document.getElementById('personName').value = '';
+            document.getElementById('personName').disabled = false;
+            document.getElementById('personPeriod').value = '';
+            document.getElementById('roleAuthor').checked = false;
+            document.getElementById('roleCommentator').checked = false;
+            document.getElementById('roleCompiler').checked = false;
+            document.getElementById('roleTranslator').checked = false;
+            document.getElementById('personModal').classList.add('active');
+        }
+
+        function editPerson(name) {
+            const d = data.people[name];
+            document.getElementById('personModalTitle').textContent = '인물 편집';
+            document.getElementById('editingPersonName').value = name;
+            document.getElementById('personName').value = name;
+            document.getElementById('personName').disabled = true;
+            document.getElementById('personPeriod').value = d.period || '';
+            const roles = d.role || [];
+            document.getElementById('roleAuthor').checked = roles.includes('author');
+            document.getElementById('roleCommentator').checked = roles.includes('commentator');
+            document.getElementById('roleCompiler').checked = roles.includes('compiler');
+            document.getElementById('roleTranslator').checked = roles.includes('translator');
+            document.getElementById('personModal').classList.add('active');
+        }
+
+        function closePersonModal() { document.getElementById('personModal').classList.remove('active'); }
+
+        function savePerson() {
+            const name = document.getElementById('personName').value.trim();
+            if (!name) { alert('이름을 입력하세요'); return; }
+            
+            const roles = [];
+            if (document.getElementById('roleAuthor').checked) roles.push('author');
+            if (document.getElementById('roleCommentator').checked) roles.push('commentator');
+            if (document.getElementById('roleCompiler').checked) roles.push('compiler');
+            if (document.getElementById('roleTranslator').checked) roles.push('translator');
+            
+            data.people[name] = {
+                ...(document.getElementById('personPeriod').value ? { period: document.getElementById('personPeriod').value } : {}),
+                role: roles.length ? roles : ['author']
+            };
+            
+            closePersonModal();
+            render();
+            showToast('저장되었습니다');
+        }
+
+        // Layer Type Modal
+        function openAddLayerTypeModal() {
+            document.getElementById('layerTypeModalTitle').textContent = '레이어 타입 추가';
+            document.getElementById('editingLayerTypeId').value = '';
+            document.getElementById('layerTypeId').value = '';
+            document.getElementById('layerTypeId').disabled = false;
+            document.getElementById('layerTypeHanja').value = '';
+            document.getElementById('layerTypeDesc').value = '';
+            document.getElementById('layerTypeModal').classList.add('active');
+        }
+
+        function editLayerType(id) {
+            const lt = (data.layer_types || []).find(l => l.id === id);
+            if (!lt) return;
+            document.getElementById('layerTypeModalTitle').textContent = '레이어 타입 편집';
+            document.getElementById('editingLayerTypeId').value = id;
+            document.getElementById('layerTypeId').value = lt.id;
+            document.getElementById('layerTypeId').disabled = true;
+            document.getElementById('layerTypeHanja').value = lt.hanja || '';
+            document.getElementById('layerTypeDesc').value = lt.desc || '';
+            document.getElementById('layerTypeModal').classList.add('active');
+        }
+
+        function closeLayerTypeModal() { document.getElementById('layerTypeModal').classList.remove('active'); }
+
+        function saveLayerType() {
+            const id = document.getElementById('layerTypeId').value.trim();
+            if (!id) { alert('ID를 입력하세요'); return; }
+            
+            const hanja = document.getElementById('layerTypeHanja').value.trim();
+            const desc = document.getElementById('layerTypeDesc').value.trim();
+            const editingId = document.getElementById('editingLayerTypeId').value;
+            
+            if (!data.layer_types) data.layer_types = [];
+            
+            if (editingId) {
+                const idx = data.layer_types.findIndex(l => l.id === editingId);
+                if (idx >= 0) data.layer_types[idx] = { id, hanja, desc };
+            } else {
+                if (data.layer_types.some(l => l.id === id)) {
+                    alert('이미 존재하는 ID입니다');
+                    return;
+                }
+                data.layer_types.push({ id, hanja, desc });
+            }
+            
+            closeLayerTypeModal();
+            render();
+            showToast('저장되었습니다');
+        }
+
+        function deleteLayerType(id) {
+            if (confirm(`"${id}" 레이어 타입을 삭제하시겠습니까?`)) {
+                data.layer_types = (data.layer_types || []).filter(l => l.id !== id);
+                render();
+                showToast('삭제되었습니다');
+            }
+        }
+
         // JSON
         function exportJSON() {
             const output = { ...data, _last_updated: new Date().toISOString().split('T')[0] };
@@ -963,6 +1162,20 @@
         function copyJSON() {
             navigator.clipboard.writeText(document.getElementById('jsonOutput').textContent);
             showToast('클립보드에 복사되었습니다');
+        }
+
+        function downloadJSON() {
+            const output = { ...data, _last_updated: new Date().toISOString().split('T')[0] };
+            const blob = new Blob([JSON.stringify(output, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'book_metadata.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('다운로드 시작됨');
         }
 
         function loadFile() { document.getElementById('fileInput').click(); }
