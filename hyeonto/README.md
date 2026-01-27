@@ -1,4 +1,4 @@
-# 현토(懸吐) 분석 프로젝트 (v6 + K=4 핵심 분석)
+# 현토(懸吐) 분석 프로젝트 (v6.9.4 Final Production)
 
 > 사서삼경(四書三經) 등 유교 경전의 **현토(懸吐)** 패턴을 클러스터링 및 시각화하여 한문 구문 기능을 분석하는 연구 프로젝트
 
@@ -18,9 +18,9 @@
 ### 연구 목표
 
 1. **현토 패턴 클러스터링**: 한문 경계(boundary)에서 나타나는 현토의 기능적 역할 분류
-2. **PA-SA 위계적 분석**: 문장(PA)과 구(SA) 수준의 이중 레벨 분석
+2. **Sentence-Phrase 위계적 분석**: 문장과 구 수준의 이중 레벨 분석
 3. **K=4 핵심 분석**: 거시적 4개 클러스터 분석으로 주요 패턴 규명
-4. **정규화**: 171개 규칙으로 옛한글 및 이형태 통일 (Zero-Gap 달성)
+4. **정규화**: 171개 규칙 + `\p{Hangul}+` Unicode Regex로 옛한글 및 이형태 통일 (Zero-Gap 달성)
 
 ---
 
@@ -29,28 +29,25 @@
 ```
 hyeonto/
 ├── datasets/                  # 학습용 데이터셋
-│   ├── pa_merged_v2.csv       # PA 통합 데이터 (87,943건)
-│   └── sa_merged_v2.csv       # SA 통합 데이터 (294,889건)
+│   ├── sentence_merged_v2.csv # Sentence 통합 데이터 (150,545건)
+│   └── phrase_merged_v2.csv   # Phrase 통합 데이터 (366,222건)
 ├── cache/                     # 임베딩 캐시
-│   ├── pa_embeddings.npy      # PA BGE-M3 임베딩
-│   └── sa_embeddings.npy      # SA BGE-M3 임베딩
+│   ├── sentence_embeddings.npy # Sentence BGE-M3 임베딩
+│   └── phrase_embeddings.npy   # Phrase BGE-M3 임베딩
 ├── reports/                   # 분석 결과
 │   ├── dashboard.html         # ⭐ 인터랙티브 대시보드
-│   ├── md_viewer.html         # 마크다운 뷰어
-│   ├── pa_k4_normalized/      # PA K=4 클러스터링 (정규화)
-│   ├── sa_k4_normalized/      # SA K=4 클러스터링 (정규화)
-│   ├── k4_embedding_overlay_3d.html  # PA/SA 3D UMAP 시각화
-│   ├── k4_embedding_overlay_2d.html  # PA/SA 2D UMAP 시각화
+│   ├── sentence_k4_normalized/# Sentence K=4 클러스터링 (정규화)
+│   ├── phrase_k4_normalized/  # Phrase K=4 클러스터링 (정규화)
+│   ├── k4_embedding_overlay_3d.html  # 3D UMAP 시각화
+│   ├── k4_embedding_overlay_2d.html  # 2D UMAP 시각화
 │   ├── sankey_diagrams/       # Sankey 다이어그램
-│   ├── tam_analysis_v6/       # TAM 분석
-│   ├── tense_analysis_v6/     # 시제 분석
-│   ├── weight_sensitivity_v6/ # 가중치 민감도 분석
-│   ├── exploratory/           # 탐색적 분석
-│   └── archive/               # K=14/K=24 세부 분석 (아카이브)
+│   ├── first_person_analysis/ # 1인칭 표지 분석
+│   ├── genre_examples/        # 장르별 예문 분석
+│   └── exploratory/           # 탐색적 분석
 ├── hyeonto_normalizer.py      # 현토 정규화 모듈 (171규칙)
-├── generate_sankey_diagrams.py # Sankey 다이어그램 생성
+├── run_full_pipeline.py       # ⭐ 전체 파이프라인 (Production)
 ├── analyze_embedding_overlay.py # UMAP 시각화 생성
-└── rerun_full_analysis.py     # 전체 분석 재실행
+└── generate_sankey_diagrams.py  # Sankey 다이어그램 생성
 ```
 
 ---
@@ -77,12 +74,12 @@ hyeonto/
 
 ## 🔬 K=4 핵심 분석
 
-### 분석 개요
+### 분석 개요 (v6.9.4 Final)
 
 | 데이터 | 건수 | K값 | 정규화 |
 |:---:|:---:|:---:|:---:|
-| **PA** | 87,943 | K=4 | ✅ Zero-Gap |
-| **SA** | 294,889 | K=4 | ✅ Zero-Gap |
+| **Sentence** | 150,545 | K=4 | ✅ Zero-Gap |
+| **Phrase** | 366,222 | K=4 | ✅ Zero-Gap |
 
 ### 사서 중심성 (Saseo Centrality)
 
@@ -91,8 +88,8 @@ hyeonto/
 Cohen's d = 79.5 (극도의 효과 크기)
 ```
 
-- PA K=4 p1: 사서 집중도 **13.4%** (평균 10.2% 대비)
-- SA K=4 p1: 사서 집중도 **16.5%** (평균 10.2% 대비)
+- Sentence K=4 p1: 사서 집중도 **13.4%** (평균 10.2% 대비)
+- Phrase K=4 p5: 사서 집중도 **16.5%** (평균 10.2% 대비)
 
 ---
 
@@ -100,11 +97,8 @@ Cohen's d = 79.5 (극도의 효과 크기)
 
 ### Docker 환경 실행
 ```bash
-# 전체 분석 재실행
-docker compose run --rm csp python hyeonto/rerun_full_analysis.py --all
-
-# 정규화 후 클러스터링만
-docker compose run --rm csp python hyeonto/rerun_full_analysis.py --step clustering
+# 전체 파이프라인 재실행 (Production)
+docker compose run --rm csp python hyeonto/run_full_pipeline.py
 
 # UMAP 시각화 생성
 docker compose run --rm csp python hyeonto/analyze_embedding_overlay.py
@@ -113,32 +107,37 @@ docker compose run --rm csp python hyeonto/analyze_embedding_overlay.py
 python hyeonto/generate_sankey_diagrams.py
 ```
 
-### 로컬 대시보드 실행
+### 결과 확인 (로컬 서버 없이)
+
+**HTML 시각화는 브라우저에서 직접 열기 가능**:
 ```bash
+# Windows: 탐색기에서 더블클릭
+start reports\k4_embedding_overlay_3d.html
+
+# 또는 로컬 서버 실행 (마크다운 뷰어 사용 시)
 cd hyeonto/reports
 python -m http.server 8080
-# 브라우저에서 http://localhost:8080/dashboard.html 접속
 ```
 
 ---
 
 ## 📊 주요 산출물
 
-### 핵심 시각화
+### 핵심 시각화 (브라우저에서 직접 열기 가능)
 
 | 시각화 | 경로 | 설명 |
 |--------|------|------|
-| **대시보드** | `reports/dashboard.html` | ⭐ 모든 분석 결과 통합 탐색 |
-| **3D UMAP** | `reports/k4_embedding_overlay_3d.html` | PA/SA 임베딩 3D 오버레이 |
-| **2D UMAP** | `reports/k4_embedding_overlay_2d.html` | PA/SA 임베딩 2D 오버레이 |
-| **PA↔SA Sankey** | `reports/sankey_diagrams/sankey_pa4_sa4.html` | PA-SA 클러스터 흐름 |
+| **3D UMAP** | `reports/k4_embedding_overlay_3d.html` | Sentence/Phrase 임베딩 3D 오버레이 |
+| **2D UMAP** | `reports/k4_embedding_overlay_2d.html` | Sentence/Phrase 임베딩 2D 오버레이 |
+| **Sankey** | `reports/sankey_diagrams/sankey_sentence4_phrase4.html` | Sentence-Phrase 클러스터 흐름 |
+| **공기 네트워크** | `reports/exploratory/cooccurrence_normalized/cooccurrence_network_normalized.html` | 한자-현토 공기 네트워크 |
 
 ### K=4 클러스터 프로파일
 
 | 파일 | 설명 |
 |------|------|
-| `pa_k4_normalized/pa_cluster_profile.md` | PA K=4 정규화 프로파일 |
-| `sa_k4_normalized/sa_cluster_profile.md` | SA K=4 정규화 프로파일 |
+| `sentence_k4_normalized/sentence_cluster_profile.md` | Sentence K=4 정규화 프로파일 |
+| `phrase_k4_normalized/phrase_cluster_profile.md` | Phrase K=4 정규화 프로파일 |
 
 ---
 
@@ -146,8 +145,8 @@ python -m http.server 8080
 
 | 문서 | 설명 |
 |------|------|
-| [dashboard.html](reports/dashboard.html) | ⭐ 인터랙티브 대시보드 |
-| [FINAL_ANALYSIS_REPORT.md](reports/FINAL_ANALYSIS_REPORT.md) | v6 통합 마스터 리포트 |
+| [dashboard.html](reports/dashboard.html) | ⭐ 인터랙티브 대시보드 (로컬 서버 권장) |
+| [FINAL_ANALYSIS_REPORT.md](reports/FINAL_ANALYSIS_REPORT.md) | 통합 마스터 리포트 |
 | [KEY_FINDINGS.md](KEY_FINDINGS.md) | 핵심 발견 사항 |
 | [REPRODUCE.md](REPRODUCE.md) | 재현 가이드 |
 | [VISUALIZATION_GUIDE.md](VISUALIZATION_GUIDE.md) | 시각화 해석 |
@@ -155,4 +154,4 @@ python -m http.server 8080
 
 ---
 
-**마지막 업데이트**: 2026-01-27 (K=4 핵심 분석 + 정규화 + 시각화 개선)
+**마지막 업데이트**: 2026-01-27 (v6.9.4 Final Production Sync)

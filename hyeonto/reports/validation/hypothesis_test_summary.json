@@ -1,0 +1,61 @@
+{
+  "analysis_date": "2026-01-27T16:18:19.869913",
+  "data_file": "reports\\sentence_k4_normalized\\sentence_clusters.csv",
+  "data_rows": 150545,
+  "target_cluster": "3",
+  "target_canonicity": 13.237063778580024,
+  "null_hypothesis": {
+    "observed_canonicity": 13.237063778580024,
+    "random_mean": 9.585411880538233,
+    "random_std": 0.20345449334395185,
+    "effect_size": 17.94824895741407,
+    "p_value": 0.0,
+    "verdict": "REJECTED"
+  },
+  "inverse_weighting": {
+    "strong": 33.761160714285715,
+    "uniform": 13.237063778580024,
+    "inverse": 3.901023615700814,
+    "interpretation": "✅ 클러스터 구성은 가중치와 무관하게 결정됨 (데이터 내재적 현상)"
+  },
+  "alternative_centrality": {
+    "saseo_ratio": 13.237063778580024,
+    "samgyeong_ratio": 0.0,
+    "other_ratio": 86.76293622141998,
+    "effect_size": 1.5256588072122053,
+    "verdict": "SASEO_DOMINANT"
+  },
+  "retrospective_aspect": {
+    "total_retrospective": 5329,
+    "history_retrospective": 2103,
+    "history_ratio": 39.463313942578345,
+    "expected_ratio": 26.61131223222292,
+    "null_hypothesis": {
+      "observed_ratio": 39.463313942578345,
+      "random_mean": 26.60495402514543,
+      "random_std": 0.5809693474238197,
+      "effect_size": 22.132596107609587,
+      "p_value": 0.0,
+      "verdict": "REJECTED"
+    },
+    "inverse_weighting": {
+      "strong": 76.52281493341097,
+      "uniform": 39.463313942578345,
+      "inverse": 11.534031700762355,
+      "history_density": 5.249363486595777,
+      "other_density": 2.919906229917725,
+      "interpretation": "⚠️ 가중치에 민감"
+    },
+    "alternative_centrality": {
+      "history_percentage": 39.463313942578345,
+      "expected_percentage": 26.61131223222292,
+      "concentration_ratio": 1.482952572883395,
+      "verdict": "HISTORY_DOMINANT",
+      "interpretation": "✅ 역사서가 유의하게 회상상 집중"
+    },
+    "verdict": "PARTIAL",
+    "interpretation": "⚠️ 일부 검증 실패"
+  },
+  "final_verdict": "⚠️ 일부 검증 실패",
+  "bias_level": "LOW"
+}

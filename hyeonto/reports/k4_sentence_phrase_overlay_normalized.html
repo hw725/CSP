@@ -4,15 +4,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentence/Phrase K=4 클러스터 비교 오버레이</title>
+    <title>Sentence/Phrase K=4 클러스터 비교 오버레이 (흑백)</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
         :root {
-            --bg: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            --bg: #ffffff;
             --text: #fff;
             --muted: #888;
-            --primary: #e94560;
-            --accent: #4ecca3;
+            --primary: #000000;
+            --accent: #666666;
             --card-bg: rgba(255, 255, 255, 0.05);
             --insight-bg: rgba(233, 69, 96, 0.1);
             --insight-border: rgba(233, 69, 96, 0.3);
@@ -56,7 +56,7 @@
         }
 
         [data-theme="dark"] h1 {
-            background: linear-gradient(90deg, #e94560, #4ecca3);
+            background: linear-gradient(90deg, #000000, #666666);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -149,11 +149,11 @@
         }
 
         .sentence-line {
-            background: #4ecca3;
+            background: #666666;
         }
 
         .phrase-line {
-            background: #e94560;
+            background: #000000;
         }
 
         /* 라이트 모드: 흑백 인쇄 친화적 */
@@ -310,8 +310,8 @@
         const savedTheme = localStorage.getItem('hyeonto-theme') || 'dark';
 
         // 다크 모드 색상
-        const darkSentenceColors = ['#4ecca3', '#45b7aa', '#38a3a5', '#22577a'];
-        const darkPhraseColors = ['#e94560', '#ff6b6b', '#ffc93c', '#ff8c42'];
+        const darkSentenceColors = ['#666666', '#888888', '#AAAAAA', '#EEEEEE'];
+        const darkPhraseColors = ['#000000', '#EEEEEE', '#BBBBBB', '#BBBBBB'];
 
         // 라이트 모드: 흑백 인쇄 친화적 (그레이스케일)
         const lightSentenceColors = ['#000000', '#333333', '#666666', '#999999'];
@@ -322,7 +322,7 @@
             const sentenceColors = isLight ? lightSentenceColors : darkSentenceColors;
             const phraseColors = isLight ? lightPhraseColors : darkPhraseColors;
             const fontColor = isLight ? '#000' : '#fff';
-            const gridColor = isLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)';
+            const gridColor = isLight ? 'rgba(0,0,0,0.2)' : 'rgba(80,80,80,0.4)';
             const paperBg = isLight ? '#ffffff' : 'rgba(0,0,0,0)';
 
             // 1. 레이더 차트
@@ -439,6 +439,38 @@
 
         setTheme(savedTheme);
     </script>
+
+    <script>
+    // 흑백 인쇄 최적화: 클러스터별 마커 심볼 + 명도 차이 극대화
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+            const plots = document.querySelectorAll('.plotly-graph-div, [id^="sankey"], #plot, .js-plotly-plot');
+            plots.forEach(function(plot) {
+                if (plot._fullData) {
+                    // 심볼: 원, 사각, 다이아, 삼각, X, 별, 육각, 오각
+                    const symbols = ['circle', 'square', 'diamond', 'triangle-up', 'cross', 'star', 'hexagon', 'pentagon'];
+                    // 명도: 검정(0%), 진회색(40%), 밝은회색(75%), 흰색(95%)
+                    const colors = ['#000000', '#666666', '#BBBBBB', '#EEEEEE', '#333333', '#999999', '#DDDDDD', '#444444'];
+                    
+                    plot._fullData.forEach(function(trace, idx) {
+                        if (trace.mode && trace.mode.includes('markers')) {
+                            const update = {
+                                'marker.symbol': symbols[idx % symbols.length],
+                                'marker.color': colors[idx % colors.length],
+                                'marker.size': 10,
+                                'marker.line.width': 2,
+                                'marker.line.color': '#000000',
+                                'marker.opacity': 0.9
+                            };
+                            Plotly.restyle(plot, update, [idx]);
+                        }
+                    });
+                }
+            });
+        }, 500);
+    });
+    </script>
+    
 </body>
 
 </html>

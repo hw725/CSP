@@ -4,12 +4,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hyeonto K=4 클러스터 분석 대시보드</title>
+    <title>Hyeonto K=4 클러스터 분석 대시보드 (흑백)</title>
     <style>
         :root {
             --primary: #4a90d9;
             --secondary: #e74c3c;
-            --accent: #4ecca3;
+            --accent: #666666;
             --bg: #1a1a2e;
             --card-bg: #16213e;
             --text: #eee;
@@ -20,10 +20,13 @@
             --link-hover: rgba(74, 144, 217, 0.3);
             --highlight-bg: rgba(78, 204, 163, 0.2);
             --highlight-hover: rgba(78, 204, 163, 0.35);
+            --badge-html-bg: #666666;
+            --badge-html-text: #000000;
+            --badge-md-bg: #666666;
+            --badge-md-text: #ffffff;
         }
 
         [data-theme="light"] {
-            /* 흑백 인쇄 친화적 고대비 색상 */
             --primary: #1a1a1a;
             --secondary: #333333;
             --accent: #000000;
@@ -37,15 +40,16 @@
             --link-hover: rgba(0, 0, 0, 0.15);
             --highlight-bg: rgba(0, 0, 0, 0.12);
             --highlight-hover: rgba(0, 0, 0, 0.2);
+            --badge-html-bg: #2e7d32;
+            --badge-html-text: #ffffff;
+            --badge-md-bg: #5d4037;
+            --badge-md-text: #ffffff;
         }
 
-        /* 인쇄 전용 스타일 */
         @media print {
             body {
                 background: white !important;
                 color: black !important;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
             }
 
             .theme-toggle {
@@ -84,17 +88,6 @@
                 border: 1px solid black !important;
                 background: white !important;
                 text-decoration: underline !important;
-            }
-
-            .link-group a.highlight {
-                border-left: 4px solid black !important;
-                font-weight: bold;
-            }
-
-            .badge {
-                background: black !important;
-                color: white !important;
-                border: 1px solid black;
             }
 
             h1 {
@@ -166,6 +159,37 @@
             text-align: center;
             color: var(--muted);
             margin-bottom: 30px;
+        }
+
+        .notice-box {
+            background: rgba(74, 144, 217, 0.1);
+            border: 1px solid var(--primary);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+
+        .notice-box strong {
+            color: var(--primary);
+        }
+
+        .notice-box code {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+        }
+
+        .notice-box .tip {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px dashed var(--border);
+        }
+
+        .notice-box .tip::before {
+            content: "💡 ";
         }
 
         .grid {
@@ -260,28 +284,30 @@
             background: var(--highlight-hover);
         }
 
+        .link-type {
+            font-size: 0.65em;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 8px;
+            vertical-align: middle;
+            font-weight: bold;
+        }
+
+        .link-type.html {
+            background: var(--badge-html-bg);
+            color: var(--badge-html-text);
+        }
+
+        .link-type.md {
+            background: var(--badge-md-bg);
+            color: var(--badge-md-text);
+        }
+
         .section-title {
             font-size: 1.5em;
             margin: 40px 0 20px;
             padding-left: 15px;
             border-left: 4px solid var(--primary);
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 2px 8px;
-            background: var(--accent);
-            color: #000;
-            border-radius: 4px;
-            font-size: 0.75em;
-            margin-left: 8px;
-            vertical-align: middle;
-        }
-
-        [data-theme="light"] .badge {
-            background: #000;
-            color: #fff;
-            font-weight: bold;
         }
 
         footer {
@@ -291,15 +317,6 @@
             border-top: 1px solid var(--border);
             margin-top: 40px;
         }
-
-        .archive-note {
-            background: var(--stat-bg);
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 20px;
-            font-size: 0.9em;
-            color: var(--muted);
-        }
     </style>
 </head>
 
@@ -307,7 +324,21 @@
     <button class="theme-toggle" id="themeToggle" title="테마 전환">🌙</button>
     <div class="container">
         <h1>📊 Hyeonto K=4 클러스터 분석 대시보드</h1>
-        <p class="subtitle">Sentence(문장 경계) 및 Phrase(구 경계) 비지도 클러스터링 | K=4 핵심 분석</p>
+        <p class="subtitle">Sentence(문장) 및 Phrase(구) 비지도 클러스터링 | v6.9.4 Final</p>
+
+        <div class="notice-box">
+            <strong>📁 파일 열기 안내</strong><br>
+            • <span class="link-type html">HTML</span> 시각화 파일은 브라우저에서 <strong>더블클릭으로 바로 열기</strong> 가능합니다.<br>
+            • <span class="link-type md">MD</span> 마크다운 문서는 <strong>텍스트 에디터</strong>(VS Code, Typora 등)에서 직접 열어서 읽으세요.
+
+            <div class="tip">
+                <strong>로컬 서버를 사용하면 더 편리합니다!</strong><br>
+                마크다운 뷰어가 활성화되어 브라우저에서 문서를 바로 볼 수 있습니다.<br>
+                <code>cd hyeonto/reports && python -m http.server 8080</code><br>
+                → <a href="http://localhost:8080/dashboard.html"
+                    style="color: var(--accent);">http://localhost:8080/dashboard.html</a> 접속
+            </div>
+        </div>
 
         <div class="grid">
             <div class="card">
@@ -345,32 +376,39 @@
                 <h3>클러스터 프로파일 (정규화)</h3>
                 <div class="link-group">
                     <a href="sentence_k4_normalized/sentence_cluster_profile.md" class="highlight">📄 Sentence K=4
-                        프로파일</a>
-                    <a href="phrase_k4_normalized/phrase_cluster_profile.md" class="highlight">📄 Phrase K=4 프로파일</a>
-                    <a href="K4_CLUSTER_ANALYSIS.md">📋 K=4 집중 분석 종합 보고서</a>
+                        프로파일<span class="link-type md">MD</span></a>
+                    <a href="phrase_k4_normalized/phrase_cluster_profile.md" class="highlight">📄 Phrase K=4 프로파일<span
+                            class="link-type md">MD</span></a>
+                    <a href="K4_CLUSTER_ANALYSIS.md">📋 K=4 집중 분석 종합 보고서<span class="link-type md">MD</span></a>
                 </div>
             </div>
             <div class="card">
                 <h3>인터랙티브 시각화</h3>
                 <div class="link-group">
-                    <a href="k4_embedding_overlay_3d.html" class="highlight">🌐 Sentence/Phrase 임베딩 3D UMAP</a>
-                    <a href="k4_embedding_overlay_2d.html">🔬 Sentence/Phrase 임베딩 2D UMAP</a>
-                    <a href="k4_sentence_phrase_overlay_normalized.html">📊 Sentence/Phrase K=4 서종 분포 비교</a>
+                    <a href="k4_embedding_overlay_3d.html" class="highlight">🌐 Sentence/Phrase 임베딩 3D UMAP<span
+                            class="link-type html">HTML</span></a>
+                    <a href="k4_embedding_overlay_2d.html">🔬 Sentence/Phrase 임베딩 2D UMAP<span
+                            class="link-type html">HTML</span></a>
+                    <a href="k4_embedding_overlay_2d_bw.html">🖨️ 2D UMAP (흑백 인쇄용)<span
+                            class="link-type html">HTML</span></a>
+                    <a href="k4_sentence_phrase_overlay_normalized.html">📊 서종 분포 비교<span
+                            class="link-type html">HTML</span></a>
                 </div>
             </div>
             <div class="card">
-                <h3>Sentence ↔ Phrase Sankey 다이어그램</h3>
+                <h3>Sentence ↔ Phrase Sankey</h3>
                 <div class="link-group">
                     <a href="sankey_diagrams/sankey_sentence4_phrase4.html" class="highlight">🌊 Sentence(K=4) ↔
-                        Phrase(K=4)</a>
+                        Phrase(K=4)<span class="link-type html">HTML</span></a>
                 </div>
             </div>
             <div class="card">
                 <h3>공기어 분석 (정규화)</h3>
                 <div class="link-group">
-                    <a href="exploratory/cooccurrence_normalized/cooccurrence_analysis_normalized.md">📋 한자-현토 공기 분석</a>
-                    <a href="exploratory/cooccurrence_normalized/cooccurrence_network_normalized.html">🕸️ 공기 네트워크
-                        그래프</a>
+                    <a href="exploratory/cooccurrence_normalized/cooccurrence_analysis_normalized.md">📋 한자-현토 공기
+                        분석<span class="link-type md">MD</span></a>
+                    <a href="exploratory/cooccurrence_normalized/cooccurrence_network_normalized.html"
+                        class="highlight">🕸️ 공기 네트워크 그래프<span class="link-type html">HTML</span></a>
                 </div>
             </div>
         </div>
@@ -378,18 +416,41 @@
         <h2 class="section-title">📌 탐색적 분석</h2>
         <div class="grid">
             <div class="card">
-                <h3>탐색적 분석</h3>
+                <h3>이상치 및 패턴 분석</h3>
                 <div class="link-group">
-                    <a href="exploratory/outliers_sentence/outlier_analysis_sentence.md">🔍 Sentence 이상치 분석</a>
-                    <a href="exploratory/ngram_phrase/ngram_analysis_phrase.md">📜 Phrase N-gram 분석</a>
-                    <a href="exploratory/phonetic/phonetic_analysis_sentence+phrase.md">🔊 음운 패턴 분석</a>
+                    <a href="exploratory/outliers_sentence/outlier_analysis_sentence.md">🔍 Sentence 이상치 분석<span
+                            class="link-type md">MD</span></a>
+                    <a href="exploratory/ngram_phrase/ngram_analysis_phrase.md">📜 Phrase N-gram 분석<span
+                            class="link-type md">MD</span></a>
+                    <a href="exploratory/phonetic/phonetic_analysis_sentence+phrase.md">🔊 음운 패턴 분석<span
+                            class="link-type md">MD</span></a>
                 </div>
             </div>
             <div class="card">
-                <h3>장르/1인칭 분석</h3>
+                <h3>고급 시각화</h3>
                 <div class="link-group">
-                    <a href="genre_examples/GENRE_SPECIFIC_EXAMPLES.md">📋 장르별 예문 분석</a>
-                    <a href="first_person_analysis/FIRST_PERSON_MARKER_ANALYSIS.md">🗣️ 1인칭 표지 분석</a>
+                    <a href="exploratory/viz_advanced_sentence/advanced_cluster_viz.html">💎 Sentence 고급 산점도<span
+                            class="link-type html">HTML</span></a>
+                    <a href="exploratory/cooccurrence_phrase/cooccurrence_network_phrase.html">🕸️ Phrase 공기 네트워크<span
+                            class="link-type html">HTML</span></a>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="section-title">🔬 견고성 검증</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>민감도 분석</h3>
+                <div class="link-group">
+                    <a href="validation/weight_sensitivity/WEIGHT_SENSITIVITY_REPORT.md" class="highlight">⚖️ 가중치 민감도
+                        분석<span class="link-type md">MD</span></a>
+                </div>
+            </div>
+            <div class="card">
+                <h3>영가설 검증</h3>
+                <div class="link-group">
+                    <a href="validation/HYPOTHESIS_TEST_REPORT.md" class="highlight">🎲 영가설 검정<span
+                            class="link-type md">MD</span></a>
                 </div>
             </div>
         </div>
@@ -399,20 +460,28 @@
             <div class="card">
                 <h3>종합 리포트</h3>
                 <div class="link-group">
-                    <a href="FINAL_ANALYSIS_REPORT.md">📋 최종 분석 보고서</a>
-                    <a href="README.md">📖 README</a>
+                    <a href="FINAL_ANALYSIS_REPORT.md" class="highlight">📋 최종 분석 보고서<span
+                            class="link-type md">MD</span></a>
+                    <a href="README.md">📖 README<span class="link-type md">MD</span></a>
+                </div>
+            </div>
+            <div class="card">
+                <h3>정규화 검증</h3>
+                <div class="link-group">
+                    <a href="normalization_review/NORMALIZATION_REVIEW_REPORT.md">🔧 170개 마커 정규화 검토<span
+                            class="link-type md">MD</span></a>
                 </div>
             </div>
         </div>
 
         <footer>
-            <p>Hyeonto Analysis Dashboard | Generated: 2026-01-27</p>
-            <p>Data: 동양고전종합DB | Analysis: BGE-M3 + MiniBatchKMeans</p>
+            <p>Hyeonto Analysis Dashboard | v6.9.4 Final | 2026-01-27</p>
+            <p>Data: 동양고전종합DB | Sentence 150,545 + Phrase 366,222 | BGE-M3 + MiniBatchKMeans</p>
         </footer>
     </div>
 
     <script>
-        // 테마 토글 기능
+        // 테마 토글
         const themeToggle = document.getElementById('themeToggle');
         const savedTheme = localStorage.getItem('hyeonto-theme') || 'dark';
 
@@ -422,7 +491,6 @@
             localStorage.setItem('hyeonto-theme', theme);
         }
 
-        // 초기 테마 적용
         if (savedTheme === 'light') setTheme('light');
 
         themeToggle.addEventListener('click', () => {
@@ -430,12 +498,48 @@
             setTheme(current === 'light' ? 'dark' : 'light');
         });
 
-        // MD 파일 링크를 마크다운 뷰어로 리다이렉트
-        document.querySelectorAll('a[href$=".md"]').forEach(link => {
-            const originalHref = link.getAttribute('href');
-            link.setAttribute('href', 'md_viewer.html?file=' + encodeURIComponent(originalHref));
+        // 로컬 서버에서만 MD 뷰어 활성화
+        const isLocalServer = window.location.protocol === 'http:' || window.location.protocol === 'https:';
+
+        if (isLocalServer && window.location.hostname !== '') {
+            document.querySelectorAll('a[href$=".md"]').forEach(link => {
+                const originalHref = link.getAttribute('href');
+                link.setAttribute('href', 'md_viewer.html?file=' + encodeURIComponent(originalHref));
+            });
+        }
+    </script>
+
+    <script>
+        // 흑백 인쇄 최적화: 클러스터별 마커 심볼 + 명도 차이 극대화
+        document.addEventListener('DOMContentLoaded', function () {
+            setTimeout(function () {
+                const plots = document.querySelectorAll('.plotly-graph-div, [id^="sankey"], #plot, .js-plotly-plot');
+                plots.forEach(function (plot) {
+                    if (plot._fullData) {
+                        // 심볼: 원, 사각, 다이아, 삼각, X, 별, 육각, 오각
+                        const symbols = ['circle', 'square', 'diamond', 'triangle-up', 'cross', 'star', 'hexagon', 'pentagon'];
+                        // 명도: 검정(0%), 진회색(40%), 밝은회색(75%), 흰색(95%)
+                        const colors = ['#000000', '#666666', '#BBBBBB', '#EEEEEE', '#333333', '#999999', '#DDDDDD', '#444444'];
+
+                        plot._fullData.forEach(function (trace, idx) {
+                            if (trace.mode && trace.mode.includes('markers')) {
+                                const update = {
+                                    'marker.symbol': symbols[idx % symbols.length],
+                                    'marker.color': colors[idx % colors.length],
+                                    'marker.size': 10,
+                                    'marker.line.width': 2,
+                                    'marker.line.color': '#000000',
+                                    'marker.opacity': 0.9
+                                };
+                                Plotly.restyle(plot, update, [idx]);
+                            }
+                        });
+                    }
+                });
+            }, 500);
         });
     </script>
+
 </body>
 
 </html>

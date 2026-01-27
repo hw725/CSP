@@ -6,12 +6,45 @@ Sentence/Phrase 클러스터 Sankey 다이어그램 생성
 2. Sentence K=4 → Sentence K=14
 3. Phrase K=4 → Phrase K=24
 4. Sentence K=14 ↔ Phrase K=24
+
+--grayscale 옵션: 흑백 인쇄용 시각화 생성
 """
 
 import pandas as pd
 import numpy as np
 from pathlib import Path
 import json
+import argparse
+
+# 색상 팔레트 정의
+COLOR_PALETTES = {
+    'color': {
+        'left': ['rgba(233, 69, 96, 0.8)', 'rgba(255, 107, 107, 0.8)', 
+                 'rgba(255, 201, 60, 0.8)', 'rgba(255, 140, 66, 0.8)'],
+        'right': ['rgba(78, 204, 163, 0.8)', 'rgba(69, 183, 170, 0.8)',
+                  'rgba(56, 163, 165, 0.8)', 'rgba(34, 87, 122, 0.8)'],
+        'link': 'rgba(255,255,255,0.2)',
+        'bg': 'linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)',
+        'text': '#fff',
+        'subtitle': '#888',
+        'stat_bg': 'rgba(255,255,255,0.05)',
+        'stat_value': '#4ecca3',
+        'title_style': 'background: linear-gradient(90deg, #e94560, #4ecca3); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;'
+    },
+    'grayscale': {
+        'left': ['rgba(0, 0, 0, 0.8)', 'rgba(85, 85, 85, 0.8)', 
+                 'rgba(153, 153, 153, 0.8)', 'rgba(204, 204, 204, 0.8)'],
+        'right': ['rgba(51, 51, 51, 0.8)', 'rgba(102, 102, 102, 0.8)',
+                  'rgba(170, 170, 170, 0.8)', 'rgba(221, 221, 221, 0.8)'],
+        'link': 'rgba(100,100,100,0.3)',
+        'bg': '#ffffff',
+        'text': '#000',
+        'subtitle': '#555',
+        'stat_bg': 'rgba(0,0,0,0.05)',
+        'stat_value': '#333',
+        'title_style': 'color: #333;'
+    }
+}
 
 
 def load_cluster_data(path: Path) -> pd.DataFrame:
@@ -51,8 +84,15 @@ def generate_sankey_html(flow_df: pd.DataFrame,
                          left_label: str, right_label: str,
                          left_k: int, right_k: int,
                          output_sentenceth: Path,
-                         title: str):
-    """Sankey 다이어그램 HTML 생성"""
+                         title: str,
+                         grayscale: bool = False):
+    """Sankey 다이어그램 HTML 생성
+    
+    Args:
+        grayscale: True일 경우 흑백 인쇄용 스타일 적용
+    """
+    
+    palette = COLOR_PALETTES['grayscale'] if grayscale else COLOR_PALETTES['color']
     
     # 노드 생성
     left_nodes = [f"{left_label}-p{i}" for i in range(left_k)]
@@ -70,27 +110,25 @@ def generate_sankey_html(flow_df: pd.DataFrame,
             'value': int(row['count'])
         })
     
-    # 색상
-    left_colors = ['rgba(233, 69, 96, 0.8)', 'rgba(255, 107, 107, 0.8)', 
-                   'rgba(255, 201, 60, 0.8)', 'rgba(255, 140, 66, 0.8)'] * 4
-    right_colors = ['rgba(78, 204, 163, 0.8)', 'rgba(69, 183, 170, 0.8)',
-                    'rgba(56, 163, 165, 0.8)', 'rgba(34, 87, 122, 0.8)'] * 7
-    
+    # 색상 (팔레트에서 가져옴)
+    left_colors = palette['left'] * 4  # 반복
+    right_colors = palette['right'] * 7
     node_colors = left_colors[:left_k] + right_colors[:right_k]
+    link_color = palette['link']
     
     html_content = f'''<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>{title}</title>
+    <title>{title}{" (흑백)" if grayscale else ""}</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
             font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
-            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            background: {palette['bg']};
             min-height: 100vh;
-            color: #fff;
+            color: {palette['text']};
             padding: 20px;
         }}
         .container {{ max-width: 1200px; margin: 0 auto; }}
@@ -98,12 +136,9 @@ def generate_sankey_html(flow_df: pd.DataFrame,
             text-align: center;
             font-size: 1.8rem;
             margin-bottom: 10px;
-            background: linear-gradient(90deg, #e94560, #4ecca3);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
+            {palette['title_style']}
         }}
-        .subtitle {{ text-align: center; color: #888; margin-bottom: 20px; }}
+        .subtitle {{ text-align: center; color: {palette['subtitle']}; margin-bottom: 20px; }}
         #sankey {{ width: 100%; height: 600px; }}
         .stats {{
             display: flex;
@@ -114,11 +149,11 @@ def generate_sankey_html(flow_df: pd.DataFrame,
         .stat-item {{
             text-align: center;
             padding: 15px 25px;
-            background: rgba(255,255,255,0.05);
+            background: {palette['stat_bg']};
             border-radius: 10px;
         }}
-        .stat-value {{ font-size: 1.5rem; color: #4ecca3; }}
-        .stat-label {{ font-size: 0.9rem; color: #888; }}
+        .stat-value {{ font-size: 1.5rem; color: {palette['stat_value']}; }}
+        .stat-label {{ font-size: 0.9rem; color: {palette['subtitle']}; }}
     </style>
 </head>
 <body>
@@ -148,7 +183,7 @@ def generate_sankey_html(flow_df: pd.DataFrame,
             node: {{
                 pad: 15,
                 thickness: 20,
-                line: {{ color: "rgba(255,255,255,0.3)", width: 0.5 }},
+                line: {{ color: "{'rgba(0,0,0,0.3)' if grayscale else 'rgba(255,255,255,0.3)'}", width: 0.5 }},
                 label: {json.dumps(all_nodes)},
                 color: {json.dumps(node_colors)}
             }},
@@ -156,13 +191,13 @@ def generate_sankey_html(flow_df: pd.DataFrame,
                 source: {json.dumps([l['source'] for l in links])},
                 target: {json.dumps([l['target'] for l in links])},
                 value: {json.dumps([l['value'] for l in links])},
-                color: "rgba(255,255,255,0.2)"
+                color: "{link_color}"
             }}
         }};
         
         Plotly.newPlot('sankey', [data], {{
             paper_bgcolor: 'rgba(0,0,0,0)',
-            font: {{ color: '#fff', size: 12 }},
+            font: {{ color: '{palette['text']}', size: 12 }},
             margin: {{ t: 30, b: 30, l: 30, r: 30 }}
         }}, {{ responsive: true }});
     </script>
@@ -172,12 +207,21 @@ def generate_sankey_html(flow_df: pd.DataFrame,
     output_sentenceth.write_text(html_content, encoding='utf-8')
     print(f"✅ Sankey 저장: {output_sentenceth}")
 
-
 def main():
+    parser = argparse.ArgumentParser(description='Sankey 다이어그램 생성')
+    parser.add_argument('--grayscale', action='store_true', help='흑백 인쇄용 시각화 생성')
+    args = parser.parse_args()
+
     base_dir = Path(__file__).parent
     reports_dir = base_dir / "reports"
+    
+    suffix = "_bw" if args.grayscale else ""
+    mode_label = " (흑백 인쇄용)" if args.grayscale else ""
+    
     output_dir = reports_dir / "sankey_diagrams"
     output_dir.mkdir(exist_ok=True)
+    
+    print(f"📊 Sankey 다이어그램 생성{mode_label}")
     
     # 클러스터 데이터 경로 (K=4만 사용)
     paths = {
@@ -238,10 +282,11 @@ def main():
         flow = flow[flow['count'] > 0]
         
         generate_sankey_html(flow, 'Sentence', 'Phrase', 4, 4, 
-                            output_dir / "sankey_sentence4_phrase4.html",
-                            "Sentence K=4 ↔ Phrase K=4 (서종 분포 기반)")
+                            output_dir / f"sankey_sentence4_phrase4{suffix}.html",
+                            "Sentence K=4 ↔ Phrase K=4 (서종 분포 기반)",
+                            grayscale=args.grayscale)
     
-    print(f"\n✅ Sankey 다이어그램 생성 완료!")
+    print(f"\n✅ Sankey 다이어그램 생성 완료!{mode_label}")
     print(f"   저장 위치: {output_dir}")
 
 

@@ -47,7 +47,7 @@
 | 시경/주역 | 2.0x | 시경집전, 주역전의 |
 | 기타 | 1.0x | 당송팔대가, 자치통감 등 |
 
-> **가중치 민감도 검증 완료**: Uniform(1.0x) ~ Strong(5.0x) ~ Inverse(0.2x) 시나리오 비교 결과, **클러스터 멤버십은 가중치와 무관하게 불변** (p12 사서 집중도 48.79% 유지). 가중치는 마커 스코어링에만 영향. [상세 보고서](weight_sensitivity_v6/WEIGHT_SENSITIVITY_REPORT.md)
+> **가중치 민감도 검증 완료**: Uniform(1.0x) ~ Strong(5.0x) ~ Inverse(0.2x) 시나리오 비교 결과, **클러스터 멤버십은 가중치와 무관하게 불변** (p12 사서 집중도 48.79% 유지). 가중치는 마커 스코어링에만 영향. [상세 보고서](validation/weight_sensitivity/WEIGHT_SENSITIVITY_REPORT.md)
 
 ---
 
@@ -58,9 +58,7 @@
 | 분석 종류 | 설명 | 리포트 링크 |
 |:---|:---|:---|
 | **Sankey Diagram** | ⭐ **핵심: Sentence-Phrase 위계적 흐름** | [대시보드](dashboard.html) |
-| **Joint Embedding** | 클러스터-현토 공동 공간 매핑 | [Sentence 시각화](sentence_boundary_v6_full/visualize/advanced_cluster_viz.html) |
-| **Marker Heatmap** | 현토-클러스터 밀집도 현황 | [Sentence 히트맵](sentence_boundary_v6_full/marker_distribution/marker_distribution_heatmap.html) |
-| **Deep Profile** | Phrase K=24 심층 분석 | [Phrase 심층보고서](phrase_boundary_k24_full/phrase_deep_profile.md) |
+| **Joint Embedding** | 클러스터-현토 공동 공간 매핑 | [Sentence 시각화](exploratory/viz_advanced_sentence/advanced_cluster_viz.html) |
 
 ---
 
@@ -81,7 +79,7 @@
 
 ### 3.2 미시적 관점 (Phrase K=24) - 구문 기능 세분화
 
-**[phrase_deep_profile.md](phrase_boundary_k24_full/phrase_deep_profile.md)** 기반 심층 분석 결과:
+심층 분석 결과:
 
 | Cluster | 구문 기능 | Top Lift Book | Entropy | 해석 |
 |:---:|:---:|:---:|:---:|:---|
@@ -163,12 +161,10 @@ Sankey Diagram 분석 결과 (K=4 macro → K=24 micro):
 
 | 자료 | 경로 |
 |:---|:---|
-| **Sentence v6 클러스터** | [sentence_boundary_v6_full/](sentence_boundary_v6_full/) |
-| **Phrase v6 클러스터** | [phrase_boundary_v6_full/](phrase_boundary_v6_full/) |
-| **Phrase K=24 심층분석** | [phrase_boundary_k24_full/phrase_deep_profile.md](phrase_boundary_k24_full/phrase_deep_profile.md) |
+| **Sentence K=4 클러스터** | [sentence_k4_normalized/](sentence_k4_normalized/) |
+| **Phrase K=4 클러스터** | [phrase_k4_normalized/](phrase_k4_normalized/) |
+| **가중치 민감도 검증** | [validation/weight_sensitivity/](validation/weight_sensitivity/) |
 | **통합 대시보드** | [dashboard.html](dashboard.html) |
-| 편향 검증 보고서 | [BIAS_VALIDATION.md](BIAS_VALIDATION.md) |
-| 재현 가이드 | [REPRODUCE.md](REPRODUCE.md) |
 
 ---
 

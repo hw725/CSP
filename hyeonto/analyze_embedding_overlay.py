@@ -5,6 +5,8 @@ Sentence(문장경계)와 Phrase(구경계)의 K=4 클러스터를 같은 공간
 의미역(semantic field)이 어떻게 분포하는지 시각화합니다.
 
 UMAP을 사용하여 고차원 임베딩을 2D 또는 3D로 축소합니다.
+
+--grayscale 옵션: 흑백 인쇄용 시각화 생성
 """
 
 import pandas as pd
@@ -13,6 +15,34 @@ from pathlib import Path
 import json
 from tqdm import tqdm
 import argparse
+
+# 컬러 팔레트 정의
+COLOR_PALETTES = {
+    'color': {
+        'sentence': ['#e94560', '#ff6b6b', '#ffc93c', '#ff8c42'],
+        'phrase': ['#4ecca3', '#45b7aa', '#38a3a5', '#22577a'],
+        'bg_gradient': 'linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)',
+        'text': '#fff',
+        'subtitle': '#888',
+        'grid': 'rgba(255,255,255,0.1)',
+        'legend_bg': 'rgba(0,0,0,0.3)'
+    },
+    'grayscale': {
+        'sentence': ['#000000', '#333333', '#666666', '#999999'],
+        'phrase': ['#CCCCCC', '#AAAAAA', '#888888', '#555555'],
+        'bg_gradient': '#ffffff',
+        'text': '#000',
+        'subtitle': '#444',
+        'grid': 'rgba(0,0,0,0.15)',
+        'legend_bg': 'rgba(255,255,255,0.9)'
+    }
+}
+
+# 흑백 마커 심볼 (구분용)
+GRAYSCALE_SYMBOLS = {
+    'sentence': ['circle', 'square', 'diamond', 'cross'],
+    'phrase': ['triangle-up', 'triangle-down', 'hexagon', 'star']
+}
 
 
 def load_embeddings_and_generate_umap(sentence_path: Path, phrase_path: Path,
@@ -110,40 +140,61 @@ def load_embeddings_and_generate_umap(sentence_path: Path, phrase_path: Path,
     return result_df
 
 
-def generate_2d_viz(result_df: pd.DataFrame, output_path: Path):
-    """Sentence/Phrase 임베딩 2D 오버레이 시각화 HTML 생성"""
-
-    sentence_colors = ['#e94560', '#ff6b6b', '#ffc93c', '#ff8c42']
-    phrase_colors = ['#4ecca3', '#45b7aa', '#38a3a5', '#22577a']
+def generate_2d_viz(result_df: pd.DataFrame, output_path: Path, grayscale: bool = False):
+    """Sentence/Phrase 임베딩 2D 오버레이 시각화 HTML 생성
+    
+    Args:
+        grayscale: True일 경우 흑백 인쇄용 스타일 적용
+    """
+    
+    palette = COLOR_PALETTES['grayscale'] if grayscale else COLOR_PALETTES['color']
+    sentence_colors = palette['sentence']
+    phrase_colors = palette['phrase']
 
     traces_data = []
     for boundary_type in ['Sentence', 'Phrase']:
         colors = sentence_colors if boundary_type == 'Sentence' else phrase_colors
+        symbols = GRAYSCALE_SYMBOLS['sentence' if boundary_type == 'Sentence' else 'phrase'] if grayscale else None
         type_df = result_df[result_df['boundary_type'] == boundary_type]
         
-        for cluster_id in sorted(type_df['cluster_id'].unique()):
+        for i, cluster_id in enumerate(sorted(type_df['cluster_id'].unique())):
             cluster_df = type_df[type_df['cluster_id'] == cluster_id]
-            traces_data.append({
+            trace = {
                 'x': cluster_df['x'].tolist(),
                 'y': cluster_df['y'].tolist(),
                 'name': f'{boundary_type}-p{int(cluster_id)}',
                 'color': colors[int(cluster_id) % len(colors)],
                 'type': boundary_type
-            })
+            }
+            if symbols:
+                trace['symbol'] = symbols[i % len(symbols)]
+            traces_data.append(trace)
+
+
+    # 흑백 모드 여부에 따른 스타일 변수
+    bg_style = palette['bg_gradient']
+    text_color = palette['text']
+    subtitle_color = palette['subtitle']
+    grid_color = palette['grid']
+    legend_bg = palette['legend_bg']
+    
+    # 흑백 모드일 때 배경을 단색으로
+    bg_css = f"background: {bg_style};" if not grayscale else f"background: {bg_style};"
+    title_style = "color: #333;" if grayscale else "background: linear-gradient(90deg, #e94560, #4ecca3); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;"
 
     html_content = f'''<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Sentence/Phrase K=4 임베딩 오버레이 2D</title>
+    <title>Sentence/Phrase K=4 임베딩 오버레이 2D{" (흑백)" if grayscale else ""}</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
             font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
-            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            {bg_css}
             min-height: 100vh;
-            color: #fff;
+            color: {text_color};
             padding: 20px;
         }}
         .container {{ max-width: 1400px; margin: 0 auto; }}
@@ -151,13 +202,11 @@ def generate_2d_viz(result_df: pd.DataFrame, output_path: Path):
             text-align: center;
             font-size: 2rem;
             margin-bottom: 10px;
-            background: linear-gradient(90deg, #e94560, #4ecca3);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
+            {title_style}
         }}
-        .subtitle {{ text-align: center; color: #888; margin-bottom: 20px; }}
+        .subtitle {{ text-align: center; color: {subtitle_color}; margin-bottom: 20px; }}
         #scatter-plot {{ width: 100%; height: 700px; }}
+
         .controls {{
             display: flex; justify-content: center; gap: 20px; margin: 20px 0; flex-wrap: wrap;
         }}
@@ -204,9 +253,11 @@ def generate_2d_viz(result_df: pd.DataFrame, output_path: Path):
             const traces = [];
             for (const t of tracesData) {{
                 if (showMode === 'both' || (showMode === 'sentence' && t.type === 'Sentence') || (showMode === 'phrase' && t.type === 'Phrase')) {{
+                    const markerConfig = {{ size: pointSize, color: t.color, opacity: opacity }};
+                    if (t.symbol) {{ markerConfig.symbol = t.symbol; }}
                     traces.push({{
                         x: t.x, y: t.y, mode: 'markers', type: 'scatter', name: t.name,
-                        marker: {{ size: pointSize, color: t.color, opacity: opacity }},
+                        marker: markerConfig,
                         hovertemplate: '<b>' + t.name + '</b><br>x: %{{x:.2f}}<br>y: %{{y:.2f}}<extra></extra>'
                     }});
                 }}
@@ -379,6 +430,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--sample', type=int, default=10000, help='샘플 크기')
     parser.add_argument('--dim', type=int, default=3, choices=[2, 3], help='UMAP 차원')
+    parser.add_argument('--grayscale', action='store_true', help='흑백 인쇄용 시각화 생성')
     args = parser.parse_args()
 
     base_dir = Path(__file__).parent
@@ -393,10 +445,13 @@ def main():
         print("먼저 rerun_full_analysis.py를 실행하세요.")
         return
 
+    suffix = "_bw" if args.grayscale else ""
+    mode_label = " (흑백 인쇄용)" if args.grayscale else ""
+    
     # 2D와 3D 모두 생성
     for dim in [2, 3]:
         print(f"\n{'='*60}")
-        print(f"🔬 {dim}D UMAP 실행")
+        print(f"🔬 {dim}D UMAP 실행{mode_label}")
         print(f"{'='*60}")
         
         result_df = load_embeddings_and_generate_umap(sentence_path, phrase_path, args.sample, dim)
@@ -405,18 +460,18 @@ def main():
             continue
         
         if dim == 2:
-            output_path = reports_dir / "k4_embedding_overlay_2d.html"
-            generate_2d_viz(result_df, output_path)
-            csv_path = reports_dir / "k4_embedding_overlay_2d.csv"
+            output_path = reports_dir / f"k4_embedding_overlay_2d{suffix}.html"
+            generate_2d_viz(result_df, output_path, grayscale=args.grayscale)
+            csv_path = reports_dir / f"k4_embedding_overlay_2d{suffix}.csv"
         else:
-            output_path = reports_dir / "k4_embedding_overlay_3d.html"
-            generate_3d_viz(result_df, output_path)
-            csv_path = reports_dir / "k4_embedding_overlay_3d.csv"
+            output_path = reports_dir / f"k4_embedding_overlay_3d{suffix}.html"
+            generate_3d_viz(result_df, output_path)  # TODO: 3D도 grayscale 지원 필요
+            csv_path = reports_dir / f"k4_embedding_overlay_3d{suffix}.csv"
         
         result_df.to_csv(csv_path, index=False, encoding='utf-8-sig')
         print(f"✅ 좌표 데이터 저장: {csv_path}")
 
-    print("\n✅ Sentence/Phrase K=4 임베딩 오버레이 시각화 완료! (2D + 3D)")
+    print(f"\n✅ Sentence/Phrase K=4 임베딩 오버레이 시각화 완료! (2D + 3D){mode_label}")
 
 
 if __name__ == "__main__":

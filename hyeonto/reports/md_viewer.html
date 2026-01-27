@@ -179,11 +179,49 @@
         }
 
         .error {
-            background: rgba(231, 76, 60, 0.2);
-            border: 1px solid rgba(231, 76, 60, 0.5);
-            padding: 20px;
-            border-radius: 8px;
+            background: rgba(231, 76, 60, 0.1);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            padding: 30px;
+            border-radius: 12px;
+            color: var(--text);
+        }
+
+        .error h3 {
             color: #e74c3c;
+            margin-bottom: 15px;
+        }
+
+        .error p {
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+
+        .error code {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+        }
+
+        .error .solution-box {
+            background: rgba(78, 204, 163, 0.1);
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+
+        .error .solution-box h4 {
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+
+        .error .solution-box ol {
+            margin-left: 20px;
+        }
+
+        .error .solution-box li {
+            margin-bottom: 8px;
         }
     </style>
 </head>
@@ -237,8 +275,12 @@
         const file = params.get('file');
 
         if (!file) {
-            document.getElementById('content').innerHTML =
-                '<div class="error">파일이 지정되지 않았습니다. ?file=경로 형태로 접근하세요.</div>';
+            document.getElementById('content').innerHTML = `
+                <div class="error">
+                    <h3>⚠️ 파일이 지정되지 않았습니다</h3>
+                    <p><code>?file=경로</code> 형태로 접근하세요.</p>
+                    <p>예: <code>md_viewer.html?file=sentence_k4_normalized/sentence_cluster_profile.md</code></p>
+                </div>`;
         } else {
             document.getElementById('file-path').textContent = file;
             document.getElementById('title').textContent = file.split('/').pop();
@@ -252,8 +294,44 @@
                     document.getElementById('content').innerHTML = marked.parse(text);
                 })
                 .catch(error => {
-                    document.getElementById('content').innerHTML =
-                        '<div class="error">' + error.message + '<br><br>💡 <strong>해결 방법:</strong> 로컬 서버를 실행하세요.<br><code>python -m http.server 8080</code> 후 <a href="http://localhost:8080/dashboard.html">localhost:8080</a> 접속</div>';
+                    const isFileProtocol = window.location.protocol === 'file:';
+
+                    let errorHtml = `
+                        <div class="error">
+                            <h3>⚠️ 문서를 로드할 수 없습니다</h3>
+                            <p><strong>파일:</strong> <code>${file}</code></p>`;
+
+                    if (isFileProtocol) {
+                        errorHtml += `
+                            <p><strong>원인:</strong> 로컬 파일(file://)에서는 보안상 다른 파일을 불러올 수 없습니다.</p>
+                            <div class="solution-box">
+                                <h4>✅ 해결 방법</h4>
+                                <ol>
+                                    <li><strong>로컬 서버 실행</strong> (권장)<br>
+                                        <code>cd hyeonto/reports</code><br>
+                                        <code>python -m http.server 8080</code><br>
+                                        → <a href="http://localhost:8080/dashboard.html">localhost:8080</a> 접속
+                                    </li>
+                                    <li><strong>파일 직접 열기</strong><br>
+                                        텍스트 에디터(VS Code, Typora, 메모장 등)에서<br>
+                                        <code>${file}</code> 파일을 직접 열어서 읽기
+                                    </li>
+                                </ol>
+                            </div>`;
+                    } else {
+                        errorHtml += `
+                            <p><strong>원인:</strong> ${error.message}</p>
+                            <div class="solution-box">
+                                <h4>✅ 확인 사항</h4>
+                                <ol>
+                                    <li>파일 경로가 올바른지 확인하세요</li>
+                                    <li>파일이 실제로 존재하는지 확인하세요</li>
+                                </ol>
+                            </div>`;
+                    }
+
+                    errorHtml += `</div>`;
+                    document.getElementById('content').innerHTML = errorHtml;
                 });
         }
     </script>

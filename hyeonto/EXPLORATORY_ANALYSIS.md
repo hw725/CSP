@@ -1,129 +1,155 @@
-# 신규 탐색 분석 실행 가이드
+# 탐색적 분석 가이드
 
-본 문서는 기존 현토 연구를 넘어 새로운 특성을 탐색하기 위한 4가지 분석 스크립트의 실행 방법을 설명합니다.
+> **Version**: v6.9.4 Final  
+> **Data Scale**: Sentence 150,545 / Phrase 366,222
 
----
-
-## 분석 스크립트 목록
-
-| 순서 | 스크립트 | 분석 내용 | 주요 산출물 |
-|:---:|:---|:---|:---|
-| 1 | `detect_outliers_boundary.py` | 클러스터 이상치 탐지 | 이상치 목록, 분석 리포트 |
-| 2 | `analyze_ngram_sequences.py` | n-gram 시퀀스 분석 | 빈도표, 장르별 패턴 |
-| 3 | `analyze_cooccurrence_network.py` | 한자-현토 공기 네트워크 | PMI 행렬, 네트워크 시각화 |
-| 4 | `analyze_phonetic_patterns.py` | 음운 패턴 분석 | 음운 프로파일, 분포 리포트 |
+이 문서는 핵심 K=4 분석 이외에 추가로 수행 가능한 탐색적 분석들을 설명합니다.
+스크립트는 `scripts/exploratory/` 폴더에 위치합니다.
 
 ---
 
-## 실행 명령어
+## 목차
 
-### 1. 이상치 탐지
+1. [이상치 분석 (Outlier Detection)](#1-이상치-분석-outlier-detection)
+2. [N-gram 시퀀스 분석](#2-n-gram-시퀀스-분석)
+3. [공기어 분석 (Co-occurrence Network)](#3-공기어-분석-co-occurrence-network)
+4. [음운 패턴 분석 (Phonetic Pattern)](#4-음운-패턴-분석-phonetic-pattern)
+5. [고급 시각화](#5-고급-시각화)
+
+---
+
+## 1. 이상치 분석 (Outlier Detection)
+
+클러스터 중심에서 가장 멀리 떨어진 경계 토큰을 식별합니다.
+
+### 실행
 
 ```bash
-# PA 이상치 탐지
-docker exec csp-workspace python scripts/detect_outliers_boundary.py \
-    --input hyeonto/datasets/sentence_merged_v2.csv \
-    --out-dir hyeonto/reports/exploratory/outliers_pa \
-    --analysis-type PA \
-    --k 16 \
-    --top-n 200 \
-    --device-id 0 \
-    --batch 128
-
-# SA 이상치 탐지
-docker exec csp-workspace python scripts/detect_outliers_boundary.py \
-    --input hyeonto/datasets/phrase_merged_v2.csv \
-    --out-dir hyeonto/reports/exploratory/outliers_sa \
-    --analysis-type SA \
-    --k 16 \
-    --top-n 200 \
-    --device-id 0 \
-    --batch 128
+cd scripts/exploratory
+python analyze_outliers.py --level sentence --k 4
 ```
 
-### 2. n-gram 시퀀스 분석
+### 출력 위치
+- `reports/exploratory/outliers_sentence/`
 
-```bash
-# SA 데이터로 n-gram 분석 (구 단위가 연쇄 패턴이 더 촘촘함)
-docker exec csp-workspace python scripts/analyze_ngram_sequences.py \
-    --input hyeonto/reports/phrase_boundary_v6_full/sa_boundary_clusters.csv \
-    --out-dir hyeonto/reports/exploratory/ngram_sa \
-    --analysis-type SA \
-    --n-values 2,3
-```
+### 주요 출력
+| 파일 | 설명 |
+|:-----|:-----|
+| `outlier_analysis_sentence.md` | 이상치 상세 보고서 |
+| `outlier_stats.json` | 통계 데이터 |
 
-### 3. 한자-현토 공기 네트워크
-
-```bash
-# SA 데이터로 공기 네트워크 분석 (데이터량 풍부)
-docker exec csp-workspace python scripts/analyze_cooccurrence_network.py \
-    --input hyeonto/reports/phrase_boundary_v6_full/sa_boundary_clusters.csv \
-    --out-dir hyeonto/reports/exploratory/cooccurrence_sa \
-    --analysis-type SA \
-    --top-hanja 100 \
-    --top-markers 30 \
-    --top-edges 200
-```
-
-### 4. 음운 패턴 분석
-
-```bash
-# PA + SA 통합 음운 분석
-docker exec csp-workspace python scripts/analyze_phonetic_patterns.py \
-    --input-pa hyeonto/reports/sentence_boundary_v6_full/boundary_clusters.csv \
-    --input-sa hyeonto/reports/phrase_boundary_v6_full/sa_boundary_clusters.csv \
-    --out-dir hyeonto/reports/exploratory/phonetic \
-    --min-freq 100
-```
+### 해석 포인트
+- 이상치가 특정 장르에 집중 → 해당 장르의 현토 체계가 비정형적
+- 이상치가 고어(古語) 마커를 포함 → 클러스터링이 언어 변화를 감지
 
 ---
 
-## 예상 산출물
+## 2. N-gram 시퀀스 분석
 
-### `hyeonto/reports/exploratory/` 디렉토리 구조
+현토 마커의 연속 패턴을 분석하여 장르별 문법 구조를 파악합니다.
 
+### 실행
+
+```bash
+cd scripts/exploratory
+python analyze_ngram_sequences.py --level phrase --n 3
 ```
-exploratory/
-├── outliers_p2s/
-│   ├── outliers_pa.csv
-│   └── outlier_analysis_pa.md
-├── outliers_s2p/
-│   ├── outliers_sa.csv
-│   └── outlier_analysis_sa.md
-├── ngram_s2p/
-│   ├── 2gram_frequency_sa.csv
-│   ├── 3gram_frequency_sa.csv
-│   └── ngram_analysis_sa.md
-├── cooccurrence_s2p/
-│   ├── cooccurrence_matrix_sa.csv
-│   ├── associations_sa.csv
-│   ├── cooccurrence_network_sa.html
-│   └── cooccurrence_analysis_sa.md
-└── phonetic/
-    ├── phonetic_profile.csv
-    └── phonetic_analysis_pa+sa.md
-```
+
+### 출력 위치
+- `reports/exploratory/ngram_phrase/`
+
+### 주요 출력
+| 파일 | 설명 |
+|:-----|:-----|
+| `ngram_analysis_phrase.md` | N-gram 빈도 분석 보고서 |
+| `top_ngrams.json` | 상위 N-gram 목록 (JSON) |
+
+### 해석 포인트
+- 장르별 특이 N-gram이 존재 → 각 장르의 문법적 선호도를 반영
+- 반복되는 패턴 → 정형화된 구문 구조 (예: `는,요,는,라` = 나열 구조)
 
 ---
 
-## 분석 목적 및 기대 발견
+## 3. 공기어 분석 (Co-occurrence Network)
 
-### 1. 이상치 탐지
-- **목적**: 클러스터 분류에서 벗어난 "비정형" 문장 식별
-- **기대 발견**: 학자들의 실험적 현토 시도, 필사 오류, 독특한 저자 스타일
+한자와 현토 마커의 공기 관계를 네트워크로 시각화합니다.
 
-### 2. n-gram 시퀀스
-- **목적**: 마커 연쇄 패턴의 장르별 특성 분석
-- **기대 발견**: 사서에만 존재하는 "시그니처 시퀀스", 다른 문헌의 모방 증거
+### 실행
 
-### 3. 한자-현토 공기 네트워크
-- **목적**: 특정 한자와 특정 현토의 강한 결합 패턴 발견
-- **기대 발견**: 사서 특화 한자-현토 조합 규칙, "금지된 조합"의 존재
+```bash
+cd scripts/exploratory
+python analyze_cooccurrence_normalized.py --level sentence
+```
 
-### 4. 음운 패턴
-- **목적**: 현토의 음운론적 특성 (음절, 종성, 모음 조화) 분석
-- **기대 발견**: 낭송(朗誦)을 위한 운율적 설계 가능성
+### 출력 위치
+- `reports/exploratory/cooccurrence_normalized/` (정규화 버전, 권장)
+- `reports/exploratory/cooccurrence_phrase/` (Phrase 수준)
+
+### 주요 출력
+| 파일 | 설명 |
+|:-----|:-----|
+| `cooccurrence_analysis_normalized.md` | 공기 분석 보고서 |
+| `cooccurrence_network_normalized.html` | 인터랙티브 네트워크 |
+
+### 해석 포인트
+- 강한 공기 관계 → 의미-문법 연결의 규범화
+- 허브 노드 → 다양한 문맥에서 사용되는 범용 마커
+
+### 특수 기능
+- **인쇄용 흑백 모드**: 브라우저에서 인쇄(Ctrl+P) 시 자동으로 흑백 변환됨
 
 ---
 
-**작성일**: 2026-01-12
+## 4. 음운 패턴 분석 (Phonetic Pattern)
+
+현토 마커의 초성/종성 분포를 분석하여 음운론적 특성을 파악합니다.
+
+### 실행
+
+```bash
+cd scripts/exploratory
+python analyze_phonetic_patterns.py --level sentence --level phrase
+```
+
+### 출력 위치
+- `reports/exploratory/phonetic/`
+
+### 주요 출력
+| 파일 | 설명 |
+|:-----|:-----|
+| `phonetic_analysis_sentence+phrase.md` | 음운 패턴 종합 보고서 |
+| `phonetic_heatmap.png` | 초성×종성 히트맵 |
+
+### 해석 포인트
+- 특정 초성/종성의 빈도 편중 → 현토의 음운론적 조화 원리
+- 클러스터별 음운 분포 차이 → 장르별 발화 특성 반영
+
+---
+
+## 5. 고급 시각화
+
+추가적인 분석적 시각화를 제공합니다.
+
+### 출력 위치
+- `reports/exploratory/viz_advanced_sentence/`
+
+### 주요 시각화
+| 파일 | 설명 |
+|:-----|:-----|
+| `advanced_cluster_viz.html` | Sentence 클러스터 고급 산점도 (밀도 기반) |
+
+---
+
+## 분석 의존 관계
+
+```
+[run_full_pipeline.py] 
+    ↓
+embedding_cache.pkl (필수 선행)
+    ↓
+[exploratory scripts]
+    ↓
+reports/exploratory/*
+```
+
+> **참고**: 탐색적 분석 스크립트는 모두 `embedding_cache.pkl`이 생성된 후에 실행해야 합니다. 캐시 생성에는 약 40분(GPU 기준) / 6시간(CPU 기준)이 소요됩니다.

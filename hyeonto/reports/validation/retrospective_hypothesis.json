@@ -1,0 +1,127 @@
+{
+  "analysis_date": "2026-01-27T16:32:21.929586",
+  "data_file": "reports\\sentence_k4_normalized\\sentence_clusters.csv",
+  "data_rows": 150545,
+  "H1": {
+    "total_reo": 5095,
+    "history_reo": 1616,
+    "observed_ratio": 31.71736997055937,
+    "expected_ratio": 15.702945963001097,
+    "observed": 31.71736997055937,
+    "expected": 15.683101079489697,
+    "std": 0.5067427179000655,
+    "effect_size": 31.64183386298169,
+    "p_value": 0.0,
+    "null_verdict": "REJECTED",
+    "robustness": 2.0198356439161844,
+    "inverse_verdict": "ROBUST",
+    "alt_ratio": 2.0223914779226435,
+    "alt_verdict": "SUPERIOR",
+    "all_passed": true,
+    "passed_count": 3
+  },
+  "H2_1": {
+    "genre_stats": {
+      "문집": {
+        "total": 57975,
+        "reo": 2488,
+        "density": 4.291504959034066
+      },
+      "기타": {
+        "total": 21075,
+        "reo": 381,
+        "density": 1.807829181494662
+      },
+      "역사서": {
+        "total": 23640,
+        "reo": 1616,
+        "density": 6.835871404399323
+      },
+      "경전": {
+        "total": 33416,
+        "reo": 306,
+        "density": 0.9157289920995929
+      },
+      "사서": {
+        "total": 14439,
+        "reo": 304,
+        "density": 2.1054089618394625
+      }
+    },
+    "max_genre": "역사서",
+    "max_density": 6.835871404399323,
+    "overall_density": 3.384370121890465,
+    "observed": 6.835871404399323,
+    "expected": 3.5184779607746877,
+    "std": 0.06678686271949627,
+    "effect_size": 49.67134715636567,
+    "p_value": 0.0,
+    "null_verdict": "REJECTED",
+    "robustness": 2.0198356439161844,
+    "inverse_verdict": "ROBUST",
+    "alt_ratio": 1.9428490047708646,
+    "alt_verdict": "SUPERIOR",
+    "all_passed": true,
+    "passed_count": 3
+  },
+  "H2_2": {
+    "cluster_stats": {
+      "0": {
+        "total": 39909,
+        "reo": 3443,
+        "density": 8.627126713272695
+      },
+      "1": {
+        "total": 34433,
+        "reo": 536,
+        "density": 1.5566462405250776
+      },
+      "2": {
+        "total": 57921,
+        "reo": 1009,
+        "density": 1.7420279346005767
+      },
+      "3": {
+        "total": 18282,
+        "reo": 107,
+        "density": 0.5852751340115961
+      }
+    },
+    "max_cluster": 0,
+    "max_density": 8.627126713272695,
+    "overall_density": 3.384370121890465,
+    "observed": 8.627126713272695,
+    "expected": 3.4869497256558692,
+    "std": 0.059293492399738836,
+    "effect_size": 86.69040698367543,
+    "p_value": 0.0,
+    "null_verdict": "REJECTED",
+    "robustness": 2.549108520215187,
+    "inverse_verdict": "ROBUST",
+    "alt_ratio": 2.474118468011464,
+    "alt_verdict": "SUPERIOR",
+    "all_passed": true,
+    "passed_count": 3
+  },
+  "H2_3": {
+    "reo_count": 5213,
+    "deo_count": 255,
+    "ri_count": 8588,
+    "total_tam": 14056,
+    "reo_ratio": 37.08736482640865,
+    "deo_ratio": 1.8141718838929997,
+    "ri_ratio": 61.098463289698344,
+    "observed": 37.08736482640865,
+    "expected": 13.759369664200342,
+    "std": 0.19949348600515304,
+    "effect_size": 116.9361247294347,
+    "p_value": 0.0,
+    "null_verdict": "REJECTED",
+    "robustness": 1.112732218014061,
+    "inverse_verdict": "ROBUST",
+    "alt_ratio": 2.6954261518900817,
+    "alt_verdict": "SUPERIOR",
+    "all_passed": true,
+    "passed_count": 3
+  }
+}
