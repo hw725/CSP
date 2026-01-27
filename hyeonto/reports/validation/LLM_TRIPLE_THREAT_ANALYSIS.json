@@ -1,0 +1,43 @@
+{
+  "model": "deepseek-v3.2:cloud",
+  "sample_size": 50,
+  "null_hypothesis": {
+    "reo_retrospective": 14,
+    "reo_total": 50,
+    "ctrl_retrospective": 2,
+    "ctrl_total": 50,
+    "statistics": {
+      "chi2": 9.00297619047619,
+      "p_chi2": 0.002695403021023154,
+      "odds_ratio": 9.333333333333334,
+      "p_fisher": 0.0018818086659031417,
+      "cramers_v": 0.3000495990744895,
+      "cohens_h": 0.7124818118184117,
+      "dof": 1
+    },
+    "verdict": "REJECT"
+  },
+  "inverse_hypothesis": {
+    "category_distribution": {
+      "단순과거": 19,
+      "추측": 2,
+      "완료": 2,
+      "회상": 7
+    },
+    "verdict": "SUPPORT"
+  },
+  "alternative_hypothesis": {
+    "deo_retrospective": 15,
+    "deo_total": 50,
+    "statistics": {
+      "chi2": 0.0,
+      "p_chi2": 1.0,
+      "odds_ratio": 0.9074074074074074,
+      "p_fisher": 1.0,
+      "cramers_v": 0.0,
+      "cohens_h": -0.04408182732833521,
+      "dof": 1
+    },
+    "verdict": "FAIL_TO_REJECT"
+  }
+}
