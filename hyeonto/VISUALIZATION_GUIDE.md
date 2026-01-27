@@ -2,9 +2,13 @@
 
 본 문서는 hyeonto 프로젝트에서 생성된 다양한 시각화 자료를 올바르게 해석하기 위한 지침을 제공합니다. v6 분석에서는 한문 원문과 한국어 번역문이 결합되어 화용론적 뉘앙스가 반영되었으며, Multi-Resolution 분석(K=4/14/24)이 추가되었습니다.
 
+> **📌 분석 단위**
+> - **Sentence**: 문장 단위 클러스터링 (87,943건)
+> - **Phrase**: 구 단위 클러스터링 (294,889건)
+
 ---
 
-## 🌉 1. PA ↔ SA 클러스터 Sankey Diagram - ⭐ BEST
+## 🌉 1. Sentence ↔ Phrase 클러스터 Sankey Diagram - ⭐ BEST
 
 **경로**: `reports/exploratory/pa_sa_sankey/*.html`
 

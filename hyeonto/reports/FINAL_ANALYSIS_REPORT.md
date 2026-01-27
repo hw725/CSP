@@ -1,8 +1,8 @@
 # 📜 현토 통사 및 화용 분석 최종 통합 보고서 (v6 + Multi-Resolution)
 
-- **작성일**: 2026-01-13 (v6 Master + Multi-Resolution 업데이트)
-- **데이터셋**: 통합 데이터셋 v2 (PA 87,943 경계 / SA 294,889 구)
-- **분석 범위**: 현토 166종, 다중 해상도 클러스터링 (PA K=4/14, SA K=4/24)
+- **작성일**: 2026-01-27 (정규화 규칙 수정 및 전체 데이터셋 재구축)
+- **데이터셋**: 전체 53권 통합 (Sentence 150,545 경계 / Phrase 366,222 구)
+- **분석 범위**: 현토 171종 정규화, 다중 해상도 클러스터링 (Sentence K=4, Phrase K=4)
 
 ---
 
@@ -35,8 +35,8 @@
 
 | 데이터 | 거시적 K (Macro) | 미시적 K (Micro) | 최적화 근거 |
 |:---:|:---:|:---:|:---|
-| **PA (문장)** | **K=4** | **K=14** | Silhouette + CH Index |
-| **SA (구)** | **K=4** | **K=24** | Davies-Bouldin Index |
+| **Sentence (문장)** | **K=4** | **K=14** | Silhouette + CH Index |
+| **Phrase (구)** | **K=4** | **K=24** | Davies-Bouldin Index |
 
 ### 1.3 위계적 권위 가중치
 
@@ -57,10 +57,10 @@
 
 | 분석 종류 | 설명 | 리포트 링크 |
 |:---|:---|:---|
-| **Sankey Diagram** | ⭐ **핵심: PA-SA 위계적 흐름** | [대시보드](dashboard.html) |
-| **Joint Embedding** | 클러스터-현토 공동 공간 매핑 | [PA 시각화](pa_boundary_v6_full/visualize/advanced_cluster_viz.html) |
-| **Marker Heatmap** | 현토-클러스터 밀집도 현황 | [PA 히트맵](pa_boundary_v6_full/marker_distribution/marker_distribution_heatmap.html) |
-| **Deep Profile** | SA K=24 심층 분석 | [SA 심층보고서](sa_boundary_k24_full/sa_deep_profile.md) |
+| **Sankey Diagram** | ⭐ **핵심: Sentence-Phrase 위계적 흐름** | [대시보드](dashboard.html) |
+| **Joint Embedding** | 클러스터-현토 공동 공간 매핑 | [Sentence 시각화](sentence_boundary_v6_full/visualize/advanced_cluster_viz.html) |
+| **Marker Heatmap** | 현토-클러스터 밀집도 현황 | [Sentence 히트맵](sentence_boundary_v6_full/marker_distribution/marker_distribution_heatmap.html) |
+| **Deep Profile** | Phrase K=24 심층 분석 | [Phrase 심층보고서](phrase_boundary_k24_full/phrase_deep_profile.md) |
 
 ---
 
@@ -68,20 +68,20 @@
 
 ### 3.1 거시적 관점 (K=4) - 장르 대분류
 
-**공통 발견**: PA, SA 모두 K=4에서 **사서 논증형, 경전 정의형, 역사 서술형, 문학 묘사형**의 4대 거시 구조가 발견됨.
+**공통 발견**: Sentence, Phrase 모두 K=4에서 **사서 논증형, 경전 정의형, 역사 서술형, 문학 묘사형**의 4대 거시 구조가 발견됨.
 
 | Cluster (K=4) | 사서 비중 | 핵심 기능 | 대표 마커 |
 |:---:|:---:|:---:|:---|
-| **p1 (PA/SA)** | **13.4%** | **사서 논증형** | 라, 는, 면 |
-| **p2 (PA/SA)** | 11.3% | 경전 정의형 | 는, 라, 요 |
-| **p3 (PA/SA)** | 11.4% | 주석 설명형 | 는, 하여, 라 |
-| **p0 (PA/SA)** | 4.6% | 역사/문학 서술 | 는, 에, 하고 |
+| **p1 (Sentence/Phrase)** | **13.4%** | **사서 논증형** | 라, 는, 면 |
+| **p2 (Sentence/Phrase)** | 11.3% | 경전 정의형 | 는, 라, 요 |
+| **p3 (Sentence/Phrase)** | 11.4% | 주석 설명형 | 는, 하여, 라 |
+| **p0 (Sentence/Phrase)** | 4.6% | 역사/문학 서술 | 는, 에, 하고 |
 
 > **의의**: 가장 거친 해상도(K=4)에서도 사서 중심의 논증 구조가 뚜렷하게 분리됨.
 
-### 3.2 미시적 관점 (SA K=24) - 구문 기능 세분화
+### 3.2 미시적 관점 (Phrase K=24) - 구문 기능 세분화
 
-**[sa_deep_profile.md](sa_boundary_k24_full/sa_deep_profile.md)** 기반 심층 분석 결과:
+**[phrase_deep_profile.md](phrase_boundary_k24_full/phrase_deep_profile.md)** 기반 심층 분석 결과:
 
 | Cluster | 구문 기능 | Top Lift Book | Entropy | 해석 |
 |:---:|:---:|:---:|:---:|:---|
@@ -94,22 +94,22 @@
 
 ---
 
-## 4. PA vs SA 이중 구조 분석 (위계적 흐름)
+## 4. Sentence vs Phrase 이중 구조 분석 (위계적 흐름)
 
-### 4.1 PA(K=4) → SA(K=24) 분화 패턴
+### 4.1 Sentence(K=4) → Phrase(K=24) 분화 패턴
 
 Sankey Diagram 분석 결과 (K=4 macro → K=24 micro):
 
-1.  **사서 논증형 (PA p1)**
-    - → SA p20 (20%), SA p11 (17%) 등으로 분화
+1.  **사서 논증형 (Sentence p1)**
+    - → Phrase p20 (20%), Phrase p11 (17%) 등으로 분화
     - **해석**: 사서의 문장은 내부적으로 **조건문**과 **인과 논증**으로 정교하게 짜여 있음.
 
-2.  **역사 서술형 (PA p0)**
-    - → SA p8 (16%), SA p23 (15%), SA p16 (14%) 등으로 분화
+2.  **역사 서술형 (Sentence p0)**
+    - → Phrase p8 (16%), Phrase p23 (15%), Phrase p16 (14%) 등으로 분화
     - **해석**: 역사서 문장은 **전쟁 서술, 편년체 기록, 지리 정보**로 기능적 세분화가 일어남.
 
-3.  **경전 정의형 (PA p2)**
-    - → SA p5 (25%), SA p7 (13%)
+3.  **경전 정의형 (Sentence p2)**
+    - → Phrase p5 (25%), Phrase p7 (13%)
     - **해석**: 정의형 문장은 **주제 제시('은/는')**와 **풀이('라')**의 결합으로 구성됨.
 
 ---
@@ -149,9 +149,9 @@ Sankey Diagram 분석 결과 (K=4 macro → K=24 micro):
    - K=4(거시)에서 K=24(미시)에 이르기까지, 사서 중심의 문법 구조는 일관되게 유지됨.
    - 이는 사서 현토가 단순한 빈도 우위가 아니라 **구조적/기능적 표준**임을 시사함.
 
-2. **PA vs SA 층위 위계성**:
-   - PA에서는 **문체적 정체성**(서종별 스타일)이 지배적.
-   - SA에서는 **문법적 기능성**(논리, 시공간, 서술)이 지배적.
+2. **Sentence vs Phrase 층위 위계성**:
+   - Sentence에서는 **문체적 정체성**(서종별 스타일)이 지배적.
+   - Phrase에서는 **문법적 기능성**(논리, 시공간, 서술)이 지배적.
    - Sankey 분석을 통해 이 두 층위가 긴밀하게 연결되어 있음을 확인함.
 
 3. **심층 프로파일링의 성과**:
@@ -163,14 +163,14 @@ Sankey Diagram 분석 결과 (K=4 macro → K=24 micro):
 
 | 자료 | 경로 |
 |:---|:---|
-| **PA v6 클러스터** | [pa_boundary_v6_full/](pa_boundary_v6_full/) |
-| **SA v6 클러스터** | [sa_boundary_v6_full/](sa_boundary_v6_full/) |
-| **SA K=24 심층분석** | [sa_boundary_k24_full/sa_deep_profile.md](sa_boundary_k24_full/sa_deep_profile.md) |
+| **Sentence v6 클러스터** | [sentence_boundary_v6_full/](sentence_boundary_v6_full/) |
+| **Phrase v6 클러스터** | [phrase_boundary_v6_full/](phrase_boundary_v6_full/) |
+| **Phrase K=24 심층분석** | [phrase_boundary_k24_full/phrase_deep_profile.md](phrase_boundary_k24_full/phrase_deep_profile.md) |
 | **통합 대시보드** | [dashboard.html](dashboard.html) |
 | 편향 검증 보고서 | [BIAS_VALIDATION.md](BIAS_VALIDATION.md) |
 | 재현 가이드 | [REPRODUCE.md](REPRODUCE.md) |
 
 ---
 
-**데이터 기준**: PA 87,943 경계 / SA 294,889 구
-**분석 버전**: v6 + Multi-Resolution
+**데이터 기준**: Sentence 150,545 경계 / Phrase 366,222 구 (전체 53권)
+**분석 버전**: v6 + Multi-Resolution + 정규화 규칙 수정 (2026-01-27)

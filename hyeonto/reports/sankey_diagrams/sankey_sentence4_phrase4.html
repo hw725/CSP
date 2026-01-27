@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Sentence K=4 ↔ Phrase K=4 (서종 분포 기반)</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 {
+            text-align: center;
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #e94560, #4ecca3);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle { text-align: center; color: #888; margin-bottom: 20px; }
+        #sankey { width: 100%; height: 600px; }
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin: 20px 0;
+        }
+        .stat-item {
+            text-align: center;
+            padding: 15px 25px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+        }
+        .stat-value { font-size: 1.5rem; color: #4ecca3; }
+        .stat-label { font-size: 0.9rem; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sentence K=4 ↔ Phrase K=4 (서종 분포 기반)</h1>
+        <p class="subtitle">클러스터 간 데이터 흐름 시각화</p>
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-value">Sentence K=4</div>
+                <div class="stat-label">왼쪽</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">Phrase K=4</div>
+                <div class="stat-label">오른쪽</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">102,691</div>
+                <div class="stat-label">총 매칭</div>
+            </div>
+        </div>
+        <div id="sankey"></div>
+    </div>
+    <script>
+        const data = {
+            type: "sankey",
+            orientation: "h",
+            node: {
+                pad: 15,
+                thickness: 20,
+                line: { color: "rgba(255,255,255,0.3)", width: 0.5 },
+                label: ["Sentence-p0", "Sentence-p1", "Sentence-p2", "Sentence-p3", "Phrase-p0", "Phrase-p1", "Phrase-p2", "Phrase-p3"],
+                color: ["rgba(233, 69, 96, 0.8)", "rgba(255, 107, 107, 0.8)", "rgba(255, 201, 60, 0.8)", "rgba(255, 140, 66, 0.8)", "rgba(78, 204, 163, 0.8)", "rgba(69, 183, 170, 0.8)", "rgba(56, 163, 165, 0.8)", "rgba(34, 87, 122, 0.8)"]
+            },
+            link: {
+                source: [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3],
+                target: [4, 5, 6, 7, 4, 5, 6, 7, 4, 5, 6, 7, 4, 5, 6, 7],
+                value: [11556, 7112, 12040, 4983, 7238, 5048, 7953, 3174, 13282, 6670, 9528, 6123, 2657, 1964, 2282, 1081],
+                color: "rgba(255,255,255,0.2)"
+            }
+        };
+        
+        Plotly.newPlot('sankey', [data], {
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            font: { color: '#fff', size: 12 },
+            margin: { t: 30, b: 30, l: 30, r: 30 }
+        }, { responsive: true });
+    </script>
+</body>
+</html>

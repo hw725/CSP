@@ -1,4 +1,4 @@
-# 현토(懸吐) 분석 프로젝트 (v6 + Multi-Resolution)
+# 현토(懸吐) 분석 프로젝트 (v6 + K=4 핵심 분석)
 
 > 사서삼경(四書三經) 등 유교 경전의 **현토(懸吐)** 패턴을 클러스터링 및 시각화하여 한문 구문 기능을 분석하는 연구 프로젝트
 
@@ -19,8 +19,8 @@
 
 1. **현토 패턴 클러스터링**: 한문 경계(boundary)에서 나타나는 현토의 기능적 역할 분류
 2. **PA-SA 위계적 분석**: 문장(PA)과 구(SA) 수준의 이중 레벨 분석
-3. **다중 해상도 분석 (Multi-Resolution)**: K=4 (거시적) 및 K=14/K=24 (미시적) 분석으로 다층적 패턴 규명
-4. **번역문 통합 임베딩**: 한문 원문과 한국어 번역문을 결합하여 화용론적 뉘앙스 포착 (v6)
+3. **K=4 핵심 분석**: 거시적 4개 클러스터 분석으로 주요 패턴 규명
+4. **정규화**: 171개 규칙으로 옛한글 및 이형태 통일 (Zero-Gap 달성)
 
 ---
 
@@ -32,28 +32,25 @@ hyeonto/
 │   ├── pa_merged_v2.csv       # PA 통합 데이터 (87,943건)
 │   └── sa_merged_v2.csv       # SA 통합 데이터 (294,889건)
 ├── cache/                     # 임베딩 캐시
-│   ├── pa_embeddings.npy      # PA BGE-M3 임베딩 (약 300MB)
-│   └── sa_embeddings.npy      # SA BGE-M3 임베딩 (약 1.2GB)
+│   ├── pa_embeddings.npy      # PA BGE-M3 임베딩
+│   └── sa_embeddings.npy      # SA BGE-M3 임베딩
 ├── reports/                   # 분석 결과
-│   ├── FINAL_ANALYSIS_REPORT.md       # ⭐ 통합 마스터 리포트
-│   ├── dashboard.html                 # ⭐ 인터랙티브 대시보드
-│   ├── pa_boundary_v6_full/           # PA v6 클러스터링 (K=16)
-│   ├── sa_boundary_v6_full/           # SA v6 클러스터링 (K=16)
-│   ├── pa_boundary_k4_full/           # PA K=4 클러스터링 (거시적)
-│   ├── pa_boundary_k14_full/          # PA K=14 클러스터링 (미시적)
-│   ├── sa_boundary_k4_full/           # SA K=4 클러스터링 (거시적)
-│   ├── sa_boundary_k24_full/          # SA K=24 클러스터링 (미시적) + 심층 프로파일
-│   ├── optimal_k_p2s/                  # PA 최적 K값 분석
-│   ├── optimal_k_sa_v3/               # SA 최적 K값 분석
-│   ├── crossmatch_v6/                 # PA-SA 교차 분석 (Sankey)
-│   └── exploratory/                   # 탐색적 분석 (Sankey, 비교, 흐름)
-├── BIAS_VALIDATION.md         # 편향 검증 보고서
-├── DATA_PROVENANCE.md         # 데이터 출처 설명
-├── EXPLORATORY_ANALYSIS.md    # 탐색적 분석 가이드
-├── KEY_FINDINGS.md            # 핵심 발견 사항
-├── REPRODUCE.md               # 재현 가이드
-├── VISUALIZATION_GUIDE.md     # 시각화 해석 가이드
-└── jti_*.xml                  # 원본 현토 XML 파일들
+│   ├── dashboard.html         # ⭐ 인터랙티브 대시보드
+│   ├── md_viewer.html         # 마크다운 뷰어
+│   ├── pa_k4_normalized/      # PA K=4 클러스터링 (정규화)
+│   ├── sa_k4_normalized/      # SA K=4 클러스터링 (정규화)
+│   ├── k4_embedding_overlay_3d.html  # PA/SA 3D UMAP 시각화
+│   ├── k4_embedding_overlay_2d.html  # PA/SA 2D UMAP 시각화
+│   ├── sankey_diagrams/       # Sankey 다이어그램
+│   ├── tam_analysis_v6/       # TAM 분석
+│   ├── tense_analysis_v6/     # 시제 분석
+│   ├── weight_sensitivity_v6/ # 가중치 민감도 분석
+│   ├── exploratory/           # 탐색적 분석
+│   └── archive/               # K=14/K=24 세부 분석 (아카이브)
+├── hyeonto_normalizer.py      # 현토 정규화 모듈 (171규칙)
+├── generate_sankey_diagrams.py # Sankey 다이어그램 생성
+├── analyze_embedding_overlay.py # UMAP 시각화 생성
+└── rerun_full_analysis.py     # 전체 분석 재실행
 ```
 
 ---
@@ -78,90 +75,49 @@ hyeonto/
 
 ---
 
-## 🔬 다중 해상도 분석 (Multi-Resolution Analysis)
+## 🔬 K=4 핵심 분석
 
-### 최적 K값 결정
+### 분석 개요
 
-| 데이터 | 권장 K (거시적) | 기능적 K (미시적) | 근거 |
-|:---:|:---:|:---:|:---|
-| **PA** | K=4 | K=14 | Silhouette + Calinski-Harabasz 최적화 |
-| **SA** | K=4 | K=24 | Davies-Bouldin 최적화 |
+| 데이터 | 건수 | K값 | 정규화 |
+|:---:|:---:|:---:|:---:|
+| **PA** | 87,943 | K=4 | ✅ Zero-Gap |
+| **SA** | 294,889 | K=4 | ✅ Zero-Gap |
 
-### 분석 계층
+### 사서 중심성 (Saseo Centrality)
 
 ```
-     거시적 분석 (K=4)
-     ┌─────────────────────────────────────────┐
-     │  장르 대분류: 사서류 / 경전류 / 역사류 / 문집류  │
-     └─────────────────────────────────────────┘
-                       ↓ 분화
-     미시적 분석 (K=14/24)
-     ┌─────────────────────────────────────────┐
-     │  구문 기능: 조건문 / 정의문 / 서사문 / 나열문 등 │
-     └─────────────────────────────────────────┘
+사서(四書)는 현토 패턴의 "문법적 북극점" 역할
+Cohen's d = 79.5 (극도의 효과 크기)
 ```
+
+- PA K=4 p1: 사서 집중도 **13.4%** (평균 10.2% 대비)
+- SA K=4 p1: 사서 집중도 **16.5%** (평균 10.2% 대비)
 
 ---
 
 ## 🛠 분석 파이프라인
 
-### 1단계: 최적 K값 분석 (선택)
+### Docker 환경 실행
 ```bash
-docker exec csp-workspace python scripts/find_optimal_k.py \
-    --csv hyeonto/datasets/sentence_merged_v2.csv \
-    --out-dir hyeonto/reports/optimal_k_pa \
-    --k-min 4 --k-max 32 --k-step 2 \
-    --device-id 0 --seed 42
+# 전체 분석 재실행
+docker compose run --rm csp python hyeonto/rerun_full_analysis.py --all
+
+# 정규화 후 클러스터링만
+docker compose run --rm csp python hyeonto/rerun_full_analysis.py --step clustering
+
+# UMAP 시각화 생성
+docker compose run --rm csp python hyeonto/analyze_embedding_overlay.py
+
+# Sankey 다이어그램 생성
+python hyeonto/generate_sankey_diagrams.py
 ```
 
-### 2단계: PA 클러스터링
+### 로컬 대시보드 실행
 ```bash
-# K=4 (거시적)
-docker exec csp-workspace python scripts/cluster_pa_boundary_functions.py \
-    --input hyeonto/datasets/sentence_merged_v2.csv \
-    --out-dir hyeonto/reports/sentence_boundary_k4_full \
-    --k 4 --load-embeddings hyeonto/cache/pa_embeddings.npy \
-    --use-src --use-tgt --seed 42
-
-# K=14 (미시적)
-docker exec csp-workspace python scripts/cluster_pa_boundary_functions.py \
-    --input hyeonto/datasets/sentence_merged_v2.csv \
-    --out-dir hyeonto/reports/sentence_boundary_k14_full \
-    --k 14 --load-embeddings hyeonto/cache/pa_embeddings.npy \
-    --use-src --use-tgt --seed 42
-```
-
-### 3단계: SA 클러스터링
-```bash
-# K=4 (거시적)
-docker exec csp-workspace python scripts/cluster_sa_boundary_functions.py \
-    --input hyeonto/datasets/phrase_merged_v2.csv \
-    --out-dir hyeonto/reports/phrase_boundary_k4_full \
-    --k 4 --load-embeddings hyeonto/cache/sa_embeddings.npy \
-    --use-src --use-tgt --seed 42
-
-# K=24 (미시적)
-docker exec csp-workspace python scripts/cluster_sa_boundary_functions.py \
-    --input hyeonto/datasets/phrase_merged_v2.csv \
-    --out-dir hyeonto/reports/phrase_boundary_k24_full \
-    --k 24 --load-embeddings hyeonto/cache/sa_embeddings.npy \
-    --use-src --use-tgt --seed 42
-```
-
-### 4단계: 심층 프로파일링 (K=24 SA)
-```bash
-docker exec csp-workspace python scripts/profile_deep_sa.py \
-    --csv hyeonto/reports/phrase_boundary_k24_full/sa_boundary_clusters.csv \
-    --out-dir hyeonto/reports/phrase_boundary_k24_full
-```
-
-### 5단계: PA-SA Sankey 시각화
-```bash
-docker exec csp-workspace python scripts/visualize_pa_sa_sankey.py \
-    --pa-csv hyeonto/reports/sentence_boundary_k4_full/boundary_clusters.csv \
-    --sa-csv hyeonto/reports/phrase_boundary_k4_full/sa_boundary_clusters.csv \
-    --pa-k 4 --sa-k 4 \
-    --out-dir hyeonto/reports/exploratory/pa_sa_sankey
+cd hyeonto/reports
+python -m http.server 8080
+# 브라우저에서 http://localhost:8080/dashboard.html 접속
 ```
 
 ---
@@ -173,18 +129,16 @@ docker exec csp-workspace python scripts/visualize_pa_sa_sankey.py \
 | 시각화 | 경로 | 설명 |
 |--------|------|------|
 | **대시보드** | `reports/dashboard.html` | ⭐ 모든 분석 결과 통합 탐색 |
-| **PA-SA Sankey** | `exploratory/pa_sa_sankey/*.html` | PA↔SA 클러스터 흐름 (K=4, K=14, K=24) |
-| **클러스터 분화** | `exploratory/cluster_flow_*/` | K=4 → K=14/24 분화 패턴 |
-| **고급 산점도** | `*_full/visualization/advanced_cluster_viz.html` | Convex Hull + 사서 추세선 |
+| **3D UMAP** | `reports/k4_embedding_overlay_3d.html` | PA/SA 임베딩 3D 오버레이 |
+| **2D UMAP** | `reports/k4_embedding_overlay_2d.html` | PA/SA 임베딩 2D 오버레이 |
+| **PA↔SA Sankey** | `reports/sankey_diagrams/sankey_pa4_sa4.html` | PA-SA 클러스터 흐름 |
 
-### 주요 발견 사항
+### K=4 클러스터 프로파일
 
-1. **사서는 문법적 북극점**: PA K=4에서 p1 사서 집중도 **13.4%**, SA K=4에서 p5 **16.5%**
-2. **다중 해상도 일관성**: K=4와 K=24 모두 사서 중심성 유지
-3. **SA K=24 심층 분석**: 
-   - **p5 (Topic)**: 시경(x3.8), 은/는 53% 우세
-   - **p22 (시간/장소)**: 춘추좌씨전(x10.0), 에 집중
-   - **p17 (시적 표현)**: 당시삼백수(x9.4), 운율적 생략
+| 파일 | 설명 |
+|------|------|
+| `pa_k4_normalized/pa_cluster_profile.md` | PA K=4 정규화 프로파일 |
+| `sa_k4_normalized/sa_cluster_profile.md` | SA K=4 정규화 프로파일 |
 
 ---
 
@@ -192,14 +146,13 @@ docker exec csp-workspace python scripts/visualize_pa_sa_sankey.py \
 
 | 문서 | 설명 |
 |------|------|
-| [FINAL_ANALYSIS_REPORT.md](reports/FINAL_ANALYSIS_REPORT.md) | ⭐ v6 통합 마스터 리포트 |
-| [KEY_FINDINGS.md](KEY_FINDINGS.md) | 핵심 발견 사항 (Multi-Resolution 포함) |
+| [dashboard.html](reports/dashboard.html) | ⭐ 인터랙티브 대시보드 |
+| [FINAL_ANALYSIS_REPORT.md](reports/FINAL_ANALYSIS_REPORT.md) | v6 통합 마스터 리포트 |
+| [KEY_FINDINGS.md](KEY_FINDINGS.md) | 핵심 발견 사항 |
 | [REPRODUCE.md](REPRODUCE.md) | 재현 가이드 |
 | [VISUALIZATION_GUIDE.md](VISUALIZATION_GUIDE.md) | 시각화 해석 |
 | [BIAS_VALIDATION.md](BIAS_VALIDATION.md) | 편향 검증 |
-| [DATA_PROVENANCE.md](DATA_PROVENANCE.md) | 데이터 출처 |
-| [EXPLORATORY_ANALYSIS.md](EXPLORATORY_ANALYSIS.md) | 탐색적 분석 가이드 |
 
 ---
 
-**마지막 업데이트**: 2026-01-13 (v6 + Multi-Resolution)
+**마지막 업데이트**: 2026-01-27 (K=4 핵심 분석 + 정규화 + 시각화 개선)
