@@ -1,0 +1,25 @@
+?
+�̺з� ��Ŀ: 103��
+================================================================================
+ȣ�� (776): ������������ȣ�� �� ��� ���� �� ���� �Ἥ �����ϰ� �;�����
+���� (443): ����ԭ������� �� ���� �ﰡ ������ ���� ���Ǵ�
+�ζ� (386): ���߲�÷ζ� �� �ѹ��߿� �� �����̳� ���� �Ͼ�� �մϴ�.
+�� (373): �����Ϳ� �� ������ ���� ������̿�!
+��� (215): ��������������� �� ���� ���(��Ю)�� ���ֵ��� �ʰ� ����ؾ�
+�� (200): ���������� �� ���� �ؾ� �� ���ε�
+�δ� (195): ����Ҵ�̷δ� �� 10�� ���� �Ǿ��µ�,
+python : Traceback (most recent call last):
+��ġ ��:1 ����:1
++ python check_results.py > reports/unclassified_check.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent c 
+   all last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "C:\Users\junto\Downloads\head-repo\hw725\CSP\hyeonto\check_res
+ults.py", line 23, in <module>
+    print(f'{marker} ({count}): {orig} �� {trans}')
+UnicodeEncodeError: 'cp949' codec can't encode character '\u1102' in p
+osition 15: illegal multibyte sequence
+?
+"(c9bfe0b46f5f7097b29a8f99d3ee94a0e38df5c92[file:///c:/Users/junto/Downloads/head-repo/hw725/CSP/hyeonto/reports/unclassified_check.txt:4file:///c:/Users/junto/Downloads/head-repo/hw725/CSP

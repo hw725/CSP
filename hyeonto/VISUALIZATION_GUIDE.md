@@ -2,13 +2,13 @@
 
 본 문서는 hyeonto 프로젝트에서 생성된 다양한 시각화 자료를 올바르게 해석하기 위한 지침을 제공합니다.
 
-> **📌 분석 단위 (v6.9.4)**
+> **? 분석 단위 (v6.9.4)**
 > - **Sentence**: 문장 단위 클러스터링 (150,545건)
 > - **Phrase**: 구 단위 클러스터링 (366,222건)
 
 ---
 
-## 🌉 1. Sentence ↔ Phrase 클러스터 Sankey Diagram - ⭐ BEST
+## ? 1. Sentence ↔ Phrase 클러스터 Sankey Diagram - ? BEST
 
 **경로**: `reports/sankey_diagrams/sankey_sentence4_phrase4.html`
 
@@ -28,7 +28,7 @@
 
 ---
 
-## 📊 2. 3D/2D UMAP 임베딩 오버레이
+## ? 2. 3D/2D UMAP 임베딩 오버레이
 
 **경로**: 
 - `reports/k4_embedding_overlay_3d.html` (3D - 권장)
@@ -50,7 +50,7 @@
 
 ---
 
-## 💎 3. 한자-현토 공기 네트워크
+## ? 3. 한자-현토 공기 네트워크
 
 **경로**: `reports/exploratory/cooccurrence_normalized/cooccurrence_network_normalized.html`
 
@@ -69,7 +69,7 @@ v6.9.4에서는 **Print-Ready Grayscale 모드**가 추가되었습니다:
 
 ---
 
-## 📊 4. 서종 분포 비교 차트
+## ? 4. 서종 분포 비교 차트
 
 **경로**: `reports/k4_sentence_phrase_overlay_normalized.html`
 
@@ -85,7 +85,7 @@ v6.9.4에서는 **Print-Ready Grayscale 모드**가 추가되었습니다:
 
 ---
 
-## 📂 5. 대시보드 사용법
+## ? 5. 대시보드 사용법
 
 **경로**: `reports/dashboard.html`
 
@@ -111,7 +111,7 @@ python -m http.server 8080
 
 ---
 
-## 🎨 6. 클러스터 프로파일 해석
+## ? 6. 클러스터 프로파일 해석
 
 **경로**: 
 - `reports/sentence_k4_normalized/sentence_cluster_profile.md`
@@ -136,7 +136,7 @@ python -m http.server 8080
 
 ---
 
-## 🗣️ 7. 부가 분석 결과
+## ?? 7. 부가 분석 결과
 
 ### 1인칭 표지 분석
 

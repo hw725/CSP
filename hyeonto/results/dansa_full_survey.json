@@ -1,0 +1,30 @@
+[
+  {
+    "level": "Level 1",
+    "marker": "로다",
+    "category": "유사이단",
+    "n_target": 952,
+    "n_control": 952,
+    "target_positive": 344,
+    "control_positive": 140,
+    "target_rate": 36.134453781512605,
+    "control_rate": 14.705882352941178,
+    "chi2": 114.16298451868232,
+    "p_value": 1.2002619820444213e-26,
+    "reject_h0": true
+  },
+  {
+    "level": "Level 2",
+    "marker": "니라 vs 라",
+    "category": "쾌절 vs 미절",
+    "n_nira": 4232,
+    "n_ra": 4233,
+    "nira_positive": 2815,
+    "ra_positive": 2160,
+    "nira_rate": 66.51701323251417,
+    "ra_rate": 51.027639971651304,
+    "chi2": 208.90274953542328,
+    "p_value": 2.3837333585403763e-47,
+    "reject_h0": true
+  }
+]

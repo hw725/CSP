@@ -1,0 +1,5312 @@
+{
+  "일의상승_하야": {
+    "description": "하나의 뜻이 이어짐 / 인과관계",
+    "source": "임규직 1번 / 박문호 1번",
+    "markers": [
+      {
+        "marker": "하여",
+        "count": 38417
+      },
+      {
+        "marker": "하사",
+        "count": 563
+      }
+    ],
+    "total_count": 38980
+  },
+  "단사_미절": {
+    "description": "약하게 끊음 (微絶)",
+    "source": "임규직 《구두해법》",
+    "markers": [
+      {
+        "marker": "라",
+        "count": 29728
+      }
+    ],
+    "total_count": 29728
+  },
+  "대우_하고하며": {
+    "description": "짝을 이루는 말 / 나열 (하고/하며 계열)",
+    "source": "임규직 3번 / 박문호 2번",
+    "markers": [
+      {
+        "marker": "하고",
+        "count": 28713
+      },
+      {
+        "marker": "하며",
+        "count": 3516
+      },
+      {
+        "marker": "하시고",
+        "count": 391
+      },
+      {
+        "marker": "하시며",
+        "count": 48
+      },
+      {
+        "marker": "아하시고",
+        "count": 3
+      },
+      {
+        "marker": "코",
+        "count": 2
+      },
+      {
+        "marker": "가하시고",
+        "count": 1
+      },
+      {
+        "marker": "여하시고",
+        "count": 1
+      }
+    ],
+    "total_count": 32675
+  },
+  "승상_하니": {
+    "description": "위 구절을 잇는 말 (하니 계열)",
+    "source": "임규직 6번",
+    "markers": [
+      {
+        "marker": "하니",
+        "count": 21295
+      },
+      {
+        "marker": "하시니",
+        "count": 611
+      },
+      {
+        "marker": "아하시니",
+        "count": 5
+      },
+      {
+        "marker": "고하시니",
+        "count": 3
+      },
+      {
+        "marker": "오하시니",
+        "count": 1
+      },
+      {
+        "marker": "케하시니",
+        "count": 1
+      }
+    ],
+    "total_count": 21916
+  },
+  "처소_에": {
+    "description": "처소/대상 (於, 于, 乎 아래)",
+    "source": "이삼환 / 박문호 19번",
+    "markers": [
+      {
+        "marker": "에",
+        "count": 20558
+      },
+      {
+        "marker": "에서",
+        "count": 2
+      }
+    ],
+    "total_count": 20560
+  },
+  "직하_조사": {
+    "description": "곧장 내려오는 조사",
+    "source": "임규직 5번",
+    "markers": [
+      {
+        "marker": "는",
+        "count": 19979
+      },
+      {
+        "marker": "이",
+        "count": 12861
+      },
+      {
+        "marker": "를",
+        "count": 2953
+      },
+      {
+        "marker": "의",
+        "count": 219
+      }
+    ],
+    "total_count": 36012
+  },
+  "단사_기사지단": {
+    "description": "정령, 조서 등 공적 기록",
+    "source": "임규직 《구두해법》",
+    "markers": [
+      {
+        "marker": "하다",
+        "count": 12376
+      },
+      {
+        "marker": "하시다",
+        "count": 31
+      },
+      {
+        "marker": "아하시다",
+        "count": 1
+      },
+      {
+        "marker": "오하시다",
+        "count": 1
+      }
+    ],
+    "total_count": 12409
+  },
+  "가정": {
+    "description": "가정/조건 (若, 如 아래)",
+    "source": "이삼환 / 박문호 14번",
+    "markers": [
+      {
+        "marker": "면",
+        "count": 8226
+      },
+      {
+        "marker": "하면",
+        "count": 1136
+      },
+      {
+        "marker": "어든",
+        "count": 815
+      },
+      {
+        "marker": "ㄴ댄",
+        "count": 415
+      },
+      {
+        "marker": "어시든",
+        "count": 54
+      },
+      {
+        "marker": "ㄴ대",
+        "count": 50
+      },
+      {
+        "marker": "컨댄",
+        "count": 42
+      },
+      {
+        "marker": "완대",
+        "count": 37
+      },
+      {
+        "marker": "댄",
+        "count": 28
+      },
+      {
+        "marker": "시면",
+        "count": 25
+      },
+      {
+        "marker": "신댄",
+        "count": 10
+      },
+      {
+        "marker": "오하면",
+        "count": 9
+      },
+      {
+        "marker": "라면",
+        "count": 5
+      },
+      {
+        "marker": "아하면",
+        "count": 4
+      },
+      {
+        "marker": "커시든",
+        "count": 3
+      },
+      {
+        "marker": "고하면",
+        "count": 2
+      },
+      {
+        "marker": "어어든",
+        "count": 1
+      },
+      {
+        "marker": "오커시든",
+        "count": 1
+      },
+      {
+        "marker": "이시어든",
+        "count": 1
+      },
+      {
+        "marker": "오어든",
+        "count": 1
+      },
+      {
+        "marker": "이신대",
+        "count": 1
+      }
+    ],
+    "total_count": 10866
+  },
+  "대우_이오이며": {
+    "description": "대우 (이오/이며 계열) - 며, 요는 축약형",
+    "source": "임규직 3번",
+    "markers": [
+      {
+        "marker": "요",
+        "count": 8034
+      },
+      {
+        "marker": "며",
+        "count": 752
+      }
+    ],
+    "total_count": 8786
+  },
+  "승상_이니": {
+    "description": "위 구절을 잇는 말 (이니 계열) - 니는 축약형",
+    "source": "임규직 6번",
+    "markers": [
+      {
+        "marker": "니",
+        "count": 7742
+      }
+    ],
+    "total_count": 7742
+  },
+  "수단_으로": {
+    "description": "수단/기점 (以, 使 아래)",
+    "source": "이삼환 / 박문호 23번",
+    "markers": [
+      {
+        "marker": "로",
+        "count": 7406
+      }
+    ],
+    "total_count": 7406
+  },
+  "객체_어늘": {
+    "description": "객체의 행위, 주어 전환",
+    "source": "이삼환 《구두지남》 구두거요 / 임규직 2번",
+    "markers": [
+      {
+        "marker": "어늘",
+        "count": 5065
+      },
+      {
+        "marker": "커늘",
+        "count": 96
+      },
+      {
+        "marker": "커든",
+        "count": 31
+      },
+      {
+        "marker": "어어늘",
+        "count": 3
+      },
+      {
+        "marker": "커나",
+        "count": 3
+      },
+      {
+        "marker": "이시어늘",
+        "count": 2
+      },
+      {
+        "marker": "아하거늘",
+        "count": 1
+      }
+    ],
+    "total_count": 5201
+  },
+  "양보_이나이라도": {
+    "description": "양보/반어 (雖 아래) - 이나/이라도 계열, 나는 축약형",
+    "source": "이삼환 / 박문호 17번",
+    "markers": [
+      {
+        "marker": "나",
+        "count": 4992
+      },
+      {
+        "marker": "라도",
+        "count": 1415
+      },
+      {
+        "marker": "런들",
+        "count": 42
+      },
+      {
+        "marker": "ㄴ들",
+        "count": 21
+      },
+      {
+        "marker": "들",
+        "count": 2
+      },
+      {
+        "marker": "한들",
+        "count": 1
+      }
+    ],
+    "total_count": 6473
+  },
+  "존칭": {
+    "description": "존칭/겸양 표현",
+    "source": "임규직 전체 / 박문호 32번",
+    "markers": [
+      {
+        "marker": "니이다",
+        "count": 4797
+      },
+      {
+        "marker": "리이다",
+        "count": 578
+      },
+      {
+        "marker": "하노이다",
+        "count": 425
+      },
+      {
+        "marker": "로소이다",
+        "count": 273
+      },
+      {
+        "marker": "로이다",
+        "count": 53
+      },
+      {
+        "marker": "러이다",
+        "count": 20
+      },
+      {
+        "marker": "일까하노이다",
+        "count": 10
+      },
+      {
+        "marker": "하이다",
+        "count": 8
+      },
+      {
+        "marker": "호이다",
+        "count": 8
+      },
+      {
+        "marker": "이다",
+        "count": 5
+      },
+      {
+        "marker": "오니",
+        "count": 2
+      },
+      {
+        "marker": "케이다",
+        "count": 2
+      },
+      {
+        "marker": "아하노이다",
+        "count": 1
+      },
+      {
+        "marker": "노이다",
+        "count": 1
+      },
+      {
+        "marker": "하더이다",
+        "count": 1
+      },
+      {
+        "marker": "께",
+        "count": 1
+      },
+      {
+        "marker": "시고",
+        "count": 1
+      }
+    ],
+    "total_count": 6186
+  },
+  "단사_쾌절": {
+    "description": "단호하게 결정하여 끊음 (夬絶)",
+    "source": "임규직 《구두해법》",
+    "markers": [
+      {
+        "marker": "니라",
+        "count": 4233
+      }
+    ],
+    "total_count": 4233
+  },
+  "과거_러니": {
+    "description": "과거/회상 (往昔事)",
+    "source": "이삼환 《구두지남》 / 박문호 13번",
+    "markers": [
+      {
+        "marker": "러니",
+        "count": 3273
+      },
+      {
+        "marker": "시니",
+        "count": 29
+      },
+      {
+        "marker": "러시니",
+        "count": 17
+      },
+      {
+        "marker": "하더니",
+        "count": 16
+      },
+      {
+        "marker": "터니",
+        "count": 5
+      },
+      {
+        "marker": "하더시니",
+        "count": 3
+      },
+      {
+        "marker": "러시다",
+        "count": 3
+      },
+      {
+        "marker": "아러니",
+        "count": 2
+      },
+      {
+        "marker": "리오하더니",
+        "count": 2
+      },
+      {
+        "marker": "아하더니",
+        "count": 1
+      },
+      {
+        "marker": "오하더니",
+        "count": 1
+      }
+    ],
+    "total_count": 3352
+  },
+  "의문_판정": {
+    "description": "판정의문/반어",
+    "source": "이삼환 《구두지남》 / 박문호 31번",
+    "markers": [
+      {
+        "marker": "가",
+        "count": 2967
+      },
+      {
+        "marker": "아",
+        "count": 2945
+      },
+      {
+        "marker": "잇가",
+        "count": 647
+      },
+      {
+        "marker": "ㄴ저",
+        "count": 407
+      },
+      {
+        "marker": "리잇가",
+        "count": 282
+      },
+      {
+        "marker": "릿가",
+        "count": 169
+      },
+      {
+        "marker": "니잇가",
+        "count": 20
+      },
+      {
+        "marker": "이릿고",
+        "count": 19
+      },
+      {
+        "marker": "닛가",
+        "count": 14
+      },
+      {
+        "marker": "이닛고",
+        "count": 11
+      },
+      {
+        "marker": "리까",
+        "count": 4
+      },
+      {
+        "marker": "닛고",
+        "count": 3
+      },
+      {
+        "marker": "이리까",
+        "count": 3
+      },
+      {
+        "marker": "시니잇가",
+        "count": 2
+      },
+      {
+        "marker": "이시릿가",
+        "count": 2
+      },
+      {
+        "marker": "하리잇가",
+        "count": 1
+      },
+      {
+        "marker": "이시닛고",
+        "count": 1
+      },
+      {
+        "marker": "시닛고",
+        "count": 1
+      },
+      {
+        "marker": "이닛까",
+        "count": 1
+      }
+    ],
+    "total_count": 7499
+  },
+  "복합": {
+    "description": "미분류",
+    "source": "",
+    "markers": [
+      {
+        "marker": "하니라",
+        "count": 2711,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "라하니",
+        "count": 2035,
+        "base_categories": [
+          "단사_미절",
+          "승상_하니",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "라하고",
+        "count": 1225,
+        "base_categories": [
+          "단사_미절",
+          "의문_설명",
+          "대우_하고하며",
+          "인용"
+        ]
+      },
+      {
+        "marker": "하니이다",
+        "count": 790,
+        "base_categories": [
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "호대",
+        "count": 776
+      },
+      {
+        "marker": "하여는",
+        "count": 738,
+        "base_categories": [
+          "일의상승_하야",
+          "직하_조사",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "엔",
+        "count": 708
+      },
+      {
+        "marker": "라하니라",
+        "count": 678,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_하니",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "라하여",
+        "count": 653,
+        "base_categories": [
+          "단사_미절",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "라하다",
+        "count": 575,
+        "base_categories": [
+          "단사_미절",
+          "단사_기사지단",
+          "인용"
+        ]
+      },
+      {
+        "marker": "어니와",
+        "count": 503,
+        "base_categories": [
+          "승상_이니",
+          "점층",
+          "양보_이나이라도",
+          "나열_와과"
+        ]
+      },
+      {
+        "marker": "하소서",
+        "count": 470,
+        "base_categories": [
+          "존칭"
+        ]
+      },
+      {
+        "marker": "하나니",
+        "count": 454,
+        "base_categories": [
+          "승상_이니",
+          "범론_하나니",
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "하리라",
+        "count": 411,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라"
+        ]
+      },
+      {
+        "marker": "로라",
+        "count": 386,
+        "base_categories": [
+          "단사_미절",
+          "자칭_하노라",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "라하니이다",
+        "count": 245,
+        "base_categories": [
+          "단사_미절",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라한대",
+        "count": 238,
+        "base_categories": [
+          "단사_미절",
+          "주체_한대"
+        ]
+      },
+      {
+        "marker": "라하여늘",
+        "count": 194,
+        "base_categories": [
+          "단사_미절",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "하리이다",
+        "count": 174,
+        "base_categories": [
+          "미래_리라",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "하나니라",
+        "count": 144,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "단사_범론이단",
+          "승상_이니",
+          "범론_하나니",
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "하시면",
+        "count": 136,
+        "base_categories": [
+          "가정"
+        ]
+      },
+      {
+        "marker": "라하시니",
+        "count": 135,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "라하나이다",
+        "count": 107,
+        "base_categories": [
+          "단사_미절",
+          "존칭",
+          "양보_이나이라도",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "아하고",
+        "count": 106,
+        "base_categories": [
+          "의문_설명",
+          "의문_판정",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "하여도",
+        "count": 100,
+        "base_categories": [
+          "일의상승_하야",
+          "유역_도",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "호리라",
+        "count": 98,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "에도",
+        "count": 95,
+        "base_categories": [
+          "처소_에",
+          "유역_도"
+        ]
+      },
+      {
+        "marker": "하시니이다",
+        "count": 90,
+        "base_categories": [
+          "과거_러니",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "아하니",
+        "count": 86,
+        "base_categories": [
+          "의문_판정",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "라하노이다",
+        "count": 86,
+        "base_categories": [
+          "단사_미절",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "하오니",
+        "count": 86,
+        "base_categories": [
+          "의문_설명",
+          "승상_이니",
+          "존칭"
+        ]
+      },
+      {
+        "marker": "ㄹ새니라",
+        "count": 82,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "진행_할새",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "라하더니",
+        "count": 81,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "오하니",
+        "count": 78,
+        "base_categories": [
+          "의문_설명",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "라하노라",
+        "count": 74,
+        "base_categories": [
+          "단사_미절",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "리오마는",
+        "count": 72,
+        "base_categories": [
+          "의문_설명",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "리오하고",
+        "count": 71,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "론",
+        "count": 69
+      },
+      {
+        "marker": "라하면",
+        "count": 66,
+        "base_categories": [
+          "단사_미절",
+          "가정"
+        ]
+      },
+      {
+        "marker": "로도",
+        "count": 65,
+        "base_categories": [
+          "수단_으로",
+          "유역_도"
+        ]
+      },
+      {
+        "marker": "ㄹ새니이다",
+        "count": 64,
+        "base_categories": [
+          "진행_할새",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "에는",
+        "count": 59,
+        "base_categories": [
+          "직하_조사",
+          "처소_에"
+        ]
+      },
+      {
+        "marker": "리오하니",
+        "count": 57,
+        "base_categories": [
+          "의문_설명",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하라하니",
+        "count": 56,
+        "base_categories": [
+          "단사_미절",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "호리이다",
+        "count": 53,
+        "base_categories": [
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라하나",
+        "count": 53,
+        "base_categories": [
+          "단사_미절",
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "하더라",
+        "count": 52,
+        "base_categories": [
+          "단사_미절",
+          "단사_서술지단"
+        ]
+      },
+      {
+        "marker": "라하시고",
+        "count": 51,
+        "base_categories": [
+          "단사_미절",
+          "의문_설명",
+          "대우_하고하며",
+          "존칭"
+        ]
+      },
+      {
+        "marker": "리니이다",
+        "count": 51,
+        "base_categories": [
+          "미래_리니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라호되",
+        "count": 44,
+        "base_categories": [
+          "단사_미절",
+          "상반_호되"
+        ]
+      },
+      {
+        "marker": "하시니라",
+        "count": 43,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "과거_러니",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하라하고",
+        "count": 43,
+        "base_categories": [
+          "단사_미절",
+          "의문_설명",
+          "대우_하고하며",
+          "인용",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "어시늘",
+        "count": 42,
+        "base_categories": [
+          "객체_어늘"
+        ]
+      },
+      {
+        "marker": "어나",
+        "count": 41,
+        "base_categories": [
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "하나",
+        "count": 40,
+        "base_categories": [
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "라하며",
+        "count": 37,
+        "base_categories": [
+          "단사_미절",
+          "대우_하고하며",
+          "대우_이오이며"
+        ]
+      },
+      {
+        "marker": "어니",
+        "count": 36,
+        "base_categories": [
+          "승상_이니",
+          "점층"
+        ]
+      },
+      {
+        "marker": "하라하다",
+        "count": 36,
+        "base_categories": [
+          "단사_미절",
+          "단사_기사지단",
+          "인용",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "오하고",
+        "count": 35,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "시니라",
+        "count": 35,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "과거_러니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "아하다",
+        "count": 34,
+        "base_categories": [
+          "단사_기사지단",
+          "의문_판정"
+        ]
+      },
+      {
+        "marker": "로다하고",
+        "count": 33,
+        "base_categories": [
+          "단사_유사이단",
+          "의문_설명",
+          "대우_하고하며",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "하리라하고",
+        "count": 31,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "의문_설명",
+          "대우_하고하며",
+          "인용"
+        ]
+      },
+      {
+        "marker": "라호라",
+        "count": 31,
+        "base_categories": [
+          "단사_미절",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "라하시니라",
+        "count": 31,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "과거_러니",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "라하되",
+        "count": 29,
+        "base_categories": [
+          "단사_미절",
+          "상반_호되"
+        ]
+      },
+      {
+        "marker": "시니이다",
+        "count": 26,
+        "base_categories": [
+          "과거_러니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "로니",
+        "count": 26,
+        "base_categories": [
+          "승상_이니",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "토록",
+        "count": 23
+      },
+      {
+        "marker": "니이다하니",
+        "count": 23,
+        "base_categories": [
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "리오하다",
+        "count": 23,
+        "base_categories": [
+          "단사_기사지단",
+          "의문_설명"
+        ]
+      },
+      {
+        "marker": "리라하고",
+        "count": 22,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "의문_설명",
+          "대우_하고하며",
+          "인용"
+        ]
+      },
+      {
+        "marker": "라하노니",
+        "count": 22,
+        "base_categories": [
+          "단사_미절",
+          "승상_이니",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "이리다",
+        "count": 22,
+        "base_categories": [
+          "미래_리라",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라하나니",
+        "count": 21,
+        "base_categories": [
+          "단사_미절",
+          "승상_이니",
+          "범론_하나니",
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "하라하니라",
+        "count": 19,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "아하니라",
+        "count": 18,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "의문_판정",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하신대",
+        "count": 18,
+        "base_categories": [
+          "주체_한대"
+        ]
+      },
+      {
+        "marker": "라하리니",
+        "count": 17,
+        "base_categories": [
+          "단사_미절",
+          "미래_리니",
+          "미래_리라",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "라하사",
+        "count": 17,
+        "base_categories": [
+          "단사_미절",
+          "일의상승_하야"
+        ]
+      },
+      {
+        "marker": "오하다",
+        "count": 17,
+        "base_categories": [
+          "단사_기사지단",
+          "의문_설명"
+        ]
+      },
+      {
+        "marker": "고하니",
+        "count": 16,
+        "base_categories": [
+          "의문_설명",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "오도",
+        "count": 16,
+        "base_categories": [
+          "의문_설명",
+          "유역_도"
+        ]
+      },
+      {
+        "marker": "란",
+        "count": 16
+      },
+      {
+        "marker": "라하더라",
+        "count": 16,
+        "base_categories": [
+          "단사_미절",
+          "단사_서술지단"
+        ]
+      },
+      {
+        "marker": "새니라",
+        "count": 16,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "진행_할새",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "니다",
+        "count": 15,
+        "base_categories": [
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하나이다",
+        "count": 15,
+        "base_categories": [
+          "존칭",
+          "양보_이나이라도",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라하시니이다",
+        "count": 14,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "오하여늘",
+        "count": 14,
+        "base_categories": [
+          "의문_설명",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "호리라하고",
+        "count": 14,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "의문_설명",
+          "대우_하고하며",
+          "인용",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "로다하니",
+        "count": 14,
+        "base_categories": [
+          "단사_유사이단",
+          "승상_하니",
+          "승상_이니",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "하리다",
+        "count": 13,
+        "base_categories": [
+          "미래_리라"
+        ]
+      },
+      {
+        "marker": "가하고",
+        "count": 12,
+        "base_categories": [
+          "의문_설명",
+          "의문_판정",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "리오하니라",
+        "count": 12,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "의문_설명",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하리라하니",
+        "count": 12,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "승상_하니",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "라하리라",
+        "count": 11,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라"
+        ]
+      },
+      {
+        "marker": "타하고",
+        "count": 11,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "하소서하니",
+        "count": 11,
+        "base_categories": [
+          "승상_하니",
+          "승상_이니",
+          "존칭"
+        ]
+      },
+      {
+        "marker": "라하시다",
+        "count": 11,
+        "base_categories": [
+          "단사_미절",
+          "단사_기사지단"
+        ]
+      },
+      {
+        "marker": "시리이다",
+        "count": 11,
+        "base_categories": [
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "ㄴ저하니",
+        "count": 11,
+        "base_categories": [
+          "의문_판정",
+          "승상_하니",
+          "승상_이니",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "하사대",
+        "count": 10,
+        "base_categories": [
+          "일의상승_하야"
+        ]
+      },
+      {
+        "marker": "니라하니",
+        "count": 10,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_하니",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "오하니라",
+        "count": 9,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "의문_설명",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "ㄴ저하시니",
+        "count": 9,
+        "base_categories": [
+          "과거_러니",
+          "의문_판정",
+          "승상_하니",
+          "승상_이니",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "ㄴ저하고",
+        "count": 9,
+        "base_categories": [
+          "의문_설명",
+          "의문_판정",
+          "대우_하고하며",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "하노라하고",
+        "count": 9,
+        "base_categories": [
+          "단사_미절",
+          "의문_설명",
+          "대우_하고하며",
+          "인용",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "리라하니",
+        "count": 9,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "승상_하니",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "니이다하니라",
+        "count": 8,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "리오하시니",
+        "count": 8,
+        "base_categories": [
+          "과거_러니",
+          "의문_설명",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "라하나니라",
+        "count": 8,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "단사_범론이단",
+          "승상_이니",
+          "범론_하나니",
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "리라하니라",
+        "count": 8,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "미래_리라",
+          "승상_하니",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "하라하시니",
+        "count": 8,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "승상_하니",
+          "승상_이니",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "로다하다",
+        "count": 8,
+        "base_categories": [
+          "단사_기사지단",
+          "단사_유사이단",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "니이다하고",
+        "count": 7,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "하소서하다",
+        "count": 7,
+        "base_categories": [
+          "단사_기사지단",
+          "존칭"
+        ]
+      },
+      {
+        "marker": "호리라하다",
+        "count": 7,
+        "base_categories": [
+          "단사_미절",
+          "단사_기사지단",
+          "미래_리라",
+          "인용",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "아하여",
+        "count": 7,
+        "base_categories": [
+          "의문_판정",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "고하다",
+        "count": 7,
+        "base_categories": [
+          "단사_기사지단",
+          "의문_설명"
+        ]
+      },
+      {
+        "marker": "하라하시다",
+        "count": 7,
+        "base_categories": [
+          "단사_미절",
+          "단사_기사지단",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "하시리이다",
+        "count": 7,
+        "base_categories": [
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "하사되",
+        "count": 7,
+        "base_categories": [
+          "일의상승_하야"
+        ]
+      },
+      {
+        "marker": "러니라",
+        "count": 7,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "과거_러니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "로라하고",
+        "count": 6,
+        "base_categories": [
+          "단사_미절",
+          "의문_설명",
+          "대우_하고하며",
+          "인용",
+          "자칭_하노라",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "코도",
+        "count": 6,
+        "base_categories": [
+          "대우_하고하며",
+          "유역_도"
+        ]
+      },
+      {
+        "marker": "로다하니라",
+        "count": 6,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "단사_유사이단",
+          "승상_하니",
+          "승상_이니",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "고하여",
+        "count": 6,
+        "base_categories": [
+          "의문_설명",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "하라하더니",
+        "count": 6,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "승상_이니",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "니라하니라",
+        "count": 6,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_하니",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "ㄴ저하니라",
+        "count": 6,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "의문_판정",
+          "승상_하니",
+          "승상_이니",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "시리라",
+        "count": 6,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라"
+        ]
+      },
+      {
+        "marker": "하나니이다",
+        "count": 6,
+        "base_categories": [
+          "승상_이니",
+          "범론_하나니",
+          "존칭",
+          "양보_이나이라도",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라하라",
+        "count": 6,
+        "base_categories": [
+          "단사_미절",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "하여지이다",
+        "count": 6,
+        "base_categories": [
+          "일의상승_하야",
+          "존칭",
+          "직하_조사",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "로는",
+        "count": 6,
+        "base_categories": [
+          "직하_조사",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "라하거늘",
+        "count": 6,
+        "base_categories": [
+          "단사_미절",
+          "객체_어늘"
+        ]
+      },
+      {
+        "marker": "저하고",
+        "count": 5,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "하고는",
+        "count": 5,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "가하니",
+        "count": 5,
+        "base_categories": [
+          "의문_판정",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "니라하나이다",
+        "count": 5,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_이니",
+          "존칭",
+          "양보_이나이라도",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라호대",
+        "count": 5,
+        "base_categories": [
+          "단사_미절"
+        ]
+      },
+      {
+        "marker": "러니이다",
+        "count": 5,
+        "base_categories": [
+          "과거_러니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "아하시니라",
+        "count": 5,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "과거_러니",
+          "의문_판정",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하라한대",
+        "count": 5,
+        "base_categories": [
+          "단사_미절",
+          "주체_한대",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "아하여늘",
+        "count": 5,
+        "base_categories": [
+          "의문_판정",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "니라하시니라",
+        "count": 5,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "과거_러니",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "고하고",
+        "count": 5,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "하라하면",
+        "count": 5,
+        "base_categories": [
+          "단사_미절",
+          "가정",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "리라하더니",
+        "count": 5,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "미래_리라",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "로다하여늘",
+        "count": 5,
+        "base_categories": [
+          "단사_유사이단",
+          "일의상승_하야",
+          "수단_으로",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "고하여늘",
+        "count": 5,
+        "base_categories": [
+          "의문_설명",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "로소니",
+        "count": 5,
+        "base_categories": [
+          "승상_이니",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "호리라하니",
+        "count": 4,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "하곤",
+        "count": 4
+      },
+      {
+        "marker": "를안",
+        "count": 4,
+        "base_categories": [
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "니이다하다",
+        "count": 4,
+        "base_categories": [
+          "단사_기사지단",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라하소서",
+        "count": 4,
+        "base_categories": [
+          "단사_미절",
+          "존칭"
+        ]
+      },
+      {
+        "marker": "하다가",
+        "count": 4,
+        "base_categories": [
+          "단사_기사지단",
+          "의문_판정",
+          "지속_타가"
+        ]
+      },
+      {
+        "marker": "니이다한대",
+        "count": 4,
+        "base_categories": [
+          "주체_한대",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "하소서하고",
+        "count": 4,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "존칭"
+        ]
+      },
+      {
+        "marker": "리오하니이다",
+        "count": 4,
+        "base_categories": [
+          "의문_설명",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "리오하여",
+        "count": 4,
+        "base_categories": [
+          "의문_설명",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "라하리이다",
+        "count": 4,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라호이다",
+        "count": 4,
+        "base_categories": [
+          "단사_미절",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "리오하여늘",
+        "count": 3,
+        "base_categories": [
+          "의문_설명",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "하라호되",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "상반_호되",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "다하고",
+        "count": 3,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "커니와",
+        "count": 3,
+        "base_categories": [
+          "객체_어늘",
+          "승상_이니",
+          "나열_와과"
+        ]
+      },
+      {
+        "marker": "고하니라",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "의문_설명",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "오하여",
+        "count": 3,
+        "base_categories": [
+          "의문_설명",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "여하고",
+        "count": 3,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "로다하니이다",
+        "count": 3,
+        "base_categories": [
+          "단사_유사이단",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "하시나",
+        "count": 3,
+        "base_categories": [
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "니이다하나이다",
+        "count": 3,
+        "base_categories": [
+          "승상_이니",
+          "존칭",
+          "양보_이나이라도",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라호니",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "승상_이니",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "하여늘",
+        "count": 3,
+        "base_categories": [
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "라하신대",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "주체_한대"
+        ]
+      },
+      {
+        "marker": "아라하니",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "의문_판정",
+          "승상_하니",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "오라하다",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "단사_기사지단",
+          "의문_설명",
+          "인용"
+        ]
+      },
+      {
+        "marker": "리라하여늘",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "로리라",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "라커든",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "객체_어늘"
+        ]
+      },
+      {
+        "marker": "이시나",
+        "count": 3,
+        "base_categories": [
+          "양보_이나이라도",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "하노이다하고",
+        "count": 3,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라하니다",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "승상_하니",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "ㄴ저하시고",
+        "count": 3,
+        "base_categories": [
+          "의문_설명",
+          "의문_판정",
+          "대우_하고하며",
+          "존칭",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "로라하니라",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "자칭_하노라",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "하다하고",
+        "count": 3,
+        "base_categories": [
+          "단사_기사지단",
+          "의문_설명",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "오하며",
+        "count": 3,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "대우_이오이며"
+        ]
+      },
+      {
+        "marker": "라하시리니",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "미래_리니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "케하소서",
+        "count": 3,
+        "base_categories": [
+          "존칭"
+        ]
+      },
+      {
+        "marker": "ㄴ저하다",
+        "count": 3,
+        "base_categories": [
+          "단사_기사지단",
+          "의문_판정",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "하는",
+        "count": 3,
+        "base_categories": [
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라하나니이다",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "승상_이니",
+          "범론_하나니",
+          "존칭",
+          "양보_이나이라도",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "하리라하다",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "단사_기사지단",
+          "미래_리라",
+          "인용"
+        ]
+      },
+      {
+        "marker": "라커늘",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "객체_어늘"
+        ]
+      },
+      {
+        "marker": "니라하고",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "의문_설명",
+          "대우_하고하며",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "아라하다",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "단사_기사지단",
+          "의문_판정",
+          "인용"
+        ]
+      },
+      {
+        "marker": "리오만",
+        "count": 3,
+        "base_categories": [
+          "의문_설명"
+        ]
+      },
+      {
+        "marker": "하라하시고",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "의문_설명",
+          "대우_하고하며",
+          "존칭",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "리니라",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "미래_리니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하소서하니라",
+        "count": 3,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_하니",
+          "승상_이니",
+          "존칭"
+        ]
+      },
+      {
+        "marker": "한데",
+        "count": 3
+      },
+      {
+        "marker": "하노이다하니",
+        "count": 3,
+        "base_categories": [
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "릿가하고",
+        "count": 3,
+        "base_categories": [
+          "의문_설명",
+          "의문_판정",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "거나",
+        "count": 2,
+        "base_categories": [
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "라하시더니",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "로다하시니",
+        "count": 2,
+        "base_categories": [
+          "단사_유사이단",
+          "과거_러니",
+          "승상_하니",
+          "승상_이니",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "리이다하니",
+        "count": 2,
+        "base_categories": [
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "하리라하여",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "아호라",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "의문_판정",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "하노라하니라",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "로라하시고",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "의문_설명",
+          "대우_하고하며",
+          "자칭_하노라",
+          "존칭",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "리이다한대",
+        "count": 2,
+        "base_categories": [
+          "주체_한대",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "호리라한대",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "주체_한대",
+          "미래_리라",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "하라하시니라",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "과거_러니",
+          "승상_하니",
+          "승상_이니",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "라하여든",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "리잇가하고",
+        "count": 2,
+        "base_categories": [
+          "의문_설명",
+          "의문_판정",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "하니다",
+        "count": 2,
+        "base_categories": [
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "라하리니이다",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "미래_리니",
+          "미래_리라",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "ㄴ저하노라",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "의문_판정",
+          "자칭_하노라",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "케하고",
+        "count": 2,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "하리라하니라",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "미래_리라",
+          "승상_하니",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "오하나니",
+        "count": 2,
+        "base_categories": [
+          "의문_설명",
+          "승상_이니",
+          "범론_하나니",
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "ㄴ저하시니라",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "과거_러니",
+          "의문_판정",
+          "승상_하니",
+          "승상_이니",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "라하시며",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "대우_하고하며",
+          "대우_이오이며"
+        ]
+      },
+      {
+        "marker": "오호라",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "의문_설명",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "니라하다",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "단사_기사지단",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "하노라하다",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "단사_기사지단",
+          "인용",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "하니이다하니",
+        "count": 2,
+        "base_categories": [
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "아하며",
+        "count": 2,
+        "base_categories": [
+          "의문_판정",
+          "대우_하고하며",
+          "대우_이오이며"
+        ]
+      },
+      {
+        "marker": "리라하다",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "단사_기사지단",
+          "미래_리라",
+          "인용"
+        ]
+      },
+      {
+        "marker": "코서",
+        "count": 2,
+        "base_categories": [
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "하대",
+        "count": 2
+      },
+      {
+        "marker": "하여시든",
+        "count": 2,
+        "base_categories": [
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "라하더시니",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하라하여늘",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "일의상승_하야",
+          "청원_하라",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "어다하다",
+        "count": 2,
+        "base_categories": [
+          "단사_기사지단",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "하리이다하니",
+        "count": 2,
+        "base_categories": [
+          "미래_리라",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "잇가하니",
+        "count": 2,
+        "base_categories": [
+          "의문_판정",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하라하여",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "일의상승_하야",
+          "청원_하라",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "리라한대",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "주체_한대",
+          "미래_리라"
+        ]
+      },
+      {
+        "marker": "가하다",
+        "count": 2,
+        "base_categories": [
+          "단사_기사지단",
+          "의문_판정"
+        ]
+      },
+      {
+        "marker": "로소이다하니",
+        "count": 2,
+        "base_categories": [
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "라하더이다",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "니이다하여늘",
+        "count": 2,
+        "base_categories": [
+          "일의상승_하야",
+          "승상_이니",
+          "존칭",
+          "직하_조사",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "하리라하여늘",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "하로라",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "자칭_하노라",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "이러늘",
+        "count": 2,
+        "base_categories": [
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "타하다",
+        "count": 2,
+        "base_categories": [
+          "단사_기사지단"
+        ]
+      },
+      {
+        "marker": "다하다",
+        "count": 2,
+        "base_categories": [
+          "단사_기사지단"
+        ]
+      },
+      {
+        "marker": "리이다하니라",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "아라하여늘",
+        "count": 2,
+        "base_categories": [
+          "단사_미절",
+          "의문_판정",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "온데",
+        "count": 2,
+        "base_categories": [
+          "점층"
+        ]
+      },
+      {
+        "marker": "시나",
+        "count": 2,
+        "base_categories": [
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "하고도",
+        "count": 2,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "유역_도"
+        ]
+      },
+      {
+        "marker": "하리로소이다하니",
+        "count": 1,
+        "base_categories": [
+          "미래_리라",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "니라하나",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_이니",
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "하와",
+        "count": 1,
+        "base_categories": [
+          "나열_와과"
+        ]
+      },
+      {
+        "marker": "라호리라하시니",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "미래_리라",
+          "승상_하니",
+          "승상_이니",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "리라하시니라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "과거_러니",
+          "미래_리라",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "시리오하면",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "가정"
+        ]
+      },
+      {
+        "marker": "ㄹ새라하니라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "진행_할새",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "이유_ㄹ새라"
+        ]
+      },
+      {
+        "marker": "잇가하고",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "의문_판정",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "시니이까",
+        "count": 1,
+        "base_categories": [
+          "과거_러니",
+          "승상_이니",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라하시다하니",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_기사지단",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "리잇가하니",
+        "count": 1,
+        "base_categories": [
+          "의문_판정",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하노라하시고",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "의문_설명",
+          "대우_하고하며",
+          "자칭_하노라",
+          "존칭"
+        ]
+      },
+      {
+        "marker": "라하리니라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "미래_리니",
+          "미래_리라",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "케하리이다하고",
+        "count": 1,
+        "base_categories": [
+          "미래_리라",
+          "의문_설명",
+          "대우_하고하며",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "하노라하시니",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "승상_하니",
+          "승상_이니",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "리이까하다",
+        "count": 1,
+        "base_categories": [
+          "단사_기사지단",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "리잇고호되",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "상반_호되"
+        ]
+      },
+      {
+        "marker": "이사되",
+        "count": 1,
+        "base_categories": [
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "하시리라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라"
+        ]
+      },
+      {
+        "marker": "리오하며",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "대우_이오이며"
+        ]
+      },
+      {
+        "marker": "리오호라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "의문_설명",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "오하여든",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "리오하나니",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "승상_이니",
+          "범론_하나니",
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "ㄹ새라하니이다",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "진행_할새",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "존칭",
+          "직하_조사",
+          "이유_ㄹ새라"
+        ]
+      },
+      {
+        "marker": "로소이다하고",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "존칭",
+          "직하_조사",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "호리라하더니",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "미래_리라",
+          "승상_이니",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "라하시나",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "고하니이다",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "리오하리이다",
+        "count": 1,
+        "base_categories": [
+          "미래_리라",
+          "의문_설명",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "리잇가마는",
+        "count": 1,
+        "base_categories": [
+          "의문_판정",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "하리이까",
+        "count": 1,
+        "base_categories": [
+          "미래_리라",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "리라하여",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "라하니라하니",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_하니",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "잇가하다",
+        "count": 1,
+        "base_categories": [
+          "단사_기사지단",
+          "의문_판정"
+        ]
+      },
+      {
+        "marker": "하신",
+        "count": 1
+      },
+      {
+        "marker": "ㄴ저하시니이다",
+        "count": 1,
+        "base_categories": [
+          "과거_러니",
+          "의문_판정",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "리오하시리이다",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "여라하니이다",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "존칭",
+          "직하_조사",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "오하시니이다",
+        "count": 1,
+        "base_categories": [
+          "과거_러니",
+          "의문_설명",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "ㄴ저하니이다",
+        "count": 1,
+        "base_categories": [
+          "의문_판정",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "고하시니이다",
+        "count": 1,
+        "base_categories": [
+          "과거_러니",
+          "의문_설명",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "오라하니라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "의문_설명",
+          "승상_하니",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "라하여는",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "일의상승_하야",
+          "직하_조사",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "로다하리니",
+        "count": 1,
+        "base_categories": [
+          "단사_유사이단",
+          "미래_리니",
+          "미래_리라",
+          "승상_이니",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "하오리다",
+        "count": 1,
+        "base_categories": [
+          "미래_리라",
+          "의문_설명"
+        ]
+      },
+      {
+        "marker": "라호리라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "하리라하더니",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "미래_리라",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "라하나라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "코야",
+        "count": 1,
+        "base_categories": [
+          "대우_하고하며",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "아하사",
+        "count": 1,
+        "base_categories": [
+          "의문_판정",
+          "일의상승_하야"
+        ]
+      },
+      {
+        "marker": "어다하고",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "호리라하여늘",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "일의상승_하야",
+          "자칭_하노라",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "ㄴ저라하여늘",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "의문_판정",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "하사도",
+        "count": 1,
+        "base_categories": [
+          "일의상승_하야",
+          "유역_도"
+        ]
+      },
+      {
+        "marker": "하시나니라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_이니",
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "라한데",
+        "count": 1,
+        "base_categories": [
+          "단사_미절"
+        ]
+      },
+      {
+        "marker": "케하시니라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "과거_러니",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "케호리라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "리다하고",
+        "count": 1,
+        "base_categories": [
+          "미래_리라",
+          "의문_설명",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "리오하거늘",
+        "count": 1,
+        "base_categories": [
+          "객체_어늘",
+          "의문_설명"
+        ]
+      },
+      {
+        "marker": "라하여도",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "일의상승_하야",
+          "유역_도",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "리오라하고",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "의문_설명",
+          "대우_하고하며",
+          "인용"
+        ]
+      },
+      {
+        "marker": "이릿고하니",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "의문_판정",
+          "승상_하니",
+          "승상_이니",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라하더시다",
+        "count": 1,
+        "base_categories": [
+          "단사_미절"
+        ]
+      },
+      {
+        "marker": "라하여시든",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "라하다가",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_기사지단",
+          "의문_판정",
+          "인용",
+          "지속_타가"
+        ]
+      },
+      {
+        "marker": "로다하시다",
+        "count": 1,
+        "base_categories": [
+          "단사_기사지단",
+          "단사_유사이단",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "이어시니",
+        "count": 1,
+        "base_categories": [
+          "과거_러니",
+          "승상_이니",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "케하니",
+        "count": 1,
+        "base_categories": [
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "러시다고하니",
+        "count": 1,
+        "base_categories": [
+          "과거_러니",
+          "의문_설명",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하노라하시면",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "자칭_하노라",
+          "가정"
+        ]
+      },
+      {
+        "marker": "라한",
+        "count": 1,
+        "base_categories": [
+          "단사_미절"
+        ]
+      },
+      {
+        "marker": "리라하리니",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "미래_리니",
+          "미래_리라",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "리잇가하다",
+        "count": 1,
+        "base_categories": [
+          "단사_기사지단",
+          "의문_판정"
+        ]
+      },
+      {
+        "marker": "시리라하니",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "승상_하니",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "리오하라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "의문_설명",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "랏다하더라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_서술지단"
+        ]
+      },
+      {
+        "marker": "니라하시며",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "대우_하고하며",
+          "대우_이오이며",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "리라호라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "호라하여늘",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "일의상승_하야",
+          "자칭_하노라",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "로다하시고",
+        "count": 1,
+        "base_categories": [
+          "단사_유사이단",
+          "의문_설명",
+          "대우_하고하며",
+          "존칭",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "인져하다",
+        "count": 1,
+        "base_categories": [
+          "단사_기사지단",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "고하시면",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "가정"
+        ]
+      },
+      {
+        "marker": "라하여시늘",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "객체_어늘",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "잇고하니",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "로라하니이다",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "자칭_하노라",
+          "존칭",
+          "직하_조사",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "라하오니",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "의문_설명",
+          "승상_이니",
+          "존칭"
+        ]
+      },
+      {
+        "marker": "로니이다",
+        "count": 1,
+        "base_categories": [
+          "승상_이니",
+          "존칭",
+          "직하_조사",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "리잇고하니",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "로리이다",
+        "count": 1,
+        "base_categories": [
+          "존칭",
+          "직하_조사",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "라하니이다한대",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "주체_한대",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "리오호대",
+        "count": 1,
+        "base_categories": [
+          "의문_설명"
+        ]
+      },
+      {
+        "marker": "하소서한대",
+        "count": 1,
+        "base_categories": [
+          "주체_한대",
+          "존칭"
+        ]
+      },
+      {
+        "marker": "리잇고하고",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "이릿고하다",
+        "count": 1,
+        "base_categories": [
+          "단사_기사지단",
+          "의문_설명",
+          "의문_판정",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "리라커늘",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "객체_어늘",
+          "미래_리라"
+        ]
+      },
+      {
+        "marker": "호리이다하다",
+        "count": 1,
+        "base_categories": [
+          "단사_기사지단",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "일까하오니",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "승상_이니",
+          "존칭"
+        ]
+      },
+      {
+        "marker": "오호되",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "상반_호되"
+        ]
+      },
+      {
+        "marker": "하사는",
+        "count": 1,
+        "base_categories": [
+          "일의상승_하야",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "리이다하고",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "나니",
+        "count": 1,
+        "base_categories": [
+          "승상_이니",
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "하리이다한대",
+        "count": 1,
+        "base_categories": [
+          "주체_한대",
+          "미래_리라",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "니이다하더니",
+        "count": 1,
+        "base_categories": [
+          "과거_러니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "하니이다하고",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "온여하고",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "점층",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "잇가하나이다",
+        "count": 1,
+        "base_categories": [
+          "의문_판정",
+          "존칭",
+          "양보_이나이라도",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "니라하시나이다",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_이니",
+          "존칭",
+          "양보_이나이라도",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "케하라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "오라하여",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "의문_설명",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "ㄴ저하나이다",
+        "count": 1,
+        "base_categories": [
+          "의문_판정",
+          "존칭",
+          "양보_이나이라도",
+          "직하_조사",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "하라라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "ㄹ새니라하시니이다",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "과거_러니",
+          "진행_할새",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라하니라하고",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "의문_설명",
+          "대우_하고하며",
+          "승상_하니",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "하라하시니이다",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "하여다",
+        "count": 1,
+        "base_categories": [
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "아어니와",
+        "count": 1,
+        "base_categories": [
+          "의문_판정",
+          "승상_이니",
+          "점층",
+          "양보_이나이라도",
+          "나열_와과"
+        ]
+      },
+      {
+        "marker": "라니",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하리라하시니",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "미래_리라",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하라하시면",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "가정",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "하리라하시면",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "가정"
+        ]
+      },
+      {
+        "marker": "리이다하다",
+        "count": 1,
+        "base_categories": [
+          "단사_기사지단",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "타하니",
+        "count": 1,
+        "base_categories": [
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "니라한대",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "주체_한대",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하시니어니와",
+        "count": 1,
+        "base_categories": [
+          "과거_러니",
+          "승상_하니",
+          "승상_이니",
+          "점층",
+          "양보_이나이라도",
+          "나열_와과"
+        ]
+      },
+      {
+        "marker": "하리다하고",
+        "count": 1,
+        "base_categories": [
+          "미래_리라",
+          "의문_설명",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "라하로라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "자칭_하노라",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "저하니라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_하니",
+          "승상_이니",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "야하니",
+        "count": 1,
+        "base_categories": [
+          "승상_하니",
+          "승상_이니",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "라로되",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "상반_호되",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "호리라하시니이다",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "미래_리라",
+          "승상_하니",
+          "승상_이니",
+          "자칭_하노라",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "하리다하니",
+        "count": 1,
+        "base_categories": [
+          "미래_리라",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "아하소서",
+        "count": 1,
+        "base_categories": [
+          "의문_판정",
+          "존칭"
+        ]
+      },
+      {
+        "marker": "하소서하더라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_서술지단",
+          "존칭"
+        ]
+      },
+      {
+        "marker": "하라한데",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "리니이다하니",
+        "count": 1,
+        "base_categories": [
+          "미래_리니",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "니이다하되",
+        "count": 1,
+        "base_categories": [
+          "승상_이니",
+          "존칭",
+          "상반_호되",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "아호되",
+        "count": 1,
+        "base_categories": [
+          "의문_판정",
+          "상반_호되"
+        ]
+      },
+      {
+        "marker": "아하니이다",
+        "count": 1,
+        "base_categories": [
+          "의문_판정",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "하시니다",
+        "count": 1,
+        "base_categories": [
+          "과거_러니",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하소서하여늘",
+        "count": 1,
+        "base_categories": [
+          "일의상승_하야",
+          "존칭",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "하시나니",
+        "count": 1,
+        "base_categories": [
+          "승상_이니",
+          "양보_이나이라도"
+        ]
+      },
+      {
+        "marker": "하여사",
+        "count": 1,
+        "base_categories": [
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "니라하시니",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "과거_러니",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "저하니",
+        "count": 1,
+        "base_categories": [
+          "승상_하니",
+          "승상_이니",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "이와라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "직하_조사",
+          "나열_와과"
+        ]
+      },
+      {
+        "marker": "하니잇고",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하노라하니",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "자칭_하노라"
+        ]
+      },
+      {
+        "marker": "으란",
+        "count": 1
+      },
+      {
+        "marker": "하산",
+        "count": 1
+      },
+      {
+        "marker": "여하니",
+        "count": 1,
+        "base_categories": [
+          "승상_하니",
+          "승상_이니",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "라하라하니",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "아는",
+        "count": 1,
+        "base_categories": [
+          "의문_판정",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "리라하며",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "대우_하고하며",
+          "대우_이오이며"
+        ]
+      },
+      {
+        "marker": "로이다하니라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "직하_조사",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "라하라하니라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "하노라하여",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "일의상승_하야",
+          "자칭_하노라",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "ㄴ저하여",
+        "count": 1,
+        "base_categories": [
+          "의문_판정",
+          "일의상승_하야",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "니잇가하니",
+        "count": 1,
+        "base_categories": [
+          "의문_판정",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "ㄹ새니라하니라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "진행_할새",
+          "승상_하니",
+          "승상_이니",
+          "인용"
+        ]
+      },
+      {
+        "marker": "하다하시고",
+        "count": 1,
+        "base_categories": [
+          "단사_기사지단",
+          "의문_설명",
+          "대우_하고하며",
+          "존칭"
+        ]
+      },
+      {
+        "marker": "하리라하시니라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "과거_러니",
+          "미래_리라",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "로라하시니라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "과거_러니",
+          "승상_하니",
+          "승상_이니",
+          "자칭_하노라",
+          "수단_으로"
+        ]
+      },
+      {
+        "marker": "ㄹ새니다",
+        "count": 1,
+        "base_categories": [
+          "진행_할새",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "리이다하나",
+        "count": 1,
+        "base_categories": [
+          "존칭",
+          "양보_이나이라도",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "리이다하되",
+        "count": 1,
+        "base_categories": [
+          "존칭",
+          "상반_호되",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "하니라하나이다",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "승상_하니",
+          "승상_이니",
+          "존칭",
+          "양보_이나이라도",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "라하시니다",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "과거_러니",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "가하니라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_쾌절",
+          "의문_판정",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "하다라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "단사_기사지단"
+        ]
+      },
+      {
+        "marker": "하리라한대",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "주체_한대",
+          "미래_리라"
+        ]
+      },
+      {
+        "marker": "케하다",
+        "count": 1,
+        "base_categories": [
+          "단사_기사지단"
+        ]
+      },
+      {
+        "marker": "하노라하여늘",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "일의상승_하야",
+          "자칭_하노라",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "어다하여늘",
+        "count": 1,
+        "base_categories": [
+          "일의상승_하야",
+          "청원_하라",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "오하리라",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "미래_리라",
+          "의문_설명"
+        ]
+      },
+      {
+        "marker": "니이다하여",
+        "count": 1,
+        "base_categories": [
+          "일의상승_하야",
+          "승상_이니",
+          "존칭",
+          "직하_조사",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "하고서",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며"
+        ]
+      },
+      {
+        "marker": "하라하니이다",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "존칭",
+          "직하_조사",
+          "청원_하라"
+        ]
+      },
+      {
+        "marker": "릿가하니",
+        "count": 1,
+        "base_categories": [
+          "의문_판정",
+          "승상_하니",
+          "승상_이니"
+        ]
+      },
+      {
+        "marker": "니와",
+        "count": 1,
+        "base_categories": [
+          "승상_이니",
+          "나열_와과"
+        ]
+      },
+      {
+        "marker": "ㄴ저라하니이다",
+        "count": 1,
+        "base_categories": [
+          "단사_미절",
+          "의문_판정",
+          "승상_하니",
+          "승상_이니",
+          "인용",
+          "존칭",
+          "직하_조사",
+          "감탄"
+        ]
+      },
+      {
+        "marker": "호리이다하고",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "존칭",
+          "직하_조사"
+        ]
+      },
+      {
+        "marker": "고하며",
+        "count": 1,
+        "base_categories": [
+          "의문_설명",
+          "대우_하고하며",
+          "대우_이오이며"
+        ]
+      }
+    ],
+    "total_count": 18393
+  },
+  "주체_한대": {
+    "description": "주체의 행위, 동일 주어 유지",
+    "source": "이삼환 《구두지남》 구두거요 / 임규직 2번",
+    "markers": [
+      {
+        "marker": "한대",
+        "count": 2501
+      },
+      {
+        "marker": "로대",
+        "count": 195
+      },
+      {
+        "marker": "오한대",
+        "count": 9
+      },
+      {
+        "marker": "아한대",
+        "count": 8
+      },
+      {
+        "marker": "고한대",
+        "count": 3
+      },
+      {
+        "marker": "리오한대",
+        "count": 2
+      },
+      {
+        "marker": "잇고한대",
+        "count": 1
+      },
+      {
+        "marker": "어다한대",
+        "count": 1
+      },
+      {
+        "marker": "하노이다한대",
+        "count": 1
+      },
+      {
+        "marker": "ㄴ저한대",
+        "count": 1
+      }
+    ],
+    "total_count": 2722
+  },
+  "나열_와과": {
+    "description": "낱낱이 셈 / 일일이 거론",
+    "source": "임규직 12번 / 박문호 11번",
+    "markers": [
+      {
+        "marker": "와",
+        "count": 2364
+      }
+    ],
+    "total_count": 2364
+  },
+  "의문_설명": {
+    "description": "설명의문 (何, 豈 등 아래)",
+    "source": "이삼환 《구두지남》 / 박문호 31번",
+    "markers": [
+      {
+        "marker": "리오",
+        "count": 2019
+      },
+      {
+        "marker": "고",
+        "count": 260
+      },
+      {
+        "marker": "리잇고",
+        "count": 75
+      },
+      {
+        "marker": "잇고",
+        "count": 57
+      },
+      {
+        "marker": "니잇고",
+        "count": 25
+      },
+      {
+        "marker": "리요",
+        "count": 14
+      },
+      {
+        "marker": "시니잇고",
+        "count": 11
+      },
+      {
+        "marker": "시리오",
+        "count": 6
+      },
+      {
+        "marker": "시리잇고",
+        "count": 4
+      },
+      {
+        "marker": "이리요",
+        "count": 3
+      },
+      {
+        "marker": "리시오",
+        "count": 1
+      },
+      {
+        "marker": "시리요",
+        "count": 1
+      }
+    ],
+    "total_count": 2476
+  },
+  "상반_호되": {
+    "description": "서로 반대되는 내용",
+    "source": "임규직 9번 / 박문호 21번",
+    "markers": [
+      {
+        "marker": "로되",
+        "count": 1953
+      },
+      {
+        "marker": "호되",
+        "count": 994
+      },
+      {
+        "marker": "하되",
+        "count": 581
+      },
+      {
+        "marker": "하시되",
+        "count": 7
+      },
+      {
+        "marker": "리오하되",
+        "count": 1
+      },
+      {
+        "marker": "아하되",
+        "count": 1
+      },
+      {
+        "marker": "허되",
+        "count": 1
+      }
+    ],
+    "total_count": 3538
+  },
+  "진행_할새": {
+    "description": "한창 진행 중임 (方將)",
+    "source": "임규직 11번 / 박문호 12번",
+    "markers": [
+      {
+        "marker": "라가",
+        "count": 1393
+      },
+      {
+        "marker": "할새",
+        "count": 907
+      },
+      {
+        "marker": "ㄹ새",
+        "count": 455
+      },
+      {
+        "marker": "새",
+        "count": 37
+      },
+      {
+        "marker": "하실새",
+        "count": 21
+      },
+      {
+        "marker": "ㄹ새니",
+        "count": 16
+      },
+      {
+        "marker": "라할새",
+        "count": 3
+      },
+      {
+        "marker": "쇠새",
+        "count": 1
+      },
+      {
+        "marker": "새라",
+        "count": 1
+      }
+    ],
+    "total_count": 2834
+  },
+  "단사_서술지단": {
+    "description": "사건의 전말이나 행적을 서술함",
+    "source": "임규직 《구두해법》",
+    "markers": [
+      {
+        "marker": "러라",
+        "count": 1251
+      }
+    ],
+    "total_count": 1251
+  },
+  "단사_유사이단": {
+    "description": "감탄이나 여운을 남김 (游辭以斷) - 탄사",
+    "source": "임규직 《구두해법》 / 박문호 《이두해》 30번",
+    "markers": [
+      {
+        "marker": "로다",
+        "count": 952
+      }
+    ],
+    "total_count": 952
+  },
+  "미래_리라": {
+    "description": "미래 추측/의지",
+    "source": "이삼환 《구두지남》",
+    "markers": [
+      {
+        "marker": "리라",
+        "count": 872
+      },
+      {
+        "marker": "리다",
+        "count": 3
+      },
+      {
+        "marker": "하리",
+        "count": 1
+      }
+    ],
+    "total_count": 876
+  },
+  "청원_하라": {
+    "description": "금지/청원",
+    "source": "임규직 13번 / 박문호 27번",
+    "markers": [
+      {
+        "marker": "하라",
+        "count": 793
+      },
+      {
+        "marker": "어다",
+        "count": 48
+      }
+    ],
+    "total_count": 841
+  },
+  "자칭_하노라": {
+    "description": "자신을 일컫는 말",
+    "source": "임규직 8번 / 박문호 26번",
+    "markers": [
+      {
+        "marker": "하노라",
+        "count": 743
+      },
+      {
+        "marker": "하노니",
+        "count": 154
+      },
+      {
+        "marker": "호니",
+        "count": 149
+      },
+      {
+        "marker": "호라",
+        "count": 58
+      },
+      {
+        "marker": "일까하노니",
+        "count": 4
+      },
+      {
+        "marker": "이노라",
+        "count": 2
+      },
+      {
+        "marker": "오하노라",
+        "count": 1
+      },
+      {
+        "marker": "케하노라",
+        "count": 1
+      },
+      {
+        "marker": "노라",
+        "count": 1
+      },
+      {
+        "marker": "일까하노라",
+        "count": 1
+      },
+      {
+        "marker": "오하노니",
+        "count": 1
+      }
+    ],
+    "total_count": 1115
+  },
+  "유역_도": {
+    "description": "또한/역시 (猶亦)",
+    "source": "박문호 20번",
+    "markers": [
+      {
+        "marker": "도",
+        "count": 591
+      }
+    ],
+    "total_count": 591
+  },
+  "미래_리니": {
+    "description": "미래/필연 (未來事, 必然事)",
+    "source": "이삼환 《구두지남》 / 박문호 15번",
+    "markers": [
+      {
+        "marker": "하리니",
+        "count": 521
+      },
+      {
+        "marker": "리니",
+        "count": 424
+      },
+      {
+        "marker": "하시리니",
+        "count": 12
+      },
+      {
+        "marker": "호리니",
+        "count": 7
+      },
+      {
+        "marker": "아하리니",
+        "count": 1
+      },
+      {
+        "marker": "시리니",
+        "count": 1
+      },
+      {
+        "marker": "케호리니",
+        "count": 1
+      }
+    ],
+    "total_count": 967
+  },
+  "미분류": {
+    "description": "미분류",
+    "source": "",
+    "markers": [
+      {
+        "marker": "컨대",
+        "count": 443
+      },
+      {
+        "marker": "타",
+        "count": 18
+      },
+      {
+        "marker": "다",
+        "count": 17
+      },
+      {
+        "marker": "한",
+        "count": 10
+      },
+      {
+        "marker": "릿고",
+        "count": 5
+      },
+      {
+        "marker": "인",
+        "count": 3
+      },
+      {
+        "marker": "케라",
+        "count": 2
+      },
+      {
+        "marker": "나라",
+        "count": 2
+      },
+      {
+        "marker": "리아",
+        "count": 1
+      },
+      {
+        "marker": "홉다",
+        "count": 1
+      },
+      {
+        "marker": "라고",
+        "count": 1
+      },
+      {
+        "marker": "에늘",
+        "count": 1
+      },
+      {
+        "marker": "히여",
+        "count": 1
+      },
+      {
+        "marker": "대",
+        "count": 1
+      },
+      {
+        "marker": "로서",
+        "count": 1
+      },
+      {
+        "marker": "아마는",
+        "count": 1
+      },
+      {
+        "marker": "와라",
+        "count": 1
+      },
+      {
+        "marker": "랏다",
+        "count": 1
+      },
+      {
+        "marker": "릿까",
+        "count": 1
+      },
+      {
+        "marker": "이리가",
+        "count": 1
+      },
+      {
+        "marker": "오라",
+        "count": 1
+      },
+      {
+        "marker": "러면",
+        "count": 1
+      },
+      {
+        "marker": "라오",
+        "count": 1
+      }
+    ],
+    "total_count": 515
+  },
+  "개괄_히": {
+    "description": "대략적으로 묶음 (槩括)",
+    "source": "박문호 29번",
+    "markers": [
+      {
+        "marker": "히",
+        "count": 383
+      }
+    ],
+    "total_count": 383
+  },
+  "감탄": {
+    "description": "감탄/호격 표현",
+    "source": "구두 전통",
+    "markers": [
+      {
+        "marker": "여",
+        "count": 373
+      },
+      {
+        "marker": "저",
+        "count": 145
+      },
+      {
+        "marker": "야",
+        "count": 14
+      },
+      {
+        "marker": "인져",
+        "count": 9
+      },
+      {
+        "marker": "온여",
+        "count": 8
+      },
+      {
+        "marker": "져",
+        "count": 3
+      },
+      {
+        "marker": "시여",
+        "count": 1
+      },
+      {
+        "marker": "ㄴ져",
+        "count": 1
+      }
+    ],
+    "total_count": 554
+  },
+  "필수조건_라야": {
+    "description": "필수 조건 (~라야, ~이라야)",
+    "source": "구두 전통",
+    "markers": [
+      {
+        "marker": "라야",
+        "count": 215
+      },
+      {
+        "marker": "에야",
+        "count": 18
+      },
+      {
+        "marker": "라사",
+        "count": 2
+      },
+      {
+        "marker": "오사",
+        "count": 2
+      },
+      {
+        "marker": "오야",
+        "count": 1
+      }
+    ],
+    "total_count": 238
+  },
+  "점층": {
+    "description": "점층/심화 (况, 矧 위) - 하물며",
+    "source": "이삼환 / 박문호 18번",
+    "markers": [
+      {
+        "marker": "온",
+        "count": 200
+      }
+    ],
+    "total_count": 200
+  },
+  "이유_ㄹ새라": {
+    "description": "이유 표현 (~ㄹ새, ~일새)",
+    "source": "구두 전통",
+    "markers": [
+      {
+        "marker": "ㄹ새라",
+        "count": 71
+      },
+      {
+        "marker": "일세",
+        "count": 2
+      },
+      {
+        "marker": "ㄹ새요",
+        "count": 1
+      }
+    ],
+    "total_count": 74
+  },
+  "제외_구두점": {
+    "description": "구두점 - 현토 아님",
+    "source": "오류",
+    "markers": [
+      {
+        "marker": "ㆍ",
+        "count": 60
+      }
+    ],
+    "total_count": 60
+  },
+  "지속_타가": {
+    "description": "동작 지속 후 전환 (~다가)",
+    "source": "구두 전통",
+    "markers": [
+      {
+        "marker": "타가",
+        "count": 58
+      }
+    ],
+    "total_count": 58
+  },
+  "양보_언만": {
+    "description": "양보 표현 (~건만, ~언정)",
+    "source": "구두 전통",
+    "markers": [
+      {
+        "marker": "언만",
+        "count": 54
+      },
+      {
+        "marker": "언정",
+        "count": 48
+      },
+      {
+        "marker": "언마는",
+        "count": 36
+      }
+    ],
+    "total_count": 138
+  }
+}
