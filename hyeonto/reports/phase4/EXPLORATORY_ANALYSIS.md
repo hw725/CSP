@@ -1,156 +1,155 @@
-?# ?먯깋??遺꾩꽍 媛?대뱶
+# 탐색적 분석 가이드
 
 > **Version**: v6.9.4 Final  
 > **Data Scale**: Sentence 150,545 / Phrase 366,222
 
-??臾몄꽌???듭떖 K=4 遺꾩꽍 ?댁쇅??異붽?濡??섑뻾 媛?ν븳 ?먯깋??遺꾩꽍?ㅼ쓣 ?ㅻ챸?⑸땲??
-?ㅽ겕由쏀듃??`scripts/exploratory/` ?대뜑???꾩튂?⑸땲??
+이 문서는 핵심 K=4 분석 이외에 추가로 수행 가능한 탐색적 분석들을 설명합니다.
+스크립트는 `scripts/exploratory/` 폴더에 위치합니다.
 
 ---
 
-## 紐⑹감
+## 목차
 
-1. [?댁긽移?遺꾩꽍 (Outlier Detection)](#1-?댁긽移?遺꾩꽍-outlier-detection)
-2. [N-gram ?쒗??遺꾩꽍](#2-n-gram-?쒗??遺꾩꽍)
-3. [怨듦린??遺꾩꽍 (Co-occurrence Network)](#3-怨듦린??遺꾩꽍-co-occurrence-network)
-4. [?뚯슫 ?⑦꽩 遺꾩꽍 (Phonetic Pattern)](#4-?뚯슫-?⑦꽩-遺꾩꽍-phonetic-pattern)
-5. [怨좉툒 ?쒓컖??(#5-怨좉툒-?쒓컖??
+1. [이상치 분석 (Outlier Detection)](#1-이상치-분석-outlier-detection)
+2. [N-gram 시퀀스 분석](#2-n-gram-시퀀스-분석)
+3. [공기어 분석 (Co-occurrence Network)](#3-공기어-분석-co-occurrence-network)
+4. [음운 패턴 분석 (Phonetic Pattern)](#4-음운-패턴-분석-phonetic-pattern)
+5. [고급 시각화](#5-고급-시각화)
 
 ---
 
-## 1. ?댁긽移?遺꾩꽍 (Outlier Detection)
+## 1. 이상치 분석 (Outlier Detection)
 
-?대윭?ㅽ꽣 以묒떖?먯꽌 媛??硫由??⑥뼱吏?寃쎄퀎 ?좏겙???앸퀎?⑸땲??
+클러스터 중심에서 가장 멀리 떨어진 경계 토큰을 식별합니다.
 
-### ?ㅽ뻾
+### 실행
 
 ```bash
 cd scripts/exploratory
 python analyze_outliers.py --level sentence --k 4
 ```
 
-### 異쒕젰 ?꾩튂
+### 출력 위치
 - `reports/exploratory/outliers_sentence/`
 
-### 二쇱슂 異쒕젰
-| ?뚯씪 | ?ㅻ챸 |
+### 주요 출력
+| 파일 | 설명 |
 |:-----|:-----|
-| `outlier_analysis_sentence.md` | ?댁긽移??곸꽭 蹂닿퀬??|
-| `outlier_stats.json` | ?듦퀎 ?곗씠??|
+| `outlier_analysis_sentence.md` | 이상치 상세 보고서 |
+| `outlier_stats.json` | 통계 데이터 |
 
-### ?댁꽍 ?ъ씤??
-- ?댁긽移섍? ?뱀젙 ?λⅤ??吏묒쨷 ???대떦 ?λⅤ???꾪넗 泥닿퀎媛 鍮꾩젙?뺤쟻
-- ?댁긽移섍? 怨좎뼱(?ㅸ첑) 留덉빱瑜??ы븿 ???대윭?ㅽ꽣留곸씠 ?몄뼱 蹂?붾? 媛먯?
+### 해석 포인트
+- 이상치가 특정 장르에 집중 → 해당 장르의 현토 체계가 비정형적
+- 이상치가 고어(古語) 마커를 포함 → 클러스터링이 언어 변화를 감지
 
 ---
 
-## 2. N-gram ?쒗??遺꾩꽍
+## 2. N-gram 시퀀스 분석
 
-?꾪넗 留덉빱???곗냽 ?⑦꽩??遺꾩꽍?섏뿬 ?λⅤ蹂?臾몃쾿 援ъ“瑜??뚯븙?⑸땲??
+현토 마커의 연속 패턴을 분석하여 장르별 문법 구조를 파악합니다.
 
-### ?ㅽ뻾
+### 실행
 
 ```bash
 cd scripts/exploratory
 python analyze_ngram_sequences.py --level phrase --n 3
 ```
 
-### 異쒕젰 ?꾩튂
+### 출력 위치
 - `reports/exploratory/ngram_phrase/`
 
-### 二쇱슂 異쒕젰
-| ?뚯씪 | ?ㅻ챸 |
+### 주요 출력
+| 파일 | 설명 |
 |:-----|:-----|
-| `ngram_analysis_phrase.md` | N-gram 鍮덈룄 遺꾩꽍 蹂닿퀬??|
-| `top_ngrams.json` | ?곸쐞 N-gram 紐⑸줉 (JSON) |
+| `ngram_analysis_phrase.md` | N-gram 빈도 분석 보고서 |
+| `top_ngrams.json` | 상위 N-gram 목록 (JSON) |
 
-### ?댁꽍 ?ъ씤??
-- ?λⅤ蹂??뱀씠 N-gram??議댁옱 ??媛??λⅤ??臾몃쾿???좏샇?꾨? 諛섏쁺
-- 諛섎났?섎뒗 ?⑦꽩 ???뺥삎?붾맂 援щЦ 援ъ“ (?? `???????? = ?섏뿴 援ъ“)
+### 해석 포인트
+- 장르별 특이 N-gram이 존재 → 각 장르의 문법적 선호도를 반영
+- 반복되는 패턴 → 정형화된 구문 구조 (예: `는,요,는,라` = 나열 구조)
 
 ---
 
-## 3. 怨듦린??遺꾩꽍 (Co-occurrence Network)
+## 3. 공기어 분석 (Co-occurrence Network)
 
-?쒖옄? ?꾪넗 留덉빱??怨듦린 愿怨꾨? ?ㅽ듃?뚰겕濡??쒓컖?뷀빀?덈떎.
+한자와 현토 마커의 공기 관계를 네트워크로 시각화합니다.
 
-### ?ㅽ뻾
+### 실행
 
 ```bash
 cd scripts/exploratory
 python analyze_cooccurrence_normalized.py --level sentence
 ```
 
-### 異쒕젰 ?꾩튂
-- `reports/exploratory/cooccurrence_normalized/` (?뺢퇋??踰꾩쟾, 沅뚯옣)
-- `reports/exploratory/cooccurrence_phrase/` (Phrase ?섏?)
+### 출력 위치
+- `reports/exploratory/cooccurrence_normalized/` (정규화 버전, 권장)
+- `reports/exploratory/cooccurrence_phrase/` (Phrase 수준)
 
-### 二쇱슂 異쒕젰
-| ?뚯씪 | ?ㅻ챸 |
+### 주요 출력
+| 파일 | 설명 |
 |:-----|:-----|
-| `cooccurrence_analysis_normalized.md` | 怨듦린 遺꾩꽍 蹂닿퀬??|
-| `cooccurrence_network_normalized.html` | ?명꽣?숉떚釉??ㅽ듃?뚰겕 |
+| `cooccurrence_analysis_normalized.md` | 공기 분석 보고서 |
+| `cooccurrence_network_normalized.html` | 인터랙티브 네트워크 |
 
-### ?댁꽍 ?ъ씤??
-- 媛뺥븳 怨듦린 愿怨????섎?-臾몃쾿 ?곌껐??洹쒕쾾??
-- ?덈툕 ?몃뱶 ???ㅼ뼇??臾몃㎘?먯꽌 ?ъ슜?섎뒗 踰붿슜 留덉빱
+### 해석 포인트
+- 강한 공기 관계 → 의미-문법 연결의 규범화
+- 허브 노드 → 다양한 문맥에서 사용되는 범용 마커
 
-### ?뱀닔 湲곕뒫
-- **?몄뇙???묐갚 紐⑤뱶**: 釉뚮씪?곗??먯꽌 ?몄뇙(Ctrl+P) ???먮룞?쇰줈 ?묐갚 蹂?섎맖
+### 특수 기능
+- **인쇄용 흑백 모드**: 브라우저에서 인쇄(Ctrl+P) 시 자동으로 흑백 변환됨
 
 ---
 
-## 4. ?뚯슫 ?⑦꽩 遺꾩꽍 (Phonetic Pattern)
+## 4. 음운 패턴 분석 (Phonetic Pattern)
 
-?꾪넗 留덉빱??珥덉꽦/醫낆꽦 遺꾪룷瑜?遺꾩꽍?섏뿬 ?뚯슫濡좎쟻 ?뱀꽦???뚯븙?⑸땲??
+현토 마커의 초성/종성 분포를 분석하여 음운론적 특성을 파악합니다.
 
-### ?ㅽ뻾
+### 실행
 
 ```bash
 cd scripts/exploratory
 python analyze_phonetic_patterns.py --level sentence --level phrase
 ```
 
-### 異쒕젰 ?꾩튂
+### 출력 위치
 - `reports/exploratory/phonetic/`
 
-### 二쇱슂 異쒕젰
-| ?뚯씪 | ?ㅻ챸 |
+### 주요 출력
+| 파일 | 설명 |
 |:-----|:-----|
-| `phonetic_analysis_sentence+phrase.md` | ?뚯슫 ?⑦꽩 醫낇빀 蹂닿퀬??|
-| `phonetic_heatmap.png` | 珥덉꽦횞醫낆꽦 ?덊듃留?|
+| `phonetic_analysis_sentence+phrase.md` | 음운 패턴 종합 보고서 |
+| `phonetic_heatmap.png` | 초성×종성 히트맵 |
 
-### ?댁꽍 ?ъ씤??
-- ?뱀젙 珥덉꽦/醫낆꽦??鍮덈룄 ?몄쨷 ???꾪넗???뚯슫濡좎쟻 議고솕 ?먮━
-- ?대윭?ㅽ꽣蹂??뚯슫 遺꾪룷 李⑥씠 ???λⅤ蹂?諛쒗솕 ?뱀꽦 諛섏쁺
+### 해석 포인트
+- 특정 초성/종성의 빈도 편중 → 현토의 음운론적 조화 원리
+- 클러스터별 음운 분포 차이 → 장르별 발화 특성 반영
 
 ---
 
-## 5. 怨좉툒 ?쒓컖??
+## 5. 고급 시각화
 
-異붽??곸씤 遺꾩꽍???쒓컖?붾? ?쒓났?⑸땲??
+추가적인 분석적 시각화를 제공합니다.
 
-### 異쒕젰 ?꾩튂
+### 출력 위치
 - `reports/exploratory/viz_advanced_sentence/`
 
-### 二쇱슂 ?쒓컖??
-| ?뚯씪 | ?ㅻ챸 |
+### 주요 시각화
+| 파일 | 설명 |
 |:-----|:-----|
-| `advanced_cluster_viz.html` | Sentence ?대윭?ㅽ꽣 怨좉툒 ?곗젏??(諛??湲곕컲) |
+| `advanced_cluster_viz.html` | Sentence 클러스터 고급 산점도 (밀도 기반) |
 
 ---
 
-## 遺꾩꽍 ?섏〈 愿怨?
+## 분석 의존 관계
 
 ```
 [run_full_pipeline.py] 
-    ??
-embedding_cache.pkl (?꾩닔 ?좏뻾)
-    ??
+    ↓
+embedding_cache.pkl (필수 선행)
+    ↓
 [exploratory scripts]
-    ??
+    ↓
 reports/exploratory/*
 ```
 
-> **李멸퀬**: ?먯깋??遺꾩꽍 ?ㅽ겕由쏀듃??紐⑤몢 `embedding_cache.pkl`???앹꽦???꾩뿉 ?ㅽ뻾?댁빞 ?⑸땲?? 罹먯떆 ?앹꽦?먮뒗 ??40遺?GPU 湲곗?) / 6?쒓컙(CPU 湲곗?)???뚯슂?⑸땲??
-?"(c9bfe0b46f5f7097b29a8f99d3ee94a0e38df5c92Tfile:///c:/Users/junto/Downloads/head-repo/hw725/CSP/hyeonto/EXPLORATORY_ANALYSIS.md:4file:///c:/Users/junto/Downloads/head-repo/hw725/CSP
+> **참고**: 탐색적 분석 스크립트는 모두 `embedding_cache.pkl`이 생성된 후에 실행해야 합니다. 캐시 생성에는 약 40분(GPU 기준) / 6시간(CPU 기준)이 소요됩니다.

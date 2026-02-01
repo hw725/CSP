@@ -1,0 +1,44 @@
+{
+  "analysis": "Level 3: 기사지단 (하다 장르별 분석)",
+  "total_records": 364007,
+  "total_hada": 13128,
+  "by_genre": [
+    {
+      "genre": "역사서",
+      "total": 132364,
+      "hada_count": 9968,
+      "ratio": 7.53074854189961
+    },
+    {
+      "genre": "문집",
+      "total": 196184,
+      "hada_count": 3143,
+      "ratio": 1.6020674468865963
+    },
+    {
+      "genre": "경전",
+      "total": 21278,
+      "hada_count": 17,
+      "ratio": 0.07989472694802144
+    },
+    {
+      "genre": "시",
+      "total": 14181,
+      "hada_count": 0,
+      "ratio": 0.0
+    },
+    {
+      "genre": "기타",
+      "total": 0,
+      "hada_count": 0,
+      "ratio": 0.0
+    }
+  ],
+  "chi2_test": {
+    "history_vs_non_history": {
+      "chi2": 9211.875016849563,
+      "p_value": 0.0,
+      "reject_h0": true
+    }
+  }
+}

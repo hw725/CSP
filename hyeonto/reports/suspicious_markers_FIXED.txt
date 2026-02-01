@@ -1,0 +1,110 @@
+?�ǽ� ��Ŀ ��� Ȯ��
+================================================================================
+
+
+### �ƴ� (1��)
+  ����: �������ƴ�
+  ������: �ļ��� ���ϰ� �� ��������
+  marker: �ƴ�
+  marker_normalized: �ƴ�
+  marker_final: �ƴ�
+  book_name: ����ȴ밡��������1
+---
+
+### ��� (1��)
+  ����: ���奶��
+  ������: ��(�)���� ����(ҳ��)�� �һ�(���)�̾��� �����̴�.
+  marker: ���
+  marker_normalized: ���
+  marker_final: ���
+  book_name: �����¾���5
+---
+
+### ���� (1��)
+  ����: ��������������
+  ������: ������ ������ �׺��� ���� ���������
+  marker: ����
+  marker_normalized: ����
+  marker_final: ����
+  book_name: �����¾���6
+---
+
+### �� (1��)
+  ����: ������(��)��
+  ������: ����� �ϻ��ϸ鼭
+  marker: ��
+  marker_normalized: ��
+  marker_final: ��
+  book_name: ����ȴ밡���ʱ����6
+---
+
+### �� (1��)
+  ����: ?(��)������
+  ������: ���(?��) ������(������),
+  marker: ��
+  marker_normalized: ��
+  marker_final: ��
+  book_name: ����ȴ밡���ʱ����6
+---
+
+### ħ (1��)
+  ����: ?(ħ)���������
+  ������: ������ ġ�� ȣ�� ġ�⸦
+  marker: ħ
+  marker_normalized: ħ
+  marker_final: ħ
+  book_name: ����ȴ밡���ʱ����6
+---
+
+### ġ (1��)
+  ����: �������?(ġ)��������������
+  ������: ������(�����)�� ū ���ܿ� ���� ���� �԰�(���) �ȿ��� ���ð� �ϰ��� ���ϱ⸦
+  marker: ġ
+  marker_normalized: ġ
+  marker_final: ġ
+  book_name: ����ȴ밡���ʱ����6
+---
+
+### �� (1��)
+  ����: ��������?(��)
+  ������: �� 1õ 5�� ��(?),
+  marker: ��
+  marker_normalized: ��
+  marker_final: ��
+  book_name: ����ȴ밡���ʱ����6
+---
+
+### �� (1��)
+  ����: ����?չ(��)߲�����
+  ������: ����(���), ����(?�), ����(չ�) �� ��(�)�� �ڻ�(����)
+  marker: ��
+  marker_normalized: ��
+  marker_final: ��
+  book_name: ����ȴ밡���ʱ����6
+---
+
+### �� (1��)
+  ����: ����?(��)����
+  ������: ���������� ��¢�⸦
+  marker: ��
+  marker_normalized: ��
+  marker_final: ��
+  book_name: ����ȴ밡���ʱ����6
+---
+
+### �� (2��)
+  ����: �������(��)�����
+  ������: ����(����)�� ��¾����� ��Ź�ϸ� ���ϱ⸦
+  marker: ��
+  marker_normalized: ��
+  marker_final: ��
+  book_name: ����ȴ밡���ʱ����6
+---
+  ����: ��(��)������٤����������
+  ������: �� �������� ��Ƴ����� �Ƶ��� ����(����)���� ����(�٤)�ϱ⸦
+  marker: ��
+  marker_normalized: ��
+  marker_final: ��
+  book_name: ������������2
+---
+?"(c9bfe0b46f5f7097b29a8f99d3ee94a0e38df5c92[file:///c:/Users/junto/Downloads/head-repo/hw725/CSP/hyeonto/reports/suspicious_markers.txt:4file:///c:/Users/junto/Downloads/head-repo/hw725/CSP
