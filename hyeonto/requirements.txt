@@ -1,0 +1,13 @@
+# Hyeonto Research Dependencies
+# Python 3.10.11+ required
+
+pandas>=2.0.0
+scipy>=1.10.0
+tqdm>=4.65.0
+numpy>=1.24.0
+
+# Optional: LLM API for Level 1, 2 validation
+openai>=1.0.0
+
+# Optional: XML parsing (for data preparation)
+lxml>=4.9.0

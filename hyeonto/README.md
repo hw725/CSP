@@ -25,9 +25,21 @@ git clone -b research/dansa-phase5 https://github.com/<repo>/CSP.git
 cd CSP/hyeonto
 ```
 
-### 2. 환경 설정
+### 2. 환경 요구사항
+
+| 항목 | 요구사항 |
+|------|----------|
+| **Python** | 3.10.11+ |
+| **Docker** | ❌ 불필요 |
+| **GPU** | ❌ 불필요 |
+| **OS** | Windows / macOS / Linux |
+
 ```bash
-pip install pandas scipy tqdm openai
+# 패키지 설치
+pip install -r requirements.txt
+
+# 또는 직접 설치
+pip install pandas scipy tqdm numpy openai
 ```
 
 ### 3. 핵심 검증 실행
