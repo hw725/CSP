@@ -1,0 +1,25 @@
+�
+미분류 마커: 103개
+================================================================================
+호대 (776): 卽欲爲一書以賀호대 → 즉시 편지 한 통을 써서 축하하고 싶었으나
+컨대 (443): 臣伏覩朝旨컨대 → 신이 삼가 조정의 뜻을 보건대
+로라 (386): 中夜三起로라 → 한밤중에 세 번씩이나 벌떡 일어나곤 합니다.
+여 (373): 濟濟多士여 → “많고 많은 선비들이여!
+라야 (215): 惟能不次而用之라야 → 오직 상규(常規)에 구애되지 않고 기용해야
+온 (200): 尙當爲之온 → 응당 해야 할 터인데
+로대 (195): 十有餘年이로대 → 10여 년이 되었는데,
+python : Traceback (most recent call last):
+위치 줄:1 문자:1
++ python check_results.py > reports/unclassified_check.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent c 
+   all last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "C:\Users\junto\Downloads\head-repo\hw725\CSP\hyeonto\check_res
+ults.py", line 23, in <module>
+    print(f'{marker} ({count}): {orig} → {trans}')
+UnicodeEncodeError: 'cp949' codec can't encode character '\u1102' in p
+osition 15: illegal multibyte sequence
+�
+"(c9bfe0b46f5f7097b29a8f99d3ee94a0e38df5c92[file:///c:/Users/junto/Downloads/head-repo/hw725/CSP/hyeonto/reports/unclassified_check.txt:4file:///c:/Users/junto/Downloads/head-repo/hw725/CSP

@@ -1,0 +1,110 @@
+�의심 마커 용례 확인
+================================================================================
+
+
+### 아는 (1건)
+  원문: 其傳後아는
+  번역문: 후세에 전하게 할 것인지는
+  marker: 아는
+  marker_normalized: 아는
+  marker_final: 아는
+  book_name: 당송팔대가문초한유1
+---
+
+### 라오 (1건)
+  원문: 齊出也라오
+  번역문: 제(齊)나라 여인(女人)의 소생(所生)이었기 때문이다.
+  marker: 라오
+  marker_normalized: 라오
+  marker_final: 라오
+  book_name: 춘추좌씨전5
+---
+
+### 러면 (1건)
+  원문: 吾早從夫子러면
+  번역문: “내가 일찍이 그분의 말을 따랐더라면
+  marker: 러면
+  marker_normalized: 러면
+  marker_final: 러면
+  book_name: 춘추좌씨전6
+---
+
+### 뢰 (1건)
+  원문: 有賜賚(뢰)曰
+  번역문: 상급을 하사하면서
+  marker: 뢰
+  marker_normalized: 뢰
+  marker_final: 뢰
+  book_name: 당송팔대가문초구양수6
+---
+
+### 빈 (1건)
+  원문: 豳(빈)王宗輅
+  번역문: 빈왕(豳王) 왕종로(王宗輅),
+  marker: 빈
+  marker_normalized: 빈
+  marker_final: 빈
+  book_name: 당송팔대가문초구양수6
+---
+
+### 침 (1건)
+  원문: 揕(침)其胸而呼曰
+  번역문: 가슴을 치며 호통 치기를
+  marker: 침
+  marker_normalized: 침
+  marker_final: 침
+  book_name: 당송팔대가문초구양수6
+---
+
+### 치 (1건)
+  원문: 知祥酌大巵(치)從車中飮之而謂曰
+  번역문: 맹지상(孟知祥)이 큰 술잔에 술을 따라 함거(檻車) 안에서 마시게 하고는 말하기를
+  marker: 치
+  marker_normalized: 치
+  marker_final: 치
+  book_name: 당송팔대가문초구양수6
+---
+
+### 근 (1건)
+  원문: 茶千五百觔(근)
+  번역문: 차 1천 5백 근(觔),
+  marker: 근
+  marker_normalized: 근
+  marker_final: 근
+  book_name: 당송팔대가문초구양수6
+---
+
+### 람 (1건)
+  원문: 歷朔忻嵐(람)三州刺史
+  번역문: 삭주(朔州), 흔주(忻州), 남주(嵐州) 세 주(州)의 자사(刺史)
+  marker: 람
+  marker_normalized: 람
+  marker_final: 람
+  book_name: 당송팔대가문초구양수6
+---
+
+### 초 (1건)
+  원문: 德光誚(초)之曰
+  번역문: 야율덕광이 꾸짖기를
+  marker: 초
+  marker_normalized: 초
+  marker_final: 초
+  book_name: 당송팔대가문초구양수6
+---
+
+### 촉 (2건)
+  원문: 以莊宗屬(촉)承業曰
+  번역문: 장종(莊宗)을 장승업에게 부탁하며 말하기를
+  marker: 촉
+  marker_normalized: 촉
+  marker_final: 촉
+  book_name: 당송팔대가문초구양수6
+---
+  원문: 屬(촉)其兄弟而命其子尊己曰
+  번역문: 그 형제간을 모아놓고서 아들인 존기(尊己)에게 유명(遺命)하기를
+  marker: 촉
+  marker_normalized: 촉
+  marker_final: 촉
+  book_name: 예기집설대전2
+---
+�"(c9bfe0b46f5f7097b29a8f99d3ee94a0e38df5c92[file:///c:/Users/junto/Downloads/head-repo/hw725/CSP/hyeonto/reports/suspicious_markers.txt:4file:///c:/Users/junto/Downloads/head-repo/hw725/CSP
