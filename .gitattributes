@@ -1,0 +1,17 @@
+# Git attributes for Hyeonto project
+
+# Ensure consistent line endings
+* text=auto
+
+# Merge strategy: keep ours for research branch specific files
+hyeonto/README.md merge=ours
+hyeonto/requirements.txt merge=ours
+
+# Binary files
+*.png binary
+*.jpg binary
+*.html binary
+
+# Data files - no merge (keep version in target branch)
+hyeonto/data/*.csv binary
+hyeonto/results/*.json merge=ours
