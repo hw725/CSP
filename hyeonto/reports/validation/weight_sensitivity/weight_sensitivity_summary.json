@@ -36,7 +36,7 @@
     "canonicity_delta_uniform_to_strong": 22.83191992275102,
     "entropy_delta_uniform_to_strong": 0.0
   },
-  "analysis_date": "2026-01-27T16:18:21.168095",
+  "analysis_date": "2026-02-01T12:06:21.927320",
   "data_source": "reports\\sentence_k4_normalized\\sentence_clusters.csv",
   "n_records": 150545,
   "recommended_scenario": "strong"
