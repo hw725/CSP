@@ -2378,7 +2378,8 @@ def process_paragraph_file(
             
             models_root = Path(__file__).parent.parent / "models"
             boundary_path = models_root / "boundary_multitask.pt"
-            alignment_path = models_root / "dual_encoder_boundary_aware_pa.pt"
+            # 원본 이름이 없으면 p2s 정렬 모델 사용
+            alignment_path = models_root / "dual_encoder_alignment_p2s.pt"
             
             if not boundary_path.exists():
                 raise FileNotFoundError(f"경계 모델 파일 없음: {boundary_path}")

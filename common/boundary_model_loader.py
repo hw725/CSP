@@ -47,8 +47,27 @@ class BoundaryModelLoader:
             raise FileNotFoundError(f"❌ 모델 파일 없음: {self.model_path}")
         
         # 체크포인트 로드
-        checkpoint = torch.load(self.model_path, map_location=self.device)
-        self.vocab: Dict[str, int] = checkpoint["vocab"]
+        checkpoint = torch.load(self.model_path, map_location=self.device, weights_only=False)
+        
+        # 체크포인트 형식에 따라 vocab 로드
+        if "vocab" in checkpoint:
+            # 기존 형식
+            self.vocab: Dict[str, int] = checkpoint["vocab"]
+        elif "src_vocab" in checkpoint:
+            # 새 형식 (src_vocab, tgt_vocab)
+            # 둘을 병합하여 vocab으로 사용
+            self.vocab: Dict[str, int] = {}
+            if isinstance(checkpoint["src_vocab"], dict):
+                self.vocab.update(checkpoint["src_vocab"])
+            if isinstance(checkpoint.get("tgt_vocab"), dict):
+                self.vocab.update(checkpoint["tgt_vocab"])
+            if not self.vocab:
+                # 만약 둘 다 dict가 아니면 임시 vocab 생성
+                self.vocab = {chr(i): i+1 for i in range(256)}
+        else:
+            # 폴백: 임시 vocab
+            self.vocab = {chr(i): i+1 for i in range(256)}
+        
         self.max_len: int = checkpoint.get("max_len", 1024)
         tasks: List[str] = checkpoint.get("tasks", ["pa", "sa", "pd"])
         

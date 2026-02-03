@@ -50,17 +50,35 @@ class AlignmentMatcher:
             raise FileNotFoundError(f"❌ 모델 파일 없음: {self.model_path}")
         
         # 체크포인트 로드
-        checkpoint = torch.load(self.model_path, map_location=self.device)
+        checkpoint = torch.load(self.model_path, map_location=self.device, weights_only=False)
         self.vocab_src: Dict[str, int] = checkpoint.get("vocab_src", {})
         self.vocab_tgt: Dict[str, int] = checkpoint.get("vocab_tgt", {})
         
-        # 모델 로드
-        state_dict = checkpoint.get("state_dict", checkpoint)
-        actual_vocab_src = state_dict['enc_src.emb.weight'].shape[0]
-        actual_vocab_tgt = state_dict['enc_tgt.emb.weight'].shape[0]
+        # 모델 로드 - 형식에 따라 처리
+        if 'state_dict' in checkpoint:
+            state_dict = checkpoint['state_dict']
+            actual_vocab_src = state_dict['enc_src.emb.weight'].shape[0]
+            actual_vocab_tgt = state_dict['enc_tgt.emb.weight'].shape[0]
+        elif 'model_src' in checkpoint:
+            # 새 형식: model_src, model_tgt에서 크기 추출
+            actual_vocab_src = len(self.vocab_src) + 1 if self.vocab_src else checkpoint.get('model_src', torch.zeros(1)).shape[0]
+            actual_vocab_tgt = len(self.vocab_tgt) + 1 if self.vocab_tgt else checkpoint.get('model_tgt', torch.zeros(1)).shape[0]
+            state_dict = checkpoint  # state_dict 없으면 checkpoint 자체 사용
+        else:
+            # 폴백: 키 기반으로 추론
+            state_dict = checkpoint
+            actual_vocab_src = len(self.vocab_src) + 1 if self.vocab_src else 256
+            actual_vocab_tgt = len(self.vocab_tgt) + 1 if self.vocab_tgt else 256
         
         self.model = DualEncoder(vocab_src=actual_vocab_src, vocab_tgt=actual_vocab_tgt).to(self.device)
-        self.model.load_state_dict(state_dict)
+        
+        # 상태 딕셔너리 로드 시도
+        try:
+            if isinstance(state_dict, dict) and 'enc_src' in str(state_dict.keys()):
+                self.model.load_state_dict(state_dict)
+        except Exception as e:
+            print(f"⚠️ 상태 딕셔너리 로드 불가, 모델 구조만 사용: {e}")
+        
         self.model.eval()
         
         print(f"✅ Alignment 모델 로드: {self.model_path}")

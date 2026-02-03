@@ -2,7 +2,7 @@
 """End-to-end (TRAIN-ONLY): P2S alignment 학습(train.csv만) → P2S(strict) 실행 → gold F1 평가.
 
 원칙
-- 학습: datasets/p2s/train.csv만 사용 (PD는 학습하지 않음)
+- 학습: datasets/sentence/train.csv만 사용 (PD는 학습하지 않음)
 - negative: 별도 파일 없이 in-batch contrastive로 train에서 자동 생성
 - 평가 입력: PD는 "P2S 실행을 위한 입력 문단"으로만 사용
 
@@ -71,8 +71,8 @@ def main() -> int:
     # train (P2S sentence-parallel)
     parser.add_argument(
         "--train-csv",
-        default=str(WORKSPACE_ROOT / "datasets" / "p2s" / "train.csv"),
-        help="P2S 학습용 train.csv (기본: datasets/p2s/train.csv)",
+        default=str(WORKSPACE_ROOT / "datasets" / "sentence" / "train.csv"),
+        help="P2S 학습용 train.csv (기본: datasets/sentence/train.csv)",
     )
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--batch", type=int, default=64)
@@ -110,13 +110,13 @@ def main() -> int:
         help="P2S 입력(문단병렬). PD는 학습이 아니라 입력용 (기본: datasets/pd/test_10.csv)",
     )
 
-    default_gold_100 = WORKSPACE_ROOT / "datasets" / "p2s" / "test_100.csv"
+    default_gold_100 = WORKSPACE_ROOT / "datasets" / "sentence" / "test_100.csv"
     default_gold_10 = WORKSPACE_ROOT / "test_results" / "gold_subset_from_pd_test10.csv"
     default_gold = default_gold_100 if default_gold_100.exists() else default_gold_10
     parser.add_argument(
         "--gold",
         default=str(default_gold),
-        help="gold(문장 단위) (기본: datasets/p2s/test_100.csv가 있으면 우선 사용, 없으면 test_results/gold_subset_from_pd_test10.csv)",
+        help="gold(문장 단위) (기본: datasets/sentence/test_100.csv가 있으면 우선 사용, 없으면 test_results/gold_subset_from_pd_test10.csv)",
     )
     parser.add_argument(
         "--out-dir",
@@ -150,7 +150,7 @@ def main() -> int:
     if not args.skip_train:
         train_cmd = [
             sys.executable,
-            str(WORKSPACE_ROOT / "scripts" / "train_p2s_alignment_dual_encoder.py"),
+            str(WORKSPACE_ROOT / "scripts" / "train_sentence_alignment.py"),
             "--train-csv",
             str(args.train_csv),
             "--epochs",
@@ -182,10 +182,10 @@ def main() -> int:
         pd_input_name = Path(str(args.pd_input)).name
         gold_name = Path(str(args.gold)).name
         if pd_input_name == "test_100.csv" and gold_name == "test_100.csv":
-            from_pd_gold = WORKSPACE_ROOT / "datasets" / "p2s" / "test_100_from_pd.csv"
+            from_pd_gold = WORKSPACE_ROOT / "datasets" / "sentence" / "test_100_from_pd.csv"
             if from_pd_gold.exists():
                 print(
-                    "\n[warn] 현재 입력은 datasets/pd/test_100.csv인데 gold를 datasets/p2s/test_100.csv로 지정했습니다."
+                    "\n[warn] 현재 입력은 datasets/pd/test_100.csv인데 gold를 datasets/sentence/test_100.csv로 지정했습니다."
                     "\n       PD→P2S 평가 기준 리포트와 점수가 다르게 나올 수 있습니다."
                     f"\n       (참고) 이 입력에 흔히 대응하는 gold: {from_pd_gold}"
                 )

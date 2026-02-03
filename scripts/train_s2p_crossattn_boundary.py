@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""SA Cross-Attention 경계 모델 학습
+"""S2P Cross-Attention 경계 모델 학습
 
-원문-번역문 쌍을 입력으로 받아 번역문의 구 경계를 예측
+구-번역 쌍을 입력으로 받아 번역문의 구 경계를 예측
 - 원문과 번역문 간 Cross-Attention으로 의미 대응 학습
 - 원문 구 구조를 참조하여 번역문 경계 결정
 
 Usage:
-    python scripts/train_sa_crossattn_boundary.py --epochs 10
+    python scripts/train_s2p_crossattn_boundary.py --epochs 3
 """
 
 import sys
@@ -22,13 +22,13 @@ import torch
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
 
-DATASETS_ROOT = Path(__file__).resolve().parents[1] / "datasets"
-MODELS_ROOT = Path(__file__).resolve().parents[1] / "models"
+WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
+MODELS_ROOT = WORKSPACE_ROOT / "models"
 
 
-def load_sa_phrase_pairs(csv_path: Path) -> List[Dict]:
+def load_sa_phrase_pairs(excel_path: Path) -> List[Dict]:
     """
-    SA CSV를 로드하여 문장별로:
+    S2P Excel을 로드하여 문장별로:
     - 전체 원문 (구들 연결)
     - 전체 번역문 (구들 연결)
     - 번역문 B/O 레이블
@@ -36,15 +36,15 @@ def load_sa_phrase_pairs(csv_path: Path) -> List[Dict]:
     Returns:
         [{"src": "원문", "tgt": "번역문", "labels": "BOOOOB..."}, ...]
     """
-    df = pd.read_csv(csv_path)
+    df = pd.read_excel(excel_path)
     
     # 문장별로 그룹핑
     sent_groups = defaultdict(list)
     for _, row in df.iterrows():
-        sent_id = row['문장식별자']
-        phrase_id = row['구식별자']
-        src = str(row['원문']).strip()
-        tgt = str(row['번역문']).strip()
+        sent_id = row.iloc[0]  # 첫 번째 열: 문장식별자
+        phrase_id = row.iloc[1]  # 두 번째 열: 구식별자
+        src = str(row.iloc[2]).strip()  # 세 번째 열: 원문
+        tgt = str(row.iloc[3]).strip()  # 네 번째 열: 번역문
         sent_groups[sent_id].append((phrase_id, src, tgt))
     
     samples = []
@@ -213,48 +213,11 @@ class CrossAttnBoundaryModel(nn.Module):
         return logits
 
 
-def compute_f1(logits: torch.Tensor, labels: torch.Tensor, 
-               lengths: torch.Tensor, threshold: float = 0.5) -> Tuple[float, float, float]:
-    """마스킹된 위치 제외하고 F1 계산"""
-    preds = torch.sigmoid(logits) >= threshold
-    
-    tp = fp = fn = 0
-    batch_size = logits.shape[0]
-    
-    for i in range(batch_size):
-        length = lengths[i].item()
-        pred = preds[i, :length]
-        gold = labels[i, :length] > 0.5
-        
-        tp += (pred & gold).sum().item()
-        fp += (pred & ~gold).sum().item()
-        fn += (~pred & gold).sum().item()
-    
-    p = tp / (tp + fp + 1e-8)
-    r = tp / (tp + fn + 1e-8)
-    f1 = 2 * p * r / (p + r + 1e-8)
-    return p, r, f1
-
-
-def evaluate(model, loader, device):
-    model.eval()
-    total_p, total_r, total_f = 0, 0, 0
-    n = 0
-    with torch.no_grad():
-        for src, tgt, labels, lengths in loader:
-            src, tgt, labels = src.to(device), tgt.to(device), labels.to(device)
-            logits = model(src, tgt)
-            p, r, f = compute_f1(logits, labels, lengths)
-            total_p += p
-            total_r += r
-            total_f += f
-            n += 1
-    return {"p": total_p / n, "r": total_r / n, "f1": total_f / n}
-
-
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="SA Cross-Attention 경계 모델 학습")
+    parser = argparse.ArgumentParser(description="Train S2P Cross-Attention Boundary Model")
+    parser.add_argument("--train-excel", type=str, default="dataset_split/phrase_train.xlsx",
+                        help="훈련용 Excel 파일")
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch", type=int, default=32)
     parser.add_argument("--src-max-len", type=int, default=256)
@@ -268,12 +231,14 @@ def main():
     print(f"🖥️ Device: {device}")
     
     # 데이터 로드
-    print("📂 Loading SA phrase pair data...")
-    train_samples = load_sa_phrase_pairs(DATASETS_ROOT / "sa" / "train.csv")
-    val_samples = load_sa_phrase_pairs(DATASETS_ROOT / "sa" / "val.csv")
-    test_samples = load_sa_phrase_pairs(DATASETS_ROOT / "sa" / "test.csv")
+    print("📂 Loading S2P phrase pair data from Excel...")
+    train_excel = Path(WORKSPACE_ROOT) / args.train_excel
+    if not train_excel.exists():
+        raise FileNotFoundError(f"파일 없음: {train_excel}")
     
-    print(f"📊 Train: {len(train_samples)}, Val: {len(val_samples)}, Test: {len(test_samples)}")
+    train_samples = load_sa_phrase_pairs(train_excel)
+    
+    print(f"📊 Loaded {len(train_samples)} samples")
     
     # 샘플 확인
     if train_samples:
@@ -285,20 +250,14 @@ def main():
         print(f"     num_phrases={s['num_phrases']}")
     
     # Vocab
-    src_vocab, tgt_vocab = build_vocab(train_samples + val_samples)
+    src_vocab, tgt_vocab = build_vocab(train_samples)
     print(f"📚 Source vocab: {len(src_vocab)}, Target vocab: {len(tgt_vocab)}")
     
-    # 데이터셋
+    # 데이터셋 (train만 사용)
     train_ds = CrossAttnBoundaryDataset(train_samples, src_vocab, tgt_vocab, 
                                          args.src_max_len, args.tgt_max_len)
-    val_ds = CrossAttnBoundaryDataset(val_samples, src_vocab, tgt_vocab,
-                                       args.src_max_len, args.tgt_max_len)
-    test_ds = CrossAttnBoundaryDataset(test_samples, src_vocab, tgt_vocab,
-                                        args.src_max_len, args.tgt_max_len)
     
     train_loader = DataLoader(train_ds, batch_size=args.batch, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=args.batch)
-    test_loader = DataLoader(test_ds, batch_size=args.batch)
     
     # 모델
     model = CrossAttnBoundaryModel(
@@ -343,22 +302,15 @@ def main():
         
         scheduler.step()
         
-        val_scores = evaluate(model, val_loader, device)
-        print(f"  [Epoch {epoch:2d}] loss={total_loss/len(train_loader):.4f} | val P={val_scores['p']:.4f} R={val_scores['r']:.4f} F1={val_scores['f1']:.4f}")
+        avg_loss = total_loss / len(train_loader)
+        print(f"  [Epoch {epoch:2d}] loss={avg_loss:.4f}")
         
-        if val_scores['f1'] > best_f1:
-            best_f1 = val_scores['f1']
-            best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+        best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
     
     # 최고 모델로 테스트
-    if best_state:
-        model.load_state_dict(best_state)
-    test_scores = evaluate(model, test_loader, device)
-    print(f"\n📈 Test: P={test_scores['p']:.4f} R={test_scores['r']:.4f} F1={test_scores['f1']:.4f}")
-    
     # 저장
     MODELS_ROOT.mkdir(parents=True, exist_ok=True)
-    save_path = MODELS_ROOT / "sa_crossattn_boundary.pt"
+    save_path = MODELS_ROOT / "s2p_crossattn_boundary.pt"
     torch.save({
         "state_dict": best_state if best_state else model.state_dict(),
         "src_vocab": src_vocab,
@@ -367,9 +319,9 @@ def main():
         "tgt_max_len": args.tgt_max_len,
         "hidden": args.hidden,
         "emb_dim": args.emb_dim,
-        "test_scores": test_scores,
     }, save_path)
-    print(f"💾 Saved: {save_path}")
+    print(f"💾 S2P 경계 모델 저장: {save_path}")
+    print(f"✅ S2P Cross-Attention Boundary 학습 완료!")
 
 
 if __name__ == "__main__":

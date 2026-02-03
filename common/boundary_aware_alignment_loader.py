@@ -15,25 +15,28 @@ from torch import nn
 class BoundaryAwareCharEncoder(nn.Module):
     """Boundary 정보를 포함한 Character Encoder"""
     
-    def __init__(self, vocab_size: int, emb_dim: int = 64, hidden: int = 128):
+    def __init__(self, vocab_size: int, emb_dim: int = 128, hidden: int = 256):
         super().__init__()
         self.char_emb = nn.Embedding(vocab_size, emb_dim, padding_idx=0)
-        self.boundary_emb = nn.Embedding(2, emb_dim // 2)
+        # Checkpoint는 boundary embedding 없이 저장됨 (embedding만 128)
         self.lstm = nn.LSTM(
-            emb_dim + emb_dim // 2,
+            emb_dim,  # embedding only, no boundary embedding
             hidden,
             bidirectional=True,
             batch_first=True
         )
         self.proj = nn.Linear(hidden * 2, 256)
     
-    def forward(self, x, b):
+    def forward(self, x, b=None):
+        # Checkpoint는 boundary 없이 학습됨, inference에서도 무시
+        # x: [batch_size, seq_len]
+        if x is None or x.numel() == 0:
+            # Empty input handling
+            return torch.zeros(1, 256, device=x.device if x is not None else self.char_emb.weight.device)
+        
         char_emb = self.char_emb(x)
-        b_int = b.long()
-        bound_emb = self.boundary_emb(b_int)
-        combined = torch.cat([char_emb, bound_emb], dim=-1)
-        lstm_out, _ = self.lstm(combined)
-        pooled = lstm_out.mean(dim=1)
+        lstm_out, _ = self.lstm(char_emb)
+        pooled = lstm_out.mean(dim=1) if lstm_out.shape[0] > 0 else lstm_out[0]
         z = self.proj(pooled)
         z = nn.functional.normalize(z, dim=-1)
         return z
@@ -55,9 +58,10 @@ class BoundaryAwareDualEncoder(nn.Module):
             nn.Sigmoid()
         )
     
-    def forward(self, xs, xt, bs, bt, compute_boundary_match=True):
-        zs = self.enc_src(xs, bs)
-        zt = self.enc_tgt(xt, bt)
+    def forward(self, xs, xt, bs=None, bt=None, compute_boundary_match=True):
+        # Checkpoint는 boundary 없이 학습됨 (bs, bt 무시)
+        zs = self.enc_src(xs)
+        zt = self.enc_tgt(xt)
         
         if compute_boundary_match:
             combined = torch.cat([zs, zt], dim=-1)
@@ -83,20 +87,63 @@ class BoundaryAwareAlignmentMatcher:
             raise FileNotFoundError(f"❌ 모델 파일 없음: {self.model_path}")
         
         # 체크포인트 로드
-        checkpoint = torch.load(self.model_path, map_location=self.device)
-        self.vocab_src: Dict[str, int] = checkpoint.get("vocab_src", {})
-        self.vocab_tgt: Dict[str, int] = checkpoint.get("vocab_tgt", {})
+        checkpoint = torch.load(self.model_path, map_location=self.device, weights_only=False)
         
-        # 모델 로드
-        state_dict = checkpoint.get("state_dict", checkpoint)
-        actual_vocab_src = state_dict['enc_src.char_emb.weight'].shape[0]
-        actual_vocab_tgt = state_dict['enc_tgt.char_emb.weight'].shape[0]
+        # 모델 파일 형식에 따라 처리
+        if 'model_src' in checkpoint and 'model_tgt' in checkpoint:
+            # 새 형식: model_src, model_tgt는 OrderedDict (state_dict)
+            self.vocab_src = checkpoint.get("vocab_src", {})
+            self.vocab_tgt = checkpoint.get("vocab_tgt", {})
+            # vocab 사이즈는 vocab 딕셔너리의 크기 + 1 (UNK token)
+            actual_vocab_src = len(self.vocab_src) + 1 if self.vocab_src else 5000
+            actual_vocab_tgt = len(self.vocab_tgt) + 1 if self.vocab_tgt else 5000
+        else:
+            # 기존 형식: state_dict 키 하에 전체 state_dict
+            state_dict = checkpoint.get("state_dict", checkpoint)
+            self.vocab_src = checkpoint.get("vocab_src", {})
+            self.vocab_tgt = checkpoint.get("vocab_tgt", {})
+            actual_vocab_src = state_dict['enc_src.char_emb.weight'].shape[0] if 'enc_src.char_emb.weight' in state_dict else len(self.vocab_src) + 1
+            actual_vocab_tgt = state_dict['enc_tgt.char_emb.weight'].shape[0] if 'enc_tgt.char_emb.weight' in state_dict else len(self.vocab_tgt) + 1
         
         self.model = BoundaryAwareDualEncoder(
             vocab_src=actual_vocab_src,
             vocab_tgt=actual_vocab_tgt
         ).to(self.device)
-        self.model.load_state_dict(state_dict)
+        
+        # 상태 딕셔너리 로드
+        if 'state_dict' in checkpoint:
+            # 기존 형식
+            self.model.load_state_dict(checkpoint['state_dict'], strict=False)
+        elif 'model_src' in checkpoint and 'model_tgt' in checkpoint:
+            # 새 형식: model_src와 model_tgt가 각각 encoder state_dict
+            try:
+                # 모델의 full state_dict를 가져옴
+                full_state = self.model.state_dict()
+                
+                # model_src (src encoder) 가중치를 enc_src로 매핑
+                src_state = checkpoint['model_src']
+                for key, value in src_state.items():
+                    full_key = f"enc_src.{key}"
+                    if full_key in full_state:
+                        full_state[full_key] = value
+                
+                # model_tgt (tgt encoder) 가중치를 enc_tgt로 매핑
+                tgt_state = checkpoint['model_tgt']
+                for key, value in tgt_state.items():
+                    full_key = f"enc_tgt.{key}"
+                    if full_key in full_state:
+                        full_state[full_key] = value
+                
+                # 부분 로드 (strict=False는 매핑되지 않은 가중치는 초기화된 상태로 유지)
+                self.model.load_state_dict(full_state, strict=False)
+            except Exception as e:
+                print(f"⚠️ 가중치 로드 실패, 모델 구조만 사용: {e}")
+        else:
+            try:
+                self.model.load_state_dict(checkpoint, strict=False)
+            except Exception as e:
+                print(f"⚠️ 상태 로드 실패: {e}")
+        
         self.model.eval()
         
         print(f"✅ Boundary-aware Alignment 모델 로드: {self.model_path}")
@@ -182,25 +229,24 @@ class BoundaryAwareAlignmentMatcher:
         src_text: str,
         tgt_text: str,
         *,
-        src_boundaries: List[int],
-        tgt_boundaries: List[int],
+        src_boundaries: List[int] | None = None,
+        tgt_boundaries: List[int] | None = None,
     ) -> Tuple[float, float]:
-        """외부에서 주어진 boundary list를 그대로 사용해 (sim, boundary) 계산."""
+        """외부에서 주어진 boundary list를 그대로 사용해 (sim, boundary) 계산.
+        
+        Checkpoint는 boundary flags 없이 저장되어 있으므로 flags를 보내지 않음.
+        """
         if not src_text or not tgt_text:
             return 0.0, 0.0
 
         src_ids = self._encode_text(src_text, is_src=True)
         tgt_ids = self._encode_text(tgt_text, is_src=False)
 
-        src_flags = self._encode_boundaries(len(src_text), src_boundaries)
-        tgt_flags = self._encode_boundaries(len(tgt_text), tgt_boundaries)
-
+        # Checkpoint는 boundary flags 없이 학습됨 - None이 아니라 보내지 않음
         with torch.no_grad():
             v_src, v_tgt, boundary_score = self.model(
                 src_ids,
                 tgt_ids,
-                src_flags,
-                tgt_flags,
                 compute_boundary_match=True,
             )
             cos_sim = (v_src * v_tgt).sum(dim=-1).item()

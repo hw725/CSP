@@ -40,11 +40,11 @@ for i in range(1, 8):
 for i in range(1, 9):
     GENRE_MAPPING[f"춘추좌씨전{i}"] = "역사서(史書)"
 for prefix in ["당송팔대가문초", "당시삼백수"]:
-    for book in df["book_name"].unique():
+    for book in df["book"].unique():
         if book.startswith(prefix[:4]):
             GENRE_MAPPING[book] = "문집(集部)"
 
-df["genre"] = df["book_name"].map(GENRE_MAPPING).fillna("문집(集部)")
+df["genre"] = df["book"].map(GENRE_MAPPING).fillna("문집(集部)")
 
 # 1인칭 표지 'ㅗ' 마커 정의
 # 언어학적 분류:
@@ -186,7 +186,7 @@ for marker in ["하노이다", "호되", "로소이다", "하노라", "호리라
             examples.append({
                 "marker": marker,
                 "genre": row["genre"],
-                "book_name": row["book_name"],
+                "book": row["book"],
                 "src_right": row.get("src_right", ""),
                 "tgt_right": row.get("tgt_right", ""),
                 "marker_right": row.get("marker_right", ""),
@@ -194,7 +194,7 @@ for marker in ["하노이다", "호되", "로소이다", "하노라", "호리라
 
 for ex in examples[:15]:
     info = FIRST_PERSON_MARKERS.get(ex["marker"], {"meaning": "-"})
-    print(f"\n**{ex['marker']}** ({info['meaning']}) - {ex['book_name']}")
+    print(f"\n**{ex['marker']}** ({info['meaning']}) - {ex['book']}")
     print(f"  원문: {ex['src_right'][:80]}...")
     print(f"  번역: {ex['tgt_right'][:80]}...")
 
@@ -255,7 +255,7 @@ with open(report_path, "w", encoding="utf-8") as f:
             f.write(f"### `{current_marker}` ({info['type']})\n\n")
             f.write(f"의미: {info['meaning']}\n\n")
         
-        f.write(f"**{ex['book_name']}** ({ex['genre']})\n")
+        f.write(f"**{ex['book']}** ({ex['genre']})\n")
         f.write(f"- 원문: {ex['src_right']}\n")
         f.write(f"- 번역: {ex['tgt_right']}\n\n")
     

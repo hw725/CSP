@@ -85,7 +85,7 @@ GENRE_MAPPING = {
     "예기집설대전2": "예학(禮學)",
 }
 
-df["genre"] = df["book_name"].map(GENRE_MAPPING).fillna("기타")
+df["genre"] = df["book"].map(GENRE_MAPPING).fillna("기타")
 
 print("\n=== 장르별 분포 ===")
 genre_dist = df["genre"].value_counts()
@@ -166,7 +166,7 @@ def extract_representative_examples(df, genre, specific_markers, n=5):
             for _, row in sample.iterrows():
                 examples.append({
                     "genre": genre,
-                    "book_name": row["book_name"],
+                    "book": row["book"],
                     "marker": marker,
                     "src_left": row.get("src_left", ""),
                     "src_right": row.get("src_right", ""),
@@ -230,7 +230,7 @@ with open(report_md, "w", encoding="utf-8") as f:
             current_genre = ex["genre"]
             f.write(f"### {current_genre}\n\n")
         
-        f.write(f"**서명**: {ex['book_name']} | **마커**: `{ex['marker']}`\n\n")
+        f.write(f"**서명**: {ex['book']} | **마커**: `{ex['marker']}`\n\n")
         f.write(f"- **원문(左)**: {ex['src_left']}\n")
         f.write(f"- **원문(右)**: {ex['src_right']}\n")
         f.write(f"- **번역(左)**: {ex['tgt_left']}\n")

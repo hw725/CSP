@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""Train dual-encoder alignment model for SA using TRAIN-ONLY CSV.
+"""Train sentence alignment model (원문 문장 ↔ 번역문 문장)
 
 핵심 원칙:
-- 학습 데이터는 train만 사용 (val/test 사용 금지)
+- 학습 데이터: sentence_train.xlsx → CSV (원문, 번역문)
 - 원문(src)과 번역문(tgt) 쌍을 동시에 학습
 - Hard Negative: 같은 배치 내 다른 쌍을 negative로 사용
-- 출력: models/dual_encoder_alignment_sa.pt
-
-PA 버전(train_alignment_dual_encoder_trainonly.py)을 SA에 맞게 수정.
+- 출력: models/sentence_alignment.pt (P2S 파이프라인용)
 """
 
 from __future__ import annotations
@@ -26,8 +24,8 @@ WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
 MODELS_ROOT = WORKSPACE_ROOT / "models"
 
 
-class SaTrainCsvDataset(Dataset):
-    """SA 학습용 데이터셋 (원문-번역문 구 단위 쌍)"""
+class SentenceAlignmentDataset(Dataset):
+    """원문 문장 ↔ 번역문 문장 정렬 데이터셋 (CSV 기반)"""
     
     def __init__(
         self,
@@ -35,20 +33,16 @@ class SaTrainCsvDataset(Dataset):
         build_vocab: bool = False,
         vocab_src=None,
         vocab_tgt=None,
-        max_len: int = 256,  # SA는 구 단위라 PA보다 짧음
-        enable_hard_neg: bool = False,
-        hard_neg_mode: str = "prefix_token",
+        max_len: int = 512,
     ):
         self.csv_path = csv_path
         self.max_len = max_len
-        self.enable_hard_neg = enable_hard_neg
-        self.hard_neg_mode = hard_neg_mode
         
         # CSV 로드
         df = pd.read_csv(csv_path, dtype=str)
         df = df.fillna("")
         
-        # SA 컬럼: 원문, 번역문
+        # CSV 컬럼: 원문, 번역문
         self.src_texts = df["원문"].tolist()
         self.tgt_texts = df["번역문"].tolist()
         
@@ -57,7 +51,7 @@ class SaTrainCsvDataset(Dataset):
         self.src_texts = [p[0] for p in valid_pairs]
         self.tgt_texts = [p[1] for p in valid_pairs]
         
-        print(f"📂 Loaded {len(self.src_texts)} SA pairs from {csv_path}")
+        print(f"📂 Loaded {len(self.src_texts)} sentence pairs from {csv_path}")
         
         # Vocab 구축 또는 재사용
         if build_vocab:
@@ -123,18 +117,59 @@ class DualEncoder(nn.Module):
         return v_src, v_tgt
 
 
+def train_epoch(model, train_loader, optimizer, device, temperature=0.07):
+    """한 에포크 훈련"""
+    model.train()
+    total_loss = 0.0
+    n_batches = 0
+    
+    for xs, xt in train_loader:
+        xs = xs.to(device)
+        xt = xt.to(device)
+        
+        v_src, v_tgt = model(xs, xt)
+        
+        # 유사도 행렬 [batch, batch]
+        sim = torch.matmul(v_src, v_tgt.T) / temperature
+        
+        # 정답: 대각선
+        labels = torch.arange(xs.size(0), device=device)
+        
+        # Loss
+        loss_src_to_tgt = nn.CrossEntropyLoss()(sim, labels)
+        loss_tgt_to_src = nn.CrossEntropyLoss()(sim.T, labels)
+        loss = (loss_src_to_tgt + loss_tgt_to_src) / 2
+        
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        
+        total_loss += loss.item()
+        n_batches += 1
+    
+    return total_loss / max(1, n_batches)
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Train SA Dual-Encoder Alignment")
-    parser.add_argument("--train-csv", type=str, default="datasets/s2p/train.csv",
-                        help="학습용 SA CSV 경로")
+    parser = argparse.ArgumentParser(description="Train Sentence Alignment Model")
+    parser.add_argument("--train-csv", type=str, default="datasets/sentence/train.csv",
+                        help="학습용 CSV 경로")
     parser.add_argument("--epochs", type=int, default=10, help="에포크 수")
     parser.add_argument("--batch", type=int, default=128, help="배치 크기")
     parser.add_argument("--lr", type=float, default=1e-3, help="학습률")
-    parser.add_argument("--max-len", type=int, default=256, help="최대 시퀀스 길이")
+    parser.add_argument("--max-len", type=int, default=512, help="최대 시퀀스 길이")
     parser.add_argument("--device", type=str, default="cuda", help="디바이스")
-    parser.add_argument("--out", type=str, default="models/dual_encoder_alignment_s2p.pt",
+    parser.add_argument("--out", type=str, default="models/sentence_alignment.pt",
                         help="출력 모델 경로")
     parser.add_argument("--trace", type=str, default=None, help="Trace JSONL 경로")
+    # train_p2s_boundary.py에서 전달하는 옵션들 (무시)
+    parser.add_argument("--max-steps", type=int, default=0, help="(unused)")
+    parser.add_argument("--temperature", type=float, default=0.07, help="(unused)")
+    parser.add_argument("--seed", type=int, default=0, help="(unused)")
+    parser.add_argument("--hard-neg-mode", type=str, default="prefix_token", help="(unused)")
+    parser.add_argument("--hard-neg-weight", type=float, default=0.5, help="(unused)")
+    parser.add_argument("--hard-neg-margin", type=float, default=0.15, help="(unused)")
+    parser.add_argument("--enable-hard-neg", action="store_true", help="(unused)")
     args = parser.parse_args()
     
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
@@ -142,7 +177,7 @@ def main():
     
     # 데이터 로드
     train_csv = WORKSPACE_ROOT / args.train_csv
-    train_ds = SaTrainCsvDataset(train_csv, build_vocab=True, max_len=args.max_len)
+    train_ds = SentenceAlignmentDataset(train_csv, build_vocab=True, max_len=args.max_len)
     train_loader = DataLoader(train_ds, batch_size=args.batch, shuffle=True, num_workers=0)
     
     print(f"📊 Vocab sizes: src={len(train_ds.vocab_src)}, tgt={len(train_ds.vocab_tgt)}")
@@ -193,7 +228,7 @@ def main():
                 "epoch": epoch,
                 "loss": avg_loss,
                 "timestamp": datetime.now().isoformat(),
-                "stage": "train_sa_alignment",
+                "stage": "train_sentence_alignment",
             })
     
     # 모델 저장
@@ -222,7 +257,7 @@ def main():
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
         print(f"📝 Trace saved: {trace_path}")
     
-    print("✅ SA Dual-Encoder Alignment 학습 완료!")
+    print("✅ 원문 ↔ 번역문 정렬 모델 훈련 완료!")
     return 0
 
 

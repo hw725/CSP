@@ -96,7 +96,8 @@ class CrossAttnBoundaryTaggerLoader:
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
         
         if model_path is None:
-            model_path = Path(__file__).parent.parent / "models" / "sa_crossattn_boundary.pt"
+            # s2p_crossattn_boundary.pt 파일이 실제 모델이므로 경로 조정
+            model_path = Path(__file__).parent.parent / "models" / "s2p_crossattn_boundary.pt"
         
         if not model_path.exists():
             raise FileNotFoundError(f"Cross-Attention 경계 모델 없음: {model_path}")
@@ -118,9 +119,29 @@ class CrossAttnBoundaryTaggerLoader:
             hidden=self.hidden,
         ).to(self.device)
         
-        # 체크포인트 키 호환성 (state_dict 또는 model_state_dict)
+        # 체크포인트 키 호환성
         state_dict_key = "state_dict" if "state_dict" in checkpoint else "model_state_dict"
-        self.model.load_state_dict(checkpoint[state_dict_key])
+        loaded_state = checkpoint[state_dict_key]
+        
+        # 키 이름 변환 (checkpoint: src_emb/src_encoder → model: src_char_emb/src_char_encoder)
+        remapped_state = {}
+        for k, v in loaded_state.items():
+            # src_emb.* → src_char_emb.*
+            if k.startswith("src_emb."):
+                remapped_state["src_char_" + k] = v
+            # tgt_emb.* → tgt_char_emb.*
+            elif k.startswith("tgt_emb."):
+                remapped_state["tgt_char_" + k] = v
+            # src_encoder.* → src_char_encoder.*
+            elif k.startswith("src_encoder."):
+                remapped_state["src_char_" + k] = v
+            # tgt_encoder.* → tgt_char_encoder.*
+            elif k.startswith("tgt_encoder."):
+                remapped_state["tgt_char_" + k] = v
+            else:
+                remapped_state[k] = v
+        
+        self.model.load_state_dict(remapped_state, strict=False)
         self.model.eval()
         
         print(f"✅ Cross-Attention 경계 태거 로드 완료 (src_vocab={len(self.src_vocab)}, tgt_vocab={len(self.tgt_vocab)}, device={self.device})")

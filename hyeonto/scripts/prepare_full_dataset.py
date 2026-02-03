@@ -116,7 +116,7 @@ def load_saseo_samgyeong():
                 '문장식별자': sid,
                 '원문': src['text'],
                 '번역문': tgt_text,
-                'book_name': book_name
+                'book': book_name
             })
         
         print(f"  {book_name}: {len(src_sentences):,}문장")
@@ -144,7 +144,7 @@ def main():
         '문장식별자': '문장식별자', 
         '원문': '원문',
         '번역문': '번역문',
-        'book_name': 'book_name'
+        'book': 'book'
     })
     
     sentence_full = pd.concat([sentence_43_renamed, saseo_df], ignore_index=True)
