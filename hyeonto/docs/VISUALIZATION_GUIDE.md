@@ -2,16 +2,16 @@
 
 본 문서는 hyeonto 프로젝트에서 생성된 다양한 시각화 자료를 올바르게 해석하기 위한 지침을 제공합니다.
 
-> **? 분석 단위 (v7.0 K=3)**
+> **📊 분석 단위 (v7.0 K=3)**
 > - **Sentence**: 문장 단위 클러스터링 (183,322건)
 > - **Phrase**: 구 단위 클러스터링 (643,357건)
 
 ---
 
-## ? 1. Sentence ↔ Phrase 클러스터 Sankey Diagram - ? BEST
+## 1️⃣ Sentence ↔ Phrase 클러스터 Sankey Diagram (⭐ 추천)
 
 **경로**: 
-- 균등(1:1): `../report_1-1/visualizations_k3/p2s_k3_s2p_k3_sankey.html`
+- 균등(1:1): `../report_1-1/visualizations_k3/sentence_k3_phrase_k3_sankey.html`
 - 균등↔가중 전환: `../report_3-1/sentence_uniform_vs_weighted_sankey.html`
 
 ### 해석 방법
@@ -29,7 +29,7 @@
 
 ---
 
-## ? 2. 3D/2D UMAP 임베딩 오버레이
+## 2️⃣ 3D/2D UMAP 임베딩 오버레이
 
 **경로**:
 - `../report_1-1/visualizations_k3/k3_embedding_overlay_3d.html` (3D - 권장)
@@ -51,7 +51,7 @@
 
 ---
 
-## ? 3. 한자-현토 공기 네트워크
+## 3️⃣ 한자-현토 공기 네트워크
 
 **경로**: (레거시 산출물 — 현재 레포 미포함)
 
@@ -70,7 +70,7 @@ v6.9.4에서는 **Print-Ready Grayscale 모드**가 추가되었습니다:
 
 ---
 
-## ? 4. 서종 분포 비교 차트
+## 4️⃣ 서종 분포 비교 차트
 
 **경로**: `../report_1-1/visualizations_k3/k3_sentence_phrase_overlay_normalized.html`
 
@@ -85,7 +85,7 @@ v6.9.4에서는 **Print-Ready Grayscale 모드**가 추가되었습니다:
 
 ---
 
-## ? 5. 대시보드 사용법
+## 5️⃣ 대시보드 사용법
 
 **경로**: `../../analytics/monitoring_dashboard.html`
 
@@ -111,7 +111,7 @@ cd hyeonto/reports
 
 ---
 
-## ? 6. 클러스터 프로파일 해석
+## 6️⃣ 클러스터 프로파일 해석
 
 **경로**:
 - `../report_1-1/sentence_k3_normalized/sentence_cluster_profile.md`
@@ -132,7 +132,7 @@ cd hyeonto/reports
 
 ---
 
-## ?? 7. 부가 분석 결과
+## 7️⃣ 부가 분석 결과
 
 ### 1인칭 표지 분석
 

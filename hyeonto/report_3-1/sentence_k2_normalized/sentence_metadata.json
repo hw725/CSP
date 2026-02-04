@@ -1,0 +1,10 @@
+{
+  "total_samples": 183322,
+  "num_clusters": 2,
+  "cluster_sizes": {
+    "1": 95131,
+    "0": 88191
+  },
+  "reweighted": true,
+  "canon_weight": 3.0
+}

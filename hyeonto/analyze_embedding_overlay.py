@@ -8,7 +8,7 @@ Sentence(문장경계)와 Phrase(구경계)의 K=3 클러스터를 같은 공간
 
 UMAP을 사용하여 고차원 임베딩을 2D 또는 3D로 축소합니다.
 
---grayscale 옵션: 흑백 인쇄용 시각화 생성
+기본값: 흑백 인쇄용 그레이스케일 시각화 (마커 심볼로 클러스터 구분)
 
 """
 
@@ -393,17 +393,17 @@ def generate_2d_viz(
 
         .control-group {{
 
-            background: rgba(255,255,255,0.05); padding: 12px 20px; border-radius: 10px;
+            background: rgba(0,0,0,0.03); border: 1px solid #ddd; padding: 12px 20px; border-radius: 10px;
 
         }}
 
-        .control-group label {{ color: #4ecca3; margin-right: 10px; }}
+        .control-group label {{ color: #333; font-weight: bold; margin-right: 10px; }}
 
         .control-group select, .control-group input {{
 
-            background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2);
+            background: #fff; border: 1px solid #ccc;
 
-            color: #fff; padding: 6px 12px; border-radius: 6px;
+            color: #000; padding: 6px 12px; border-radius: 6px;
 
         }}
 
@@ -417,7 +417,7 @@ def generate_2d_viz(
 
         <h1>Sentence/Phrase K=3 임베딩 오버레이 (2D UMAP)</h1>
 
-        <p class="subtitle">정규화 반영 | Sentence: 빨강계열, Phrase: 초록계열</p>
+        <p class="subtitle">정규화 반영 | Sentence: 실선 마커, Phrase: 삼각형·별형 마커</p>
 
         <div class="controls">
 
@@ -425,7 +425,7 @@ def generate_2d_viz(
 
                 <label>포인트 크기:</label>
 
-                <input type="range" id="point-size" min="2" max="10" value="4" onchange="updatePlot()">
+                <input type="range" id="point-size" min="2" max="14" value="6" onchange="updatePlot()">
 
             </div>
 
@@ -433,7 +433,7 @@ def generate_2d_viz(
 
                 <label>투명도:</label>
 
-                <input type="range" id="opacity" min="10" max="100" value="50" onchange="updatePlot()">
+                <input type="range" id="opacity" min="10" max="100" value="80" onchange="updatePlot()">
 
             </div>
 
@@ -477,9 +477,21 @@ def generate_2d_viz(
 
                 if (showMode === 'both' || (showMode === 'sentence' && t.type === 'Sentence') || (showMode === 'phrase' && t.type === 'Phrase')) {{
 
-                    const markerConfig = {{ size: pointSize, color: t.color, opacity: opacity }};
+                    const isSentence = t.type === 'Sentence';
 
-                    if (t.symbol) {{ markerConfig.symbol = t.symbol; }}
+                    const markerConfig = {{
+
+                        size: pointSize,
+
+                        symbol: t.symbol || 'circle',
+
+                        opacity: isSentence ? opacity : opacity * 0.9,
+
+                        color: isSentence ? t.color : 'rgba(255,255,255,0)',
+
+                        line: {{ color: t.color, width: isSentence ? 1 : 2.5 }}
+
+                    }};
 
                     traces.push({{
 
@@ -497,13 +509,13 @@ def generate_2d_viz(
 
             Plotly.react('scatter-plot', traces, {{
 
-                paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+                paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff',
 
-                xaxis: {{ title: 'UMAP-1', color: '#fff', gridcolor: 'rgba(255,255,255,0.1)' }},
+                xaxis: {{ title: 'UMAP-1', color: '#000', gridcolor: '{grid_color}' }},
 
-                yaxis: {{ title: 'UMAP-2', color: '#fff', gridcolor: 'rgba(255,255,255,0.1)' }},
+                yaxis: {{ title: 'UMAP-2', color: '#000', gridcolor: '{grid_color}' }},
 
-                legend: {{ font: {{ color: '#fff' }}, bgcolor: 'rgba(0,0,0,0.3)' }},
+                legend: {{ font: {{ color: '#000' }}, bgcolor: '{legend_bg}' }},
 
                 margin: {{ t: 30, b: 60, l: 60, r: 30 }}
 
@@ -523,12 +535,16 @@ def generate_2d_viz(
 
     print(f"? 2D 시각화 저장: {output_path}")
 
-def generate_3d_viz(result_df: pd.DataFrame, output_path: Path):
+def generate_3d_viz(
+    result_df: pd.DataFrame, output_path: Path, grayscale: bool = False
+):
     """Sentence/Phrase 임베딩 3D 오버레이 시각화 HTML 생성 (실제 UMAP 3D)"""
 
-    sentence_colors = ["#e94560", "#ff6b6b", "#ffc93c", "#ff8c42"]
+    palette = COLOR_PALETTES["grayscale"] if grayscale else COLOR_PALETTES["color"]
 
-    phrase_colors = ["#4ecca3", "#45b7aa", "#38a3a5", "#22577a"]
+    sentence_colors = palette["sentence"]
+
+    phrase_colors = palette["phrase"]
 
     traces_data = []
 
@@ -536,22 +552,32 @@ def generate_3d_viz(result_df: pd.DataFrame, output_path: Path):
 
         colors = sentence_colors if boundary_type == "Sentence" else phrase_colors
 
+        symbols = (
+            GRAYSCALE_SYMBOLS["sentence" if boundary_type == "Sentence" else "phrase"]
+            if grayscale
+            else None
+        )
+
         type_df = result_df[result_df["boundary_type"] == boundary_type]
 
-        for cluster_id in sorted(type_df["cluster_id"].unique()):
+        for i, cluster_id in enumerate(sorted(type_df["cluster_id"].unique())):
 
             cluster_df = type_df[type_df["cluster_id"] == cluster_id]
 
-            traces_data.append(
-                {
-                    "x": cluster_df["x"].tolist(),
-                    "y": cluster_df["y"].tolist(),
-                    "z": cluster_df["z"].tolist(),
-                    "name": f"{boundary_type}-p{int(cluster_id)}",
-                    "color": colors[int(cluster_id) % len(colors)],
-                    "type": boundary_type,
-                }
-            )
+            trace = {
+                "x": cluster_df["x"].tolist(),
+                "y": cluster_df["y"].tolist(),
+                "z": cluster_df["z"].tolist(),
+                "name": f"{boundary_type}-p{int(cluster_id)}",
+                "color": colors[int(cluster_id) % len(colors)],
+                "type": boundary_type,
+            }
+
+            if symbols:
+
+                trace["symbol"] = symbols[i % len(symbols)]
+
+            traces_data.append(trace)
 
     html_content = f"""<!DOCTYPE html>
 
@@ -573,11 +599,11 @@ def generate_3d_viz(result_df: pd.DataFrame, output_path: Path):
 
             font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
 
-            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            background: #ffffff;
 
             min-height: 100vh;
 
-            color: #fff;
+            color: #000;
 
             padding: 20px;
 
@@ -593,17 +619,11 @@ def generate_3d_viz(result_df: pd.DataFrame, output_path: Path):
 
             margin-bottom: 10px;
 
-            background: linear-gradient(90deg, #e94560, #4ecca3);
-
-            -webkit-background-clip: text;
-
-            background-clip: text;
-
-            -webkit-text-fill-color: transparent;
+            color: #333;
 
         }}
 
-        .subtitle {{ text-align: center; color: #888; margin-bottom: 20px; }}
+        .subtitle {{ text-align: center; color: #666; margin-bottom: 20px; }}
 
         #scatter-3d {{ width: 100%; height: 800px; }}
 
@@ -615,25 +635,25 @@ def generate_3d_viz(result_df: pd.DataFrame, output_path: Path):
 
         .control-group {{
 
-            background: rgba(255,255,255,0.05); padding: 12px 20px; border-radius: 10px;
+            background: rgba(0,0,0,0.03); border: 1px solid #ddd; padding: 12px 20px; border-radius: 10px;
 
         }}
 
-        .control-group label {{ color: #4ecca3; margin-right: 10px; }}
+        .control-group label {{ color: #333; font-weight: bold; margin-right: 10px; }}
 
         .control-group select, .control-group input {{
 
-            background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2);
+            background: #fff; border: 1px solid #ccc;
 
-            color: #fff; padding: 6px 12px; border-radius: 6px;
+            color: #000; padding: 6px 12px; border-radius: 6px;
 
         }}
 
         .insight-box {{
 
-            background: rgba(78, 204, 163, 0.1);
+            background: rgba(0,0,0,0.03);
 
-            border: 1px solid rgba(78, 204, 163, 0.3);
+            border: 1px solid #ccc;
 
             border-radius: 12px;
 
@@ -643,19 +663,19 @@ def generate_3d_viz(result_df: pd.DataFrame, output_path: Path):
 
         }}
 
-        .insight-box h3 {{ color: #4ecca3; margin-bottom: 15px; }}
+        .insight-box h3 {{ color: #333; margin-bottom: 15px; }}
 
         .insight-item {{
 
             padding: 10px 15px;
 
-            background: rgba(0,0,0,0.2);
+            background: rgba(0,0,0,0.04);
 
             border-radius: 8px;
 
             margin: 10px 0;
 
-            border-left: 3px solid #e94560;
+            border-left: 3px solid #555;
 
         }}
 
@@ -669,7 +689,7 @@ def generate_3d_viz(result_df: pd.DataFrame, output_path: Path):
 
         <h1>Sentence/Phrase K=3 임베딩 오버레이 (3D UMAP)</h1>
 
-        <p class="subtitle">실제 3차원 UMAP 축소 | 마우스 드래그로 회전</p>
+        <p class="subtitle">실제 3차원 UMAP 축소 | 마우스 드래그로 회전 | 그레이스케일 마커 구분</p>
 
         <div class="controls">
 
@@ -677,7 +697,7 @@ def generate_3d_viz(result_df: pd.DataFrame, output_path: Path):
 
                 <label>포인트 크기:</label>
 
-                <input type="range" id="point-size" min="1" max="8" value="3" onchange="updatePlot()">
+                <input type="range" id="point-size" min="1" max="12" value="5" onchange="updatePlot()">
 
             </div>
 
@@ -685,7 +705,7 @@ def generate_3d_viz(result_df: pd.DataFrame, output_path: Path):
 
                 <label>투명도:</label>
 
-                <input type="range" id="opacity" min="20" max="100" value="60" onchange="updatePlot()">
+                <input type="range" id="opacity" min="20" max="100" value="85" onchange="updatePlot()">
 
             </div>
 
@@ -715,7 +735,7 @@ def generate_3d_viz(result_df: pd.DataFrame, output_path: Path):
 
             <div class="insight-item">
 
-                <strong>4개 클러스터 분리</strong>: 인위적 z축 없이도 UMAP 3D에서 자연스럽게 4개 영역이 형성됨
+                <strong>3개 클러스터 분리</strong>: 인위적 z축 없이도 UMAP 3D에서 자연스럽게 3개 영역이 형성됨
 
             </div>
 
@@ -747,11 +767,27 @@ def generate_3d_viz(result_df: pd.DataFrame, output_path: Path):
 
                 if (showMode === 'both' || (showMode === 'sentence' && t.type === 'Sentence') || (showMode === 'phrase' && t.type === 'Phrase')) {{
 
+                    const isSentence = t.type === 'Sentence';
+
+                    const markerConfig = {{
+
+                        size: pointSize,
+
+                        symbol: t.symbol || 'circle',
+
+                        opacity: isSentence ? opacity : opacity * 0.9,
+
+                        color: isSentence ? t.color : 'rgba(255,255,255,0)',
+
+                        line: {{ color: t.color, width: isSentence ? 1 : 2.5 }}
+
+                    }};
+
                     traces.push({{
 
                         x: t.x, y: t.y, z: t.z, mode: 'markers', type: 'scatter3d', name: t.name,
 
-                        marker: {{ size: pointSize, color: t.color, opacity: opacity }},
+                        marker: markerConfig,
 
                         hovertemplate: '<b>' + t.name + '</b><br>x: %{{x:.2f}}<br>y: %{{y:.2f}}<br>z: %{{z:.2f}}<extra></extra>'
 
@@ -763,21 +799,21 @@ def generate_3d_viz(result_df: pd.DataFrame, output_path: Path):
 
             Plotly.react('scatter-3d', traces, {{
 
-                paper_bgcolor: 'rgba(0,0,0,0)',
+                paper_bgcolor: '#ffffff',
 
                 scene: {{
 
-                    xaxis: {{ title: 'UMAP-1', color: '#fff', gridcolor: 'rgba(255,255,255,0.1)' }},
+                    xaxis: {{ title: 'UMAP-1', color: '#000', gridcolor: 'rgba(0,0,0,0.1)' }},
 
-                    yaxis: {{ title: 'UMAP-2', color: '#fff', gridcolor: 'rgba(255,255,255,0.1)' }},
+                    yaxis: {{ title: 'UMAP-2', color: '#000', gridcolor: 'rgba(0,0,0,0.1)' }},
 
-                    zaxis: {{ title: 'UMAP-3', color: '#fff', gridcolor: 'rgba(255,255,255,0.1)' }},
+                    zaxis: {{ title: 'UMAP-3', color: '#000', gridcolor: 'rgba(0,0,0,0.1)' }},
 
-                    bgcolor: 'rgba(0,0,0,0)'
+                    bgcolor: '#ffffff'
 
                 }},
 
-                legend: {{ font: {{ color: '#fff' }}, bgcolor: 'rgba(0,0,0,0.3)', x: 0.02, y: 0.98 }},
+                legend: {{ font: {{ color: '#000' }}, bgcolor: 'rgba(255,255,255,0.9)', x: 0.02, y: 0.98 }},
 
                 margin: {{ t: 30, b: 30, l: 30, r: 30 }}
 
@@ -806,7 +842,10 @@ def main():
     parser.add_argument("--dim", type=int, default=3, choices=[2, 3], help="UMAP 차원")
 
     parser.add_argument(
-        "--grayscale", action="store_true", help="흑백 인쇄용 시각화 생성"
+        "--grayscale",
+        action="store_true",
+        default=True,
+        help="흑백 인쇄용 시각화 생성 (기본값: True)",
     )
     parser.add_argument(
         "--cache-npy",
@@ -865,7 +904,6 @@ def main():
         print(f"   필요: {phrase_path}")
         return
 
-    suffix = "_bw" if args.grayscale else ""
     mode_label = f" [{args.weight_mode}]"
     if args.grayscale:
         mode_label += " (흑백 인쇄용)"
@@ -905,29 +943,27 @@ def main():
         output_dir = reports_dir / viz_subdir
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # 파일명: 흑백은 _bw 접미사, 컬러는 _color 접미사
-        # 하지만 현재는 --grayscale만 사용하므로 _bw만 출력
         if dim == 2:
 
-            output_path = output_dir / f"k3_embedding_overlay_2d_bw.html"
+            output_path = output_dir / "k3_embedding_overlay_2d.html"
 
             generate_2d_viz(result_df, output_path, grayscale=args.grayscale)
 
-            csv_path = output_dir / f"k3_embedding_overlay_2d_bw.csv"
+            csv_path = output_dir / "k3_embedding_overlay_2d.csv"
 
         else:
 
-            output_path = output_dir / f"k3_embedding_overlay_3d_bw.html"
+            output_path = output_dir / "k3_embedding_overlay_3d.html"
 
-            generate_3d_viz(result_df, output_path)
+            generate_3d_viz(result_df, output_path, grayscale=args.grayscale)
 
-            csv_path = output_dir / f"k3_embedding_overlay_3d_bw.csv"
+            csv_path = output_dir / "k3_embedding_overlay_3d.csv"
 
         result_df.to_csv(csv_path, index=False, encoding="utf-8-sig")
 
         print(f"? 좌표 데이터 저장: {csv_path}")
 
-    print(f"\n? Sentence/Phrase K=3 임베딩 오버레이 시각화 완료! (2D + 3D, 흑백 인포그래픽){mode_label}")
+    print(f"\n? Sentence/Phrase K=3 임베딩 오버레이 시각화 완료! (2D + 3D){mode_label}")
 
 if __name__ == "__main__":
 

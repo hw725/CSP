@@ -137,12 +137,12 @@ def generate_weight_sensitivity_html(output_path: Path):
         <h2>3. 핵심 발견</h2>
         <div class="result-box">
             <div class="metric">
-                <span class="metric-label">Uniform→Strong Canonicity 변화:</span>
-                <span class="metric-value">+{conclusion['canonicity_delta_uniform_to_strong']:.2f}%p</span>
+                <span class="metric-label">Uniform→Moderate Canonicity 변화:</span>
+                <span class="metric-value">+{conclusion['canonicity_delta_uniform_to_moderate']:.2f}%p</span>
             </div>
             <div class="metric">
-                <span class="metric-label">Uniform→Strong 엔트로피 변화:</span>
-                <span class="metric-value">{conclusion['entropy_delta_uniform_to_strong']:.4f}</span>
+                <span class="metric-label">Uniform→Moderate 엔트로피 변화:</span>
+                <span class="metric-value">{conclusion['entropy_delta_uniform_to_moderate']:.4f}</span>
             </div>
             <div class="metric">
                 <span class="metric-label">권장 시나리오:</span>
@@ -341,8 +341,8 @@ def generate_hypothesis_test_html(output_path: Path):
 
         // 반대가설 테스트
         Plotly.newPlot('inverse-chart', [{{
-            x: ['Strong (5.0x)', 'Uniform (1.0x)', 'Inverse (0.2x)'],
-            y: [{inverse['strong']}, {inverse['uniform']}, {inverse['inverse']}],
+            x: ['Moderate (3.0x)', 'Uniform (1.0x)', 'Inverse (0.2x)'],
+            y: [{inverse['moderate']}, {inverse['uniform']}, {inverse['inverse']}],
             type: 'bar',
             marker: {{ color: '#333' }}
         }}], {{

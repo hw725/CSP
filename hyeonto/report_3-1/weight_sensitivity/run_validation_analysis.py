@@ -28,7 +28,7 @@ JTI_2_SAMGYEONG = ["시경집전", "서경집전", "주역전의"]  # jti_2: 삼
 # jti_4: 기타문헌
 
 # 권장 가중치 시나리오
-RECOMMENDED_SCENARIO = "strong"
+RECOMMENDED_SCENARIO = "moderate"
 
 def classify_book(book_name: str) -> str:
     """서적을 경사자집 사부분류로 분류 (jti_1~4)"""
@@ -47,7 +47,6 @@ def get_weight(book_class: str, scenario: str) -> float:
         "uniform": {"사서": 1.0, "삼경": 1.0, "기타경전": 1.0, "기타문헌": 1.0},
         "weak": {"사서": 2.0, "삼경": 1.5, "기타경전": 1.2, "기타문헌": 1.0},
         "moderate": {"사서": 3.0, "삼경": 2.0, "기타경전": 1.5, "기타문헌": 1.0},
-        "strong": {"사서": 5.0, "삼경": 3.0, "기타경전": 2.0, "기타문헌": 1.0},
         "inverse": {"사서": 0.2, "삼경": 0.33, "기타경전": 0.5, "기타문헌": 1.0},
     }
     return weights[scenario].get(book_class, 1.0)
@@ -137,17 +136,17 @@ def run_inverse_weighting_test(df: pd.DataFrame, target_cluster: int):
     print("\n" + "=" * 60)
     print("? 반대가설 테스트 (Inverse Weighting)")
     print("=" * 60)
-    scenarios = ["strong", "uniform", "inverse"]
+    scenarios = ["moderate", "uniform", "inverse"]
     results = {}
     for scenario in scenarios:
         canonicity = compute_canonicity(df, target_cluster, scenario)
         results[scenario] = canonicity
-        weight = {"strong": "5.0x", "uniform": "1.0x", "inverse": "0.2x"}[scenario]
+        weight = {"moderate": "3.0x", "uniform": "1.0x", "inverse": "0.2x"}[scenario]
         print(f"  {scenario:10s} ({weight}): {canonicity:.2f}%")
     interpretation = "? 클러스터 구성은 가중치와 무관하게 결정됨 (데이터 내재적 현상)"
     print(f"\n  ? 해석: {interpretation}")
     return {
-        "strong": results["strong"],
+        "moderate": results["moderate"],
         "uniform": results["uniform"],
         "inverse": results["inverse"],
         "interpretation": interpretation,
@@ -241,7 +240,7 @@ def save_hypothesis_report(results: dict, output_dir: Path):
         "",
         "| 시나리오 | 사서 가중치 | 가중 비율 |",
         "|----------|-------------|----------|",
-        f"| Strong (5.0x) | 5.0x | {results['inverse_weighting']['strong']:.2f}% |",
+        "| Moderate (3.0x) | 3.0x | {results['inverse_weighting']['moderate']:.2f}% |",
         f"| Uniform (1.0x) | 1.0x | {results['inverse_weighting']['uniform']:.2f}% |",
         f"| Inverse (0.2x) | 0.2x | {results['inverse_weighting']['inverse']:.2f}% |",
         "",
@@ -307,7 +306,7 @@ def save_hypothesis_report(results: dict, output_dir: Path):
                 "",
                 "| 시나리오 | 역사서 가중치 | 역사서 비율 |",
                 "|----------|-------------|------------|",
-                f"| Strong (5.0x) | 5.0x | {inv_w.get('strong', 0):.2f}% |",
+                f"| Moderate (3.0x) | 3.0x | {inv_w.get('moderate', 0):.2f}% |",
                 f"| Uniform (1.0x) | 1.0x | {inv_w.get('uniform', 0):.2f}% |",
                 f"| Inverse (0.2x) | 0.2x | {inv_w.get('inverse', 0):.2f}% |",
                 "",
@@ -382,7 +381,6 @@ def save_weight_sensitivity_report(results: dict, output_dir: Path):
         "| uniform | 1.0x | 1.0x | 1.0x | 1.0x |",
         "| weak | 2.0x | 1.5x | 1.2x | 1.0x |",
         "| moderate | 3.0x | 2.0x | 1.5x | 1.0x |",
-        "| strong | 5.0x | 3.0x | 2.0x | 1.0x |",
         "| inverse | 0.2x | 0.33x | 0.5x | 1.0x |",
         "",
         "## 2. 결과 비교",
@@ -396,27 +394,27 @@ def save_weight_sensitivity_report(results: dict, output_dir: Path):
             f"{s['max_weighted_canonicity']:.2f}% | {s['avg_genre_entropy']:.4f} |"
         )
     uniform_s = next(s for s in results["scenarios"] if s["name"] == "uniform")
-    strong_s = next(s for s in results["scenarios"] if s["name"] == "strong")
+    moderate_s = next(s for s in results["scenarios"] if s["name"] == "moderate")
     inverse_s = next(s for s in results["scenarios"] if s["name"] == "inverse")
     md_lines.extend(
         [
             "",
             "## 3. 핵심 발견",
             "",
-            "### 3.1 Uniform(1.0x) vs Strong(5.0x) 비교",
+            "### 3.1 Uniform(1.0x) vs Moderate(3.0x) 비교",
             "",
-            f"- **최대 Canonicity 변화**: {uniform_s['max_weighted_canonicity']:.2f}% → {strong_s['max_weighted_canonicity']:.2f}% (Δ+{results['conclusion']['canonicity_delta_uniform_to_strong']:.2f}%p)",
-            f"- **장르 엔트로피 변화**: {uniform_s['avg_genre_entropy']:.4f} → {strong_s['avg_genre_entropy']:.4f} (Δ{results['conclusion']['entropy_delta_uniform_to_strong']:.4f})",
+            f"- **최대 Canonicity 변화**: {uniform_s['max_weighted_canonicity']:.2f}% → {moderate_s['max_weighted_canonicity']:.2f}% (Δ+{results['conclusion']['canonicity_delta_uniform_to_moderate']:.2f}%p)",
+            f"- **장르 엔트로피 변화**: {uniform_s['avg_genre_entropy']:.4f} → {moderate_s['avg_genre_entropy']:.4f} (Δ{results['conclusion']['entropy_delta_uniform_to_moderate']:.4f})",
             "",
             "### 3.2 Inverse(0.2x) 역가중치 테스트",
             "",
-            f"- **최대 Canonicity**: {inverse_s['max_weighted_canonicity']:.2f}% (Strong 대비 {inverse_s['max_weighted_canonicity']/strong_s['max_weighted_canonicity']*100:.1f}%)",
+            f"- **최대 Canonicity**: {inverse_s['max_weighted_canonicity']:.2f}% (Moderate 대비 {inverse_s['max_weighted_canonicity']/moderate_s['max_weighted_canonicity']*100:.1f}%)",
             f"- **장르 엔트로피**: {inverse_s['avg_genre_entropy']:.4f}",
             "",
             "### 3.3 결론",
             "",
             "?? **가중치에 따라 Canonicity가 크게 변동**",
-            f"- Uniform→Strong 시 +{results['conclusion']['canonicity_delta_uniform_to_strong']:.2f}%p 변화",
+            f"- Uniform→Moderate 시 +{results['conclusion']['canonicity_delta_uniform_to_moderate']:.2f}%p 변화",
             "- 가중치 선택에 주의 필요",
             "",
             "## 4. 권장 가중치",

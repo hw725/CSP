@@ -349,6 +349,12 @@ nul
 # Temporary scripts
 cleanup.py
 
+# Large syntactic function CSVs (50MB+)
+hyeonto/report_1-1/**/phrase_uniform_syntax.csv
+hyeonto/report_1-1/**/sentence_uniform_syntax.csv
+hyeonto/report_3-1/**/phrase_uniform_syntax.csv
+hyeonto/report_3-1/**/sentence_uniform_syntax.csv
+
 # Recovered junk folders (root-level, 복구 잔해 방지)
 /csv/
 /md/

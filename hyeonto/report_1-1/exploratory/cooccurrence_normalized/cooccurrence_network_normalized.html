@@ -18,9 +18,9 @@
 
             margin: 0;
 
-            background: #1a1a2e;
+            background: #ffffff;
 
-            color: #fff;
+            color: #000;
 
         }
 
@@ -32,19 +32,19 @@
 
         }
 
-        .node-hanja { fill: #e94560; }
+        .node-hanja { fill: #000000; stroke: #000000; stroke-width: 1.5px; }
 
-        .node-hyeonto { fill: #4ecca3; }
+        .node-hyeonto { fill: #ffffff; stroke: #000000; stroke-width: 2.5px; }
 
-        .link { stroke: #555; stroke-opacity: 0.6; }
+        .link { stroke: #999; stroke-opacity: 0.6; }
 
         .tooltip {
 
             position: absolute;
 
-            background: rgba(0,0,0,0.8);
+            background: rgba(0, 0, 0, 0.05); border: 1px solid #333;
 
-            color: #fff;
+            color: #000;
 
             padding: 8px 12px;
 
@@ -78,7 +78,7 @@
 
             left: 20px;
 
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.05); border: 1px solid #333;
 
             padding: 10px 15px;
 
@@ -116,7 +116,7 @@
 
             left: 20px;
 
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.05); border: 1px solid #333;
 
             padding: 10px 15px;
 
@@ -138,7 +138,7 @@
 
         <div class="legend-item">
 
-            <div class="legend-color" style="background: #e94560;"></div>
+            <div class="legend-color" style="background: #000000;"></div>
 
             <span>한자</span>
 
@@ -146,7 +146,7 @@
 
         <div class="legend-item">
 
-            <div class="legend-color" style="background: #4ecca3;"></div>
+            <div class="legend-color" style="background: #ffffff; border: 2.5px solid #000000;"></div>
 
             <span>현토 (정규화)</span>
 
@@ -234,7 +234,7 @@
 
             .attr("font-size", d => d.type === 'hanja' ? 14 : 11)
 
-            .attr("fill", "#fff")
+            .attr("fill", "#000")
 
             .attr("text-anchor", "middle")
 

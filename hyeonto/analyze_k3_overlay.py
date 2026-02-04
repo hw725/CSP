@@ -57,7 +57,7 @@ def load_cluster_data(sentence_path: Path, phrase_path: Path):
     def categorize_book(book_name: str) -> str:
         return book_category_map.get(book_name, "기타")
 
-    categories = ["경부", "사부", "자부", "집부", "기타"]
+    categories = ["경부", "사부", "자부", "집부"]
 
     results = {"sentence": [], "phrase": []}
 
@@ -166,11 +166,11 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
             font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
 
-            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            background: #ffffff;
 
             min-height: 100vh;
 
-            color: #fff;
+            color: #000;
 
             padding: 20px;
 
@@ -192,11 +192,7 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
             margin-bottom: 10px;
 
-            background: linear-gradient(90deg, #e94560, #4ecca3);
-
-            -webkit-background-clip: text;
-
-            -webkit-text-fill-color: transparent;
+            color: #333;
 
         }}
 
@@ -214,7 +210,9 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
         .chart-container {{
 
-            background: rgba(255,255,255,0.05);
+            background: rgba(0,0,0,0.02);
+
+            border: 1px solid #ddd;
 
             border-radius: 16px;
 
@@ -222,21 +220,19 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
             margin-bottom: 30px;
 
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-
         }}
 
         .chart-title {{
 
             font-size: 1.3rem;
 
-            color: #4ecca3;
+            color: #333;
 
             margin-bottom: 15px;
 
             padding-left: 10px;
 
-            border-left: 4px solid #e94560;
+            border-left: 4px solid #333;
 
         }}
 
@@ -260,9 +256,9 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
         .insight-box {{
 
-            background: rgba(233, 69, 96, 0.1);
+            background: rgba(0,0,0,0.03);
 
-            border: 1px solid rgba(233, 69, 96, 0.3);
+            border: 1px solid #ccc;
 
             border-radius: 12px;
 
@@ -274,7 +270,7 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
         .insight-box h3 {{
 
-            color: #e94560;
+            color: #333;
 
             margin-bottom: 15px;
 
@@ -284,13 +280,13 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
             padding: 10px 15px;
 
-            background: rgba(0,0,0,0.2);
+            background: rgba(0,0,0,0.04);
 
             border-radius: 8px;
 
             margin: 10px 0;
 
-            border-left: 3px solid #4ecca3;
+            border-left: 3px solid #555;
 
         }}
 
@@ -326,9 +322,9 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
         }}
 
-        .pa-color {{ background: #e94560; }}
+        .pa-color {{ background: #000; }}
 
-        .sa-color {{ background: #4ecca3; }}
+        .sa-color {{ background: #888; }}
 
         @media (max-width: 1200px) {{
 
@@ -396,7 +392,7 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
         <div class="chart-container">
 
-            <h2 class="chart-title">? Sentence-Phrase 통합 히트맵 (8개 클러스터 나란히)</h2>
+            <h2 class="chart-title">? Sentence-Phrase 통합 히트맵 (6개 클러스터 나란히)</h2>
 
             <div id="heatmap-combined"></div>
 
@@ -450,17 +446,33 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
         // 색상 팔레트
 
-        const sentenceColors = ['#e94560', '#ff6b6b', '#ffc93c', '#ff8c42'];
+        const sentenceColors = ['#000000', '#444444', '#888888'];
 
-        const phraseColors = ['#4ecca3', '#45b7aa', '#38a3a5', '#22577a'];
+        const phraseColors = ['#666666', '#999999', '#cccccc'];
+
+        // 색약 접근성: Sentence=실선(굵기 차이), Phrase=점선/대시(패턴 차이)
+
+        const sentenceDashes = ['solid', 'solid', 'solid'];
+
+        const sentenceWidths = [3, 2.5, 2];
+
+        const phraseDashes = ['dash', 'dot', 'dashdot'];
+
+        const phraseWidths = [3, 2.5, 2];
+
+        // 마커 심볼로도 추가 구분
+
+        const sentenceSymbols = ['circle', 'square', 'diamond'];
+
+        const phraseSymbols = ['triangle-up', 'cross', 'star'];
 
         // 1. 레이더 차트 (각 클러스터별)
 
         const radarTraces = [];
 
-        for (let i = 0; i < 4; i++) {{
+        for (let i = 0; i < paData.length; i++) {{
 
-            // Sentence 클러스터
+            // Sentence 클러스터 (실선, filled 마커)
 
             radarTraces.push({{
 
@@ -472,9 +484,11 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
                 fill: 'toself',
 
-                fillcolor: sentenceColors[i] + '20',
+                fillcolor: sentenceColors[i] + '15',
 
-                line: {{ color: sentenceColors[i], width: 2 }},
+                line: {{ color: sentenceColors[i], width: sentenceWidths[i], dash: sentenceDashes[i] }},
+
+                marker: {{ symbol: sentenceSymbols[i], size: 10 }},
 
                 name: paClusters[i],
 
@@ -482,7 +496,7 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
             }});
 
-            // Phrase 클러스터
+            // Phrase 클러스터 (점선/대시, open 마커)
 
             radarTraces.push({{
 
@@ -494,9 +508,11 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
                 fill: 'toself',
 
-                fillcolor: phraseColors[i] + '20',
+                fillcolor: phraseColors[i] + '10',
 
-                line: {{ color: phraseColors[i], width: 2, dash: 'dot' }},
+                line: {{ color: phraseColors[i], width: phraseWidths[i], dash: phraseDashes[i] }},
+
+                marker: {{ symbol: phraseSymbols[i] + '-open', size: 10, line: {{ width: 2, color: phraseColors[i] }} }},
 
                 name: saClusters[i],
 
@@ -516,29 +532,29 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
                     range: [0, 60],
 
-                    tickfont: {{ color: '#fff' }},
+                    tickfont: {{ color: '#000' }},
 
-                    gridcolor: 'rgba(255,255,255,0.2)'
+                    gridcolor: 'rgba(0,0,0,0.15)'
 
                 }},
 
                 angularaxis: {{
 
-                    tickfont: {{ color: '#fff', size: 12 }}
+                    tickfont: {{ color: '#000', size: 12 }}
 
                 }},
 
-                bgcolor: 'rgba(0,0,0,0)'
+                bgcolor: '#ffffff'
 
             }},
 
-            paper_bgcolor: 'rgba(0,0,0,0)',
+            paper_bgcolor: '#ffffff',
 
-            plot_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: '#ffffff',
 
             legend: {{
 
-                font: {{ color: '#fff' }},
+                font: {{ color: '#000' }},
 
                 x: 1.1,
 
@@ -550,11 +566,15 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
         }}, {{ responsive: true }});
 
-        // 2. 그룹 바 차트
+        // 2. 그룹 바 차트 (색약 접근성: Sentence=실색, Phrase=빗금 패턴)
+
+        const barPatterns = ['/', '\\\\', 'x'];
 
         const barTraces = [];
 
-        for (let i = 0; i < 4; i++) {{
+        for (let i = 0; i < paData.length; i++) {{
+
+            // Sentence: 실색 채우기
 
             barTraces.push({{
 
@@ -566,9 +586,19 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
                 type: 'bar',
 
-                marker: {{ color: sentenceColors[i], opacity: 0.7 }}
+                marker: {{
+
+                    color: sentenceColors[i],
+
+                    opacity: 0.85,
+
+                    line: {{ color: '#000', width: 1 }}
+
+                }}
 
             }});
+
+            // Phrase: 빗금 패턴 + 연한 채우기
 
             barTraces.push({{
 
@@ -580,7 +610,17 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
                 type: 'bar',
 
-                marker: {{ color: phraseColors[i], opacity: 0.7 }}
+                marker: {{
+
+                    color: phraseColors[i],
+
+                    opacity: 0.85,
+
+                    pattern: {{ shape: barPatterns[i], solidity: 0.6, fgcolor: '#333' }},
+
+                    line: {{ color: '#333', width: 1.5 }}
+
+                }}
 
             }});
 
@@ -590,15 +630,15 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
             barmode: 'group',
 
-            paper_bgcolor: 'rgba(0,0,0,0)',
+            paper_bgcolor: '#ffffff',
 
-            plot_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: '#ffffff',
 
             xaxis: {{
 
-                tickfont: {{ color: '#fff' }},
+                tickfont: {{ color: '#000' }},
 
-                gridcolor: 'rgba(255,255,255,0.1)'
+                gridcolor: 'rgba(0,0,0,0.1)'
 
             }},
 
@@ -606,17 +646,17 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
                 title: '비율 (%)',
 
-                tickfont: {{ color: '#fff' }},
+                tickfont: {{ color: '#000' }},
 
-                titlefont: {{ color: '#fff' }},
+                titlefont: {{ color: '#000' }},
 
-                gridcolor: 'rgba(255,255,255,0.1)'
+                gridcolor: 'rgba(0,0,0,0.1)'
 
             }},
 
             legend: {{
 
-                font: {{ color: '#fff' }},
+                font: {{ color: '#000' }},
 
                 orientation: 'h',
 
@@ -646,15 +686,15 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
             colorscale: [
 
-                [0, '#0f0c29'],
+                [0, '#ffffff'],
 
-                [0.25, '#302b63'],
+                [0.25, '#cccccc'],
 
-                [0.5, '#e94560'],
+                [0.5, '#888888'],
 
-                [0.75, '#ffc93c'],
+                [0.75, '#444444'],
 
-                [1, '#4ecca3']
+                [1, '#000000']
 
             ],
 
@@ -664,21 +704,21 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
                 title: '비율 (%)',
 
-                titlefont: {{ color: '#fff' }},
+                titlefont: {{ color: '#000' }},
 
-                tickfont: {{ color: '#fff' }}
+                tickfont: {{ color: '#000' }}
 
             }}
 
         }}], {{
 
-            paper_bgcolor: 'rgba(0,0,0,0)',
+            paper_bgcolor: '#ffffff',
 
-            plot_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: '#ffffff',
 
             xaxis: {{
 
-                tickfont: {{ color: '#fff', size: 11 }},
+                tickfont: {{ color: '#000', size: 11 }},
 
                 tickangle: -30
 
@@ -686,7 +726,7 @@ def generate_overlay_html(results: dict, categories: list, output_sentenceth: Pa
 
             yaxis: {{
 
-                tickfont: {{ color: '#fff', size: 12 }}
+                tickfont: {{ color: '#000', size: 12 }}
 
             }},
 
@@ -710,33 +750,23 @@ def main():
 
     base_dir = Path(__file__).parent
 
-    reports_dir = base_dir / "reports"
+    reports_dir = base_dir / "report_1-1"
 
-    # 정규화된 Sentence/Phrase 데이터 경로 (우선 사용, 없으면 기존 경로)
+    # 정규화된 Sentence/Phrase 데이터 경로
 
-    sentence_normalized = (
-        reports_dir / "sentence_k3_normalized" / "sentence_clusters.csv"
-    )
+    sentence_path = reports_dir / "sentence_k3_normalized" / "sentence_clusters.csv"
 
-    phrase_normalized = reports_dir / "phrase_k3_normalized" / "phrase_clusters.csv"
+    phrase_path = reports_dir / "phrase_k3_normalized" / "phrase_clusters.csv"
 
-    if sentence_normalized.exists() and phrase_normalized.exists():
+    if not sentence_path.exists() or not phrase_path.exists():
 
-        sentence_path = sentence_normalized
+        print(f"K=3 클러스터 데이터가 없습니다")
 
-        phrase_path = phrase_normalized
+        print(f"   필요: {sentence_path}")
 
-        print("? 정규화된 클러스터 데이터 사용")
+        print(f"   필요: {phrase_path}")
 
-    else:
-
-        # 기존 경로 (fallback)
-
-        sentence_path = reports_dir / "sentence_k3_normalized" / "sentence_clusters.csv"
-
-        phrase_path = reports_dir / "phrase_k3_normalized" / "phrase_clusters.csv"
-
-        print("? 기존 클러스터 데이터 사용 (정규화 미적용)")
+        return
 
     # 데이터 로드 및 분석
 
@@ -748,7 +778,7 @@ def main():
 
     # 오버레이 시각화 생성
 
-    output_sentenceth = reports_dir / "k3_sentence_phrase_overlay_normalized.html"
+    output_sentenceth = base_dir / "report_1-1" / "visualizations_k3" / "k3_sentence_phrase_overlay_normalized.html"
 
     generate_overlay_html(results, categories, output_sentenceth)
 

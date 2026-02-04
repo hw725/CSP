@@ -24,7 +24,7 @@
 | **3D UMAP** | [링크](../report_1-1/visualizations_k3/k3_embedding_overlay_3d.html) | - | 입체 공간 클러스터 분포 |
 | **2D UMAP** | [링크](../report_1-1/visualizations_k3/k3_embedding_overlay_2d.html) | - | 평면 투영 패턴 |
 | **Sentence↔Phrase** | [링크](../report_1-1/visualizations_k3/k3_sentence_phrase_overlay_normalized.html) | - | 문장/구 클러스터 비교 |
-| **P2S↔S2P Sankey** | [링크](../report_1-1/visualizations_k3/p2s_k3_s2p_k3_sankey.html) | - | 클러스터 흐름 다이어그램 |
+| **Sentence↔Phrase Sankey** | [링크](../report_1-1/visualizations_k3/sentence_k3_phrase_k3_sankey.html) | - | 클러스터 흐름 다이어그램 |
 | **균등↔가중 Sankey** | - | [Sentence](../report_3-1/sentence_uniform_vs_weighted_sankey.html) / [Phrase](../report_3-1/phrase_uniform_vs_weighted_sankey.html) | 1:1 ↔ 3:1 라벨 전환 |
 | **Sentence K 최적화** | [링크](../report_1-1/visualizations_k3/sentence_k_optimization_visualization.png) | - | K=3 선택 근거 |
 | **Phrase K 최적화** | [링크](../report_1-1/visualizations_k3/phrase_k_optimization_visualization.png) | - | K=3 선택 근거 |
@@ -39,7 +39,7 @@
 |:---|:---:|:---:|
 | **클러스터 프로파일** | [링크](../report_1-1/sentence_k3_normalized/sentence_cluster_profile.md) | - |
 | **서종 분포 분석** | [링크](../report_1-1/sentence_k3_normalized/k3_book_distribution_analysis.md) | - |
-| **마커 통사 기능 분석(균등)** | [Sentence CSV](../report_1-1/syntactic_function/sentence_uniform_syntax.csv) | - |
+| **마커 통사 기능 분석(균등)** | [Sentence](../report_1-1/sentence_k3_normalized/sentence_classification_report.md) | - |
 
 ### Phrase (구 단위)
 
@@ -47,7 +47,7 @@
 |:---|:---:|:---:|
 | **클러스터 프로파일** | [링크](../report_1-1/phrase_k3_normalized/phrase_cluster_profile.md) | - |
 | **서종 분포 분석** | [링크](../report_1-1/phrase_k3_normalized/k3_book_distribution_analysis.md) | - |
-| **마커 통사 기능 분석(균등)** | [Phrase CSV](../report_1-1/syntactic_function/phrase_uniform_syntax.csv) | - |
+| **마커 통사 기능 분석(균등)** | [Phrase](../report_1-1/phrase_k3_normalized/phrase_classification_report.md) | - |
 
 ---
 

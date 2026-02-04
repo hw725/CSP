@@ -4,7 +4,7 @@
 
 ---
 
-## ? 핵심 결론 (Executive Findings)
+## 🎯 핵심 결론 (Executive Findings)
 
 ### 1. 사서(四書)는 현토 체계의 "문법적 북극점"이다
 
@@ -49,7 +49,7 @@ Phrase K=3 서종 분포 요약:
 
 **Sentence-Phrase Sankey 분석 (K=3 ↔ K=3)**:
 - 총 매칭: sentence_id 기반 정밀 매핑
-- 균등(1:1): `../report_1-1/visualizations_k3/p2s_k3_s2p_k3_sankey.html`
+- 균등(1:1): `../report_1-1/visualizations_k3/sentence_k3_phrase_k3_sankey.html`
 - 균등↔가중 전환: `../report_3-1/sentence_uniform_vs_weighted_sankey.html`
 
 **해석**:
@@ -58,7 +58,7 @@ Phrase K=3 서종 분포 요약:
 
 ---
 
-## ? 정량적 핵심 지표 (v6.9.4 Final)
+## 📊 정량적 핵심 지표 (v6.9.4 Final)
 
 ### 코퍼스 무결성 현황
 
@@ -86,7 +86,7 @@ Phrase K=3 서종 분포 요약:
 
 ---
 
-## ? 부가 분석 결과
+## 📈 부가 분석 결과
 
 ### 장르별 분포 (K=3 기준)
 
@@ -107,7 +107,7 @@ Phrase K=3 서종 분포 요약:
 
 ---
 
-## ? 학술 검증 업데이트
+## ✅ 학술 검증 업데이트
 
 ### 외부 문헌 근거
 
@@ -118,7 +118,7 @@ Phrase K=3 서종 분포 요약:
 
 ---
 
-## ? 시각화 산출물 요약
+## 🎨 시각화 산출물 요약
 
 ### 핵심 시각화 (로컬 파일로 바로 열기 가능)
 
@@ -126,7 +126,7 @@ Phrase K=3 서종 분포 요약:
 |:---|:---|:---|
 | **3D UMAP** | `../report_1-1/visualizations_k3/k3_embedding_overlay_3d.html` | Sentence/Phrase 임베딩 오버레이 |
 | **2D UMAP** | `../report_1-1/visualizations_k3/k3_embedding_overlay_2d.html` | Sentence/Phrase 임베딩 분포 |
-| **Sankey** | `../report_1-1/visualizations_k3/p2s_k3_s2p_k3_sankey.html` | Sentence(K=3) ↔ Phrase(K=3) |
+| **Sankey** | `../report_1-1/visualizations_k3/sentence_k3_phrase_k3_sankey.html` | Sentence(K=3) ↔ Phrase(K=3) |
 | **균등↔가중 Sankey** | `../report_3-1/sentence_uniform_vs_weighted_sankey.html` | 1:1 ↔ 3:1 라벨 전환 |
 
 ### 마크다운 문서 (텍스트 편집기로 열기)

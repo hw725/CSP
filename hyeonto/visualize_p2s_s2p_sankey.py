@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""P2S-S2P 간 클러스터 Sankey 다이어그램
+"""Sentence-Phrase 간 클러스터 Sankey 다이어그램
 
-도서(book_name)를 공통 기준으로 P2S 클러스터와 S2P 클러스터 간의 매핑을 시각화합니다.
+도서(book_name)를 공통 기준으로 Sentence 클러스터와 Phrase 클러스터 간의 매핑을 시각화합니다.
 """
 
 from __future__ import annotations
@@ -24,14 +24,14 @@ def _pick_first(columns: list[str], candidates: list[str]) -> str:
     raise KeyError(f"필수 컬럼 없음. 후보: {candidates}, 사용 가능: {columns}")
 
 def build_cross_dataset_sankey(
-    p2s_df: pd.DataFrame, s2p_df: pd.DataFrame, p2s_k: int, s2p_k: int
+    sentence_df: pd.DataFrame, phrase_df: pd.DataFrame, sentence_k: int, phrase_k: int
 ):
-    """book_name + sentence_id를 기준으로 P2S-S2P 클러스터 간 Sankey 데이터 생성 (최적화)"""
+    """book_name + sentence_id를 기준으로 Sentence-Phrase 클러스터 간 Sankey 데이터 생성 (최적화)"""
 
-    # P2S 문장 키 생성
-    p2s_book_col = _pick_first(list(p2s_df.columns), ["book_name", "book", "책명"])
-    p2s_sent_col = _pick_first(
-        list(p2s_df.columns),
+    # Sentence 문장 키 생성
+    sentence_book_col = _pick_first(list(sentence_df.columns), ["book_name", "book", "책명"])
+    sentence_sent_col = _pick_first(
+        list(sentence_df.columns),
         [
             "left_sentence_id",
             "sentence_id",
@@ -40,28 +40,28 @@ def build_cross_dataset_sankey(
             "문단식별자",
         ],
     )
-    p2s_df = p2s_df[[p2s_book_col, p2s_sent_col, "cluster_id"]].copy()
-    p2s_df.columns = ["book_name", "sent_id", "p2s_cluster"]
-    p2s_df["sent_key"] = (
-        p2s_df["book_name"].astype(str) + "_" + p2s_df["sent_id"].astype(str)
+    sentence_df = sentence_df[[sentence_book_col, sentence_sent_col, "cluster_id"]].copy()
+    sentence_df.columns = ["book_name", "sent_id", "sentence_cluster"]
+    sentence_df["sent_key"] = (
+        sentence_df["book_name"].astype(str) + "_" + sentence_df["sent_id"].astype(str)
     )
 
-    # S2P 문장 키 생성
-    s2p_book_col = _pick_first(list(s2p_df.columns), ["book_name", "book", "책명"])
-    s2p_sent_col = _pick_first(
-        list(s2p_df.columns),
+    # Phrase 문장 키 생성
+    phrase_book_col = _pick_first(list(phrase_df.columns), ["book_name", "book", "책명"])
+    phrase_sent_col = _pick_first(
+        list(phrase_df.columns),
         ["sentence_id", "문장식별자", "left_sentence_id", "paragraph_id", "문단식별자"],
     )
-    s2p_df = s2p_df[[s2p_book_col, s2p_sent_col, "cluster_id"]].copy()
-    s2p_df.columns = ["book_name", "sent_id", "s2p_cluster"]
-    s2p_df["sent_key"] = (
-        s2p_df["book_name"].astype(str) + "_" + s2p_df["sent_id"].astype(str)
+    phrase_df = phrase_df[[phrase_book_col, phrase_sent_col, "cluster_id"]].copy()
+    phrase_df.columns = ["book_name", "sent_id", "phrase_cluster"]
+    phrase_df["sent_key"] = (
+        phrase_df["book_name"].astype(str) + "_" + phrase_df["sent_id"].astype(str)
     )
 
     # 공통 키 기반 병합 (vectorized)
     merged = pd.merge(
-        p2s_df[["sent_key", "p2s_cluster"]],
-        s2p_df[["sent_key", "s2p_cluster"]],
+        sentence_df[["sent_key", "sentence_cluster"]],
+        phrase_df[["sent_key", "phrase_cluster"]],
         on="sent_key",
         how="inner",
     )
@@ -70,13 +70,13 @@ def build_cross_dataset_sankey(
 
     # 클러스터 쌍별 카운트
     flow_df = (
-        merged.groupby(["p2s_cluster", "s2p_cluster"]).size().reset_index(name="count")
+        merged.groupby(["sentence_cluster", "phrase_cluster"]).size().reset_index(name="count")
     )
 
     # 노드 정의
-    p2s_nodes = [f"P2S_p{i}" for i in range(p2s_k)]
-    s2p_nodes = [f"S2P_p{i}" for i in range(s2p_k)]
-    all_nodes = p2s_nodes + s2p_nodes
+    sentence_nodes = [f"Sentence_p{i}" for i in range(sentence_k)]
+    phrase_nodes = [f"Phrase_p{i}" for i in range(phrase_k)]
+    all_nodes = sentence_nodes + phrase_nodes
     node_indices = {n: i for i, n in enumerate(all_nodes)}
 
     sources = []
@@ -84,12 +84,12 @@ def build_cross_dataset_sankey(
     values = []
 
     for _, row in flow_df.iterrows():
-        p2s_cid = int(row["p2s_cluster"])
-        s2p_cid = int(row["s2p_cluster"])
+        sentence_cid = int(row["sentence_cluster"])
+        phrase_cid = int(row["phrase_cluster"])
         cnt = int(row["count"])
-        if p2s_cid < p2s_k and s2p_cid < s2p_k:
-            sources.append(node_indices[f"P2S_p{p2s_cid}"])
-            targets.append(node_indices[f"S2P_p{s2p_cid}"])
+        if sentence_cid < sentence_k and phrase_cid < phrase_k:
+            sources.append(node_indices[f"Sentence_p{sentence_cid}"])
+            targets.append(node_indices[f"Phrase_p{phrase_cid}"])
             values.append(cnt)
 
     return all_nodes, sources, targets, values
@@ -99,21 +99,19 @@ def generate_sankey_html(
     sources: list,
     targets: list,
     values: list,
-    p2s_k: int,
-    s2p_k: int,
+    sentence_k: int,
+    phrase_k: int,
     out_path: Path,
 ):
-    # 흑백 색상 팔레트 (라이트모드 + 인포그래픽)
-    # P2S: 진하색 (검정~진회색)
-    # S2P: 밝은색 (밝은회색~흰색)
-    p2s_colors = [f"#{'%02x' % (255 - (i * 200 // max(p2s_k-1, 1)))}"*3 for i in range(p2s_k)]
-    s2p_colors = [f"#{'%02x' % (100 + (i * 155 // max(s2p_k-1, 1)))}"*3 for i in range(s2p_k)]
+    # 흑백 색상 팔레트 (색약자 접근성 높음)
+    # Sentence: 진하색 (검정~진회색)
+    # Phrase: 밝은색 (밝은회색~흰색)
     
     # 더 정확한 흑백 그라데이션
-    p2s_colors = [f"#{int(255 - (i * 200 / max(p2s_k-1, 1))):02x}{int(255 - (i * 200 / max(p2s_k-1, 1))):02x}{int(255 - (i * 200 / max(p2s_k-1, 1))):02x}" for i in range(p2s_k)]
-    s2p_colors = [f"#{int(100 + (i * 155 / max(s2p_k-1, 1))):02x}{int(100 + (i * 155 / max(s2p_k-1, 1))):02x}{int(100 + (i * 155 / max(s2p_k-1, 1))):02x}" for i in range(s2p_k)]
+    sentence_colors = [f"#{int(255 - (i * 200 / max(sentence_k-1, 1))):02x}{int(255 - (i * 200 / max(sentence_k-1, 1))):02x}{int(255 - (i * 200 / max(sentence_k-1, 1))):02x}" for i in range(sentence_k)]
+    phrase_colors = [f"#{int(100 + (i * 155 / max(phrase_k-1, 1))):02x}{int(100 + (i * 155 / max(phrase_k-1, 1))):02x}{int(100 + (i * 155 / max(phrase_k-1, 1))):02x}" for i in range(phrase_k)]
     
-    node_colors = p2s_colors + s2p_colors
+    node_colors = sentence_colors + phrase_colors
 
     fig = go.Figure(
         data=[
@@ -136,7 +134,7 @@ def generate_sankey_html(
     )
 
     fig.update_layout(
-        title=f"P2S(K={p2s_k}) → S2P(K={s2p_k}) 클러스터 연결 (도서 기반, 흑백 인포그래픽)",
+        title=f"Sentence(K={sentence_k}) → Phrase(K={phrase_k}) 클러스터 연결 (도서 기반, 흑백 인포그래픽)",
         font_size=12,
         height=700,
         width=1000,
@@ -148,26 +146,26 @@ def generate_sankey_html(
     fig.write_html(str(out_path))
 
 def generate_report(
-    p2s_df: pd.DataFrame, s2p_df: pd.DataFrame, p2s_k: int, s2p_k: int, out_path: Path
+    sentence_df: pd.DataFrame, phrase_df: pd.DataFrame, sentence_k: int, phrase_k: int, out_path: Path
 ):
-    p2s_book_col = (
+    sentence_book_col = (
         "book_name"
-        if "book_name" in p2s_df.columns
-        else ("book" if "book" in p2s_df.columns else None)
+        if "book_name" in sentence_df.columns
+        else ("book" if "book" in sentence_df.columns else None)
     )
-    s2p_book_col = (
+    phrase_book_col = (
         "book_name"
-        if "book_name" in s2p_df.columns
-        else ("book" if "book" in s2p_df.columns else None)
+        if "book_name" in phrase_df.columns
+        else ("book" if "book" in phrase_df.columns else None)
     )
-    if p2s_book_col is None or s2p_book_col is None:
+    if sentence_book_col is None or phrase_book_col is None:
         raise KeyError("book_name 또는 book 컬럼이 필요합니다.")
 
-    common_books = set(p2s_df[p2s_book_col].unique()) & set(
-        s2p_df[s2p_book_col].unique()
+    common_books = set(sentence_df[sentence_book_col].unique()) & set(
+        phrase_df[phrase_book_col].unique()
     )
     lines = [
-        f"# P2S(K={p2s_k}) ↔ S2P(K={s2p_k}) 클러스터 연결 분석",
+        f"# Sentence(K={sentence_k}) ↔ Phrase(K={phrase_k}) 클러스터 연결 분석",
         "",
         f"**분석 일시**: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}",
         "",
@@ -175,14 +173,14 @@ def generate_report(
         "",
         "## 개요",
         "",
-        f"- P2S 데이터: {len(p2s_df):,}건, {p2s_k}개 클러스터",
-        f"- S2P 데이터: {len(s2p_df):,}건, {s2p_k}개 클러스터",
+        f"- Sentence 데이터: {len(sentence_df):,}건, {sentence_k}개 클러스터",
+        f"- Phrase 데이터: {len(phrase_df):,}건, {phrase_k}개 클러스터",
         f"- 공통 도서 수: {len(common_books)}",
         "",
         "## 해석",
         "",
         "Sankey 다이어그램은 **도서(book_name)**를 공통 기준으로 사용하여,",
-        "P2S의 각 클러스터에 속한 데이터가 S2P에서는 어떤 클러스터에 분포하는지를 보여줍니다.",
+        "Sentence의 각 클러스터에 속한 데이터가 Phrase에서는 어떤 클러스터에 분포하는지를 보여줍니다.",
         "",
         "- 굵은 연결선: 두 클러스터가 유사한 도서 구성을 공유함",
         "- 가는 연결선: 도서 구성이 다르지만 일부 겹침이 있음",
@@ -191,25 +189,25 @@ def generate_report(
     out_path.write_text("\n".join(lines), encoding="utf-8")
 
 def main():
-    parser = argparse.ArgumentParser(description="P2S-S2P 간 클러스터 Sankey")
-    parser.add_argument("--p2s-csv", type=Path, required=True)
-    parser.add_argument("--s2p-csv", type=Path, required=True)
-    parser.add_argument("--p2s-k", type=int, required=True)
-    parser.add_argument("--s2p-k", type=int, required=True)
+    parser = argparse.ArgumentParser(description="Sentence-Phrase 간 클러스터 Sankey")
+    parser.add_argument("--sentence-csv", type=Path, required=True)
+    parser.add_argument("--phrase-csv", type=Path, required=True)
+    parser.add_argument("--sentence-k", type=int, required=True)
+    parser.add_argument("--phrase-k", type=int, required=True)
     parser.add_argument("--out-dir", type=Path, required=True)
 
     args = parser.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"[1/4] P2S 데이터 로드: {args.p2s_csv}")
-    p2s_df = load_cluster_data(args.p2s_csv)
+    print(f"[1/4] Sentence 데이터 로드: {args.sentence_csv}")
+    sentence_df = load_cluster_data(args.sentence_csv)
 
-    print(f"[2/4] S2P 데이터 로드: {args.s2p_csv}")
-    s2p_df = load_cluster_data(args.s2p_csv)
+    print(f"[2/4] Phrase 데이터 로드: {args.phrase_csv}")
+    phrase_df = load_cluster_data(args.phrase_csv)
 
     print(f"[3/4] Sankey 데이터 생성...")
     all_nodes, sources, targets, values = build_cross_dataset_sankey(
-        p2s_df, s2p_df, args.p2s_k, args.s2p_k
+        sentence_df, phrase_df, args.sentence_k, args.phrase_k
     )
 
     print(f"[4/4] 시각화 생성...")
@@ -218,17 +216,17 @@ def main():
         sources,
         targets,
         values,
-        args.p2s_k,
-        args.s2p_k,
-        args.out_dir / f"p2s_k{args.p2s_k}_s2p_k{args.s2p_k}_sankey.html",
+        args.sentence_k,
+        args.phrase_k,
+        args.out_dir / f"sentence_k{args.sentence_k}_phrase_k{args.phrase_k}_sankey.html",
     )
 
     generate_report(
-        p2s_df,
-        s2p_df,
-        args.p2s_k,
-        args.s2p_k,
-        args.out_dir / f"p2s_k{args.p2s_k}_s2p_k{args.s2p_k}_sankey.md",
+        sentence_df,
+        phrase_df,
+        args.sentence_k,
+        args.phrase_k,
+        args.out_dir / f"sentence_k{args.sentence_k}_phrase_k{args.phrase_k}_sankey.md",
     )
 
     print(f"완료: {args.out_dir}")

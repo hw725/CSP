@@ -1,8 +1,8 @@
 {
   "analysis_type": "k_optimization",
   "data_type": "sentence",
-  "weighted": false,
-  "canon_weight": 1.0,
+  "weighted": true,
+  "canon_weight": 3.0,
   "sample_size": 183322,
   "embedding_dim": 1024,
   "k_range": [
@@ -12,122 +12,122 @@
   "results": [
     {
       "k": 2,
-      "silhouette": 0.02284397009964201,
-      "davies_bouldin": 6.398719561042301,
-      "inertia": 98606.69798011867
+      "silhouette": 0.025432929051516267,
+      "davies_bouldin": 6.266947026501483,
+      "inertia": 149407.56947145544
     },
     {
       "k": 3,
-      "silhouette": 0.02398975894991238,
-      "davies_bouldin": 5.391726021710091,
-      "inertia": 96420.99070380819
+      "silhouette": 0.02387555234772125,
+      "davies_bouldin": 5.457163930826295,
+      "inertia": 146140.25169407952
     },
     {
       "k": 4,
-      "silhouette": 0.012011320357841736,
-      "davies_bouldin": 5.56797734936727,
-      "inertia": 95421.45443216793
+      "silhouette": 0.020572321675776332,
+      "davies_bouldin": 5.71818612169339,
+      "inertia": 144320.0458096291
     },
     {
       "k": 5,
-      "silhouette": 0.009652753522683775,
-      "davies_bouldin": 6.325615895201728,
-      "inertia": 94985.9372749523
+      "silhouette": 0.020101550177235417,
+      "davies_bouldin": 5.301637678052042,
+      "inertia": 142599.5993816079
     },
     {
       "k": 6,
-      "silhouette": 0.01308389525536974,
-      "davies_bouldin": 5.997814235610577,
-      "inertia": 94242.10796360382
+      "silhouette": 0.01652383951083796,
+      "davies_bouldin": 5.487098745636296,
+      "inertia": 141120.5280572831
     },
     {
       "k": 7,
-      "silhouette": 0.0053506963039158745,
-      "davies_bouldin": 6.060422274035312,
-      "inertia": 93740.62367507795
+      "silhouette": 0.013557500809408325,
+      "davies_bouldin": 5.5382901770125645,
+      "inertia": 140050.53503512358
     },
     {
       "k": 8,
-      "silhouette": 0.011712169137601284,
-      "davies_bouldin": 5.7406484952247885,
-      "inertia": 93028.52614531372
+      "silhouette": 0.013764154402789216,
+      "davies_bouldin": 5.252190252865587,
+      "inertia": 138892.07821264173
     },
     {
       "k": 9,
-      "silhouette": 0.010937701788376336,
-      "davies_bouldin": 5.662602849251644,
-      "inertia": 92590.52733005644
+      "silhouette": 0.012757310717134865,
+      "davies_bouldin": 5.654670295129652,
+      "inertia": 138338.978130162
     },
     {
       "k": 10,
-      "silhouette": 0.01228840449749309,
-      "davies_bouldin": 5.494026502758143,
-      "inertia": 92003.69261076917
+      "silhouette": 0.011366683687843443,
+      "davies_bouldin": 5.406799782278504,
+      "inertia": 137830.87527785372
     },
     {
       "k": 11,
-      "silhouette": 0.011834024091614787,
-      "davies_bouldin": 5.445631554659912,
-      "inertia": 91691.85118054044
+      "silhouette": 0.009405687634640707,
+      "davies_bouldin": 5.019386351279599,
+      "inertia": 137383.1129218768
     },
     {
       "k": 12,
-      "silhouette": 0.012392456039455893,
-      "davies_bouldin": 5.489946580603644,
-      "inertia": 91428.44275658554
+      "silhouette": 0.00779485344017167,
+      "davies_bouldin": 5.091733392322102,
+      "inertia": 136918.05518033108
     },
     {
       "k": 13,
-      "silhouette": 0.011359111532120327,
-      "davies_bouldin": 5.478814538285824,
-      "inertia": 91182.78198888413
+      "silhouette": 0.007757270482171062,
+      "davies_bouldin": 5.379992787924473,
+      "inertia": 135999.3247284847
     },
     {
       "k": 14,
-      "silhouette": 0.009570182294524531,
-      "davies_bouldin": 5.71526686981994,
-      "inertia": 90923.2445275347
+      "silhouette": 0.007030796486032926,
+      "davies_bouldin": 5.209938981558507,
+      "inertia": 135816.51833731448
     },
     {
       "k": 15,
-      "silhouette": 0.0128918722717007,
-      "davies_bouldin": 5.675409691573647,
-      "inertia": 90751.03330357026
+      "silhouette": 0.00811038540235842,
+      "davies_bouldin": 5.14513264817478,
+      "inertia": 135445.08185110043
     },
     {
       "k": 16,
-      "silhouette": 0.011954913256454315,
-      "davies_bouldin": 5.679245470632774,
-      "inertia": 90639.57271371112
+      "silhouette": 0.007835577049706402,
+      "davies_bouldin": 5.21516317360605,
+      "inertia": 135065.23987373852
     },
     {
       "k": 17,
-      "silhouette": 0.012841617265607027,
-      "davies_bouldin": 5.561080045370725,
-      "inertia": 90336.79487645868
+      "silhouette": 0.008409459144432576,
+      "davies_bouldin": 5.273192203357127,
+      "inertia": 134856.6037117956
     },
     {
       "k": 18,
-      "silhouette": 0.009819359763529562,
-      "davies_bouldin": 5.499963607023073,
-      "inertia": 90136.59890162655
+      "silhouette": 0.008834221978501098,
+      "davies_bouldin": 5.156054060313651,
+      "inertia": 134233.48657254365
     },
     {
       "k": 19,
-      "silhouette": 0.011915003628032852,
-      "davies_bouldin": 5.656515215612145,
-      "inertia": 89971.6646040485
+      "silhouette": 0.0072765585071301415,
+      "davies_bouldin": 5.2641924011230525,
+      "inertia": 134005.51740061288
     },
     {
       "k": 20,
-      "silhouette": 0.011053988254061228,
-      "davies_bouldin": 5.75547862424793,
-      "inertia": 89826.46084924419
+      "silhouette": 0.005113895596487183,
+      "davies_bouldin": 5.168883340882496,
+      "inertia": 133742.41650967562
     }
   ],
-  "best_silhouette_k": 3,
-  "best_silhouette_val": 0.02398975894991238,
-  "best_db_k": 3,
-  "best_db_val": 5.391726021710091,
-  "recommended_k": 3
+  "best_silhouette_k": 2,
+  "best_silhouette_val": 0.025432929051516267,
+  "best_db_k": 11,
+  "best_db_val": 5.019386351279599,
+  "recommended_k": 2
 }
