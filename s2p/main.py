@@ -260,14 +260,19 @@ def main():
         "--batch-size", type=int, default=32, help="임베딩 배치 크기 (기본: 32)"
     )
 
-    # 새로운 모델 옵션
+    # 경계 모델 옵션 (p2s와 동일 패턴)
     parser.add_argument(
         "--use-boundary-model",
-        action="store_false",
-        dest="no_boundary_model",
-        help="새로운 boundary_multitask 모델 사용 안 함",
+        action="store_true",
+        default=True,
+        help="경계 모델 사용 (기본: 활성화)",
     )
-    parser.set_defaults(no_boundary_model=False)  # 기본적으로 사용함
+    parser.add_argument(
+        "--no-boundary-model",
+        action="store_false",
+        dest="use_boundary_model",
+        help="경계 모델 비활성화",
+    )
 
     parser.add_argument(
         "--boundary-threshold",
@@ -328,8 +333,7 @@ def main():
     # use_parallel 계산 (기존 코드와 호환)
     use_parallel = not args.no_parallel
 
-    # 🔧 use_boundary_model 속성 설정 (verbose/non-verbose 모두에서 필요)
-    args.use_boundary_model = not args.no_boundary_model
+    # use_boundary_model은 argparse에서 직접 설정됨 (p2s와 동일 패턴)
 
     if args.verbose:
         print("🚀 SA 파일 처리 시작:", args.input_file)
