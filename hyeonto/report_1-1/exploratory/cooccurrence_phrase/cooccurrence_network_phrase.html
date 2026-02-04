@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+
+<html lang="ko">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>한자-현토 공기 네트워크</title>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <style>
+
+        body {
+
+            font-family: 'Pretendard', sans-serif;
+
+            margin: 0;
+
+            background: #1a1a2e;
+
+            color: #fff;
+
+        }
+
+        #network {
+
+            width: 100%;
+
+            height: 100vh;
+
+        }
+
+        .node-hanja { fill: #e94560; }
+
+        .node-hyeonto { fill: #4ecca3; }
+
+        .link { stroke: #555; stroke-opacity: 0.6; }
+
+        .tooltip {
+
+            position: absolute;
+
+            background: rgba(0,0,0,0.8);
+
+            color: #fff;
+
+            padding: 8px 12px;
+
+            border-radius: 4px;
+
+            font-size: 14px;
+
+            pointer-events: none;
+
+        }
+
+        h1 {
+
+            position: absolute;
+
+            top: 10px;
+
+            left: 20px;
+
+            margin: 0;
+
+            font-size: 1.5rem;
+
+        }
+
+        .legend {
+
+            position: absolute;
+
+            top: 50px;
+
+            left: 20px;
+
+            background: rgba(0,0,0,0.5);
+
+            padding: 10px 15px;
+
+            border-radius: 8px;
+
+        }
+
+        .legend-item {
+
+            display: flex;
+
+            align-items: center;
+
+            margin: 5px 0;
+
+        }
+
+        .legend-color {
+
+            width: 20px;
+
+            height: 20px;
+
+            border-radius: 50%;
+
+            margin-right: 10px;
+
+        }
+
+        .info {
+
+            position: absolute;
+
+            bottom: 20px;
+
+            left: 20px;
+
+            background: rgba(0,0,0,0.5);
+
+            padding: 10px 15px;
+
+            border-radius: 8px;
+
+            font-size: 0.9rem;
+
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <h1>? 한자-현토 공기 네트워크 (정규화 반영)</h1>
+
+    <div class="legend">
+
+        <div class="legend-item">
+
+            <div class="legend-color" style="background: #e94560;"></div>
+
+            <span>한자</span>
+
+        </div>
+
+        <div class="legend-item">
+
+            <div class="legend-color" style="background: #4ecca3;"></div>
+
+            <span>현토 (정규화)</span>
+
+        </div>
+
+    </div>
+
+    <div class="info">
+
+        PMI ≥ 1.5 | 상위 178개 연관
+
+    </div>
+
+    <div id="network"></div>
+
+    <div class="tooltip" style="display: none;"></div>
+
+    <script>
+
+        const nodes = [{"id": "當", "group": 1, "type": "hanja"}, {"id": "月", "group": 1, "type": "hanja"}, {"id": "이", "group": 2, "type": "hyeonto"}, {"id": "者", "group": 1, "type": "hanja"}, {"id": "天", "group": 1, "type": "hanja"}, {"id": "할새", "group": 2, "type": "hyeonto"}, {"id": "矣", "group": 1, "type": "hanja"}, {"id": "으로", "group": 2, "type": "hyeonto"}, {"id": "下", "group": 1, "type": "hanja"}, {"id": "言", "group": 1, "type": "hanja"}, {"id": "日", "group": 1, "type": "hanja"}, {"id": "乎", "group": 1, "type": "hanja"}, {"id": "自", "group": 1, "type": "hanja"}, {"id": "皆", "group": 1, "type": "hanja"}, {"id": "時", "group": 1, "type": "hanja"}, {"id": "能", "group": 1, "type": "hanja"}, {"id": "니", "group": 2, "type": "hyeonto"}, {"id": "이니라", "group": 2, "type": "hyeonto"}, {"id": "乃", "group": 1, "type": "hanja"}, {"id": "然", "group": 1, "type": "hanja"}, {"id": "리오", "group": 2, "type": "hyeonto"}, {"id": "得", "group": 1, "type": "hanja"}, {"id": "侯", "group": 1, "type": "hanja"}, {"id": "以", "group": 1, "type": "hanja"}, {"id": "後", "group": 1, "type": "hanja"}, {"id": "三", "group": 1, "type": "hanja"}, {"id": "하시니", "group": 2, "type": "hyeonto"}, {"id": "니라", "group": 2, "type": "hyeonto"}, {"id": "라", "group": 2, "type": "hyeonto"}, {"id": "主", "group": 1, "type": "hanja"}, {"id": "호되", "group": 2, "type": "hyeonto"}, {"id": "已", "group": 1, "type": "hanja"}, {"id": "하다", "group": 2, "type": "hyeonto"}, {"id": "故", "group": 1, "type": "hanja"}, {"id": "與", "group": 1, "type": "hanja"}, {"id": "이나", "group": 2, "type": "hyeonto"}, {"id": "是", "group": 1, "type": "hanja"}, {"id": "書", "group": 1, "type": "hanja"}, {"id": "을", "group": 2, "type": "hyeonto"}, {"id": "則", "group": 1, "type": "hanja"}, {"id": "臣", "group": 1, "type": "hanja"}, {"id": "也", "group": 1, "type": "hanja"}, {"id": "所", "group": 1, "type": "hanja"}, {"id": "太", "group": 1, "type": "hanja"}, {"id": "五", "group": 1, "type": "hanja"}, {"id": "安", "group": 1, "type": "hanja"}, {"id": "二", "group": 1, "type": "hanja"}, {"id": "兵", "group": 1, "type": "hanja"}, {"id": "가", "group": 2, "type": "hyeonto"}, {"id": "知", "group": 1, "type": "hanja"}, {"id": "此", "group": 1, "type": "hanja"}, {"id": "과", "group": 2, "type": "hyeonto"}, {"id": "年", "group": 1, "type": "hanja"}, {"id": "와", "group": 2, "type": "hyeonto"}, {"id": "無", "group": 1, "type": "hanja"}, {"id": "러라", "group": 2, "type": "hyeonto"}, {"id": "아", "group": 2, "type": "hyeonto"}, {"id": "리라", "group": 2, "type": "hyeonto"}, {"id": "이니이다", "group": 2, "type": "hyeonto"}, {"id": "可", "group": 1, "type": "hanja"}, {"id": "未", "group": 1, "type": "hanja"}, {"id": "何", "group": 1, "type": "hanja"}, {"id": "러니", "group": 2, "type": "hyeonto"}, {"id": "陽", "group": 1, "type": "hanja"}, {"id": "이요", "group": 2, "type": "hyeonto"}, {"id": "士", "group": 1, "type": "hanja"}, {"id": "면", "group": 2, "type": "hyeonto"}, {"id": "로", "group": 2, "type": "hyeonto"}, {"id": "非", "group": 1, "type": "hanja"}, {"id": "에", "group": 2, "type": "hyeonto"}, {"id": "라하니", "group": 2, "type": "hyeonto"}, {"id": "이어늘", "group": 2, "type": "hyeonto"}, {"id": "十", "group": 1, "type": "hanja"}, {"id": "心", "group": 1, "type": "hanja"}, {"id": "니이다", "group": 2, "type": "hyeonto"}, {"id": "로다", "group": 2, "type": "hyeonto"}, {"id": "를", "group": 2, "type": "hyeonto"}, {"id": "나", "group": 2, "type": "hyeonto"}, {"id": "又", "group": 1, "type": "hanja"}, {"id": "見", "group": 1, "type": "hanja"}, {"id": "하니라", "group": 2, "type": "hyeonto"}, {"id": "한대", "group": 2, "type": "hyeonto"}, {"id": "將", "group": 1, "type": "hanja"}, {"id": "若", "group": 1, "type": "hanja"}, {"id": "夫", "group": 1, "type": "hanja"}, {"id": "于", "group": 1, "type": "hanja"}, {"id": "軍", "group": 1, "type": "hanja"}, {"id": "亦", "group": 1, "type": "hanja"}, {"id": "必", "group": 1, "type": "hanja"}, {"id": "어늘", "group": 2, "type": "hyeonto"}, {"id": "하면", "group": 2, "type": "hyeonto"}, {"id": "使", "group": 1, "type": "hanja"}, {"id": "我", "group": 1, "type": "hanja"}, {"id": "謂", "group": 1, "type": "hanja"}, {"id": "이라", "group": 2, "type": "hyeonto"}, {"id": "如", "group": 1, "type": "hanja"}, {"id": "이면", "group": 2, "type": "hyeonto"}, {"id": "王", "group": 1, "type": "hanja"}, {"id": "로되", "group": 2, "type": "hyeonto"}, {"id": "州", "group": 1, "type": "hanja"}, {"id": "事", "group": 1, "type": "hanja"}, {"id": "이러니", "group": 2, "type": "hyeonto"}, {"id": "出", "group": 1, "type": "hanja"}, {"id": "오", "group": 2, "type": "hyeonto"}, {"id": "요", "group": 2, "type": "hyeonto"}, {"id": "이니", "group": 2, "type": "hyeonto"}, {"id": "欲", "group": 1, "type": "hanja"}, {"id": "民", "group": 1, "type": "hanja"}, {"id": "今", "group": 1, "type": "hanja"}, {"id": "는", "group": 2, "type": "hyeonto"}, {"id": "四", "group": 1, "type": "hanja"}, {"id": "上", "group": 1, "type": "hanja"}];
+
+        const links = [{"source": "何", "target": "오", "value": 1557, "pmi": 5.863}, {"source": "乎", "target": "아", "value": 2396, "pmi": 5.644}, {"source": "何", "target": "리오", "value": 902, "pmi": 5.156}, {"source": "矣", "target": "리라", "value": 829, "pmi": 5.066}, {"source": "故", "target": "로", "value": 4829, "pmi": 4.563}, {"source": "然", "target": "이나", "value": 1472, "pmi": 4.312}, {"source": "矣", "target": "로다", "value": 488, "pmi": 3.842}, {"source": "月", "target": "에", "value": 5225, "pmi": 3.774}, {"source": "必", "target": "리라", "value": 197, "pmi": 3.707}, {"source": "若", "target": "면", "value": 709, "pmi": 3.45}, {"source": "若", "target": "이면", "value": 741, "pmi": 3.446}, {"source": "使", "target": "으로", "value": 596, "pmi": 3.163}, {"source": "安", "target": "리오", "value": 178, "pmi": 3.146}, {"source": "與", "target": "으로", "value": 586, "pmi": 3.039}, {"source": "矣", "target": "로되", "value": 260, "pmi": 3.013}, {"source": "何", "target": "아", "value": 358, "pmi": 2.894}, {"source": "矣", "target": "니라", "value": 725, "pmi": 2.866}, {"source": "將", "target": "할새", "value": 166, "pmi": 2.838}, {"source": "是", "target": "로", "value": 1430, "pmi": 2.809}, {"source": "主", "target": "가", "value": 332, "pmi": 2.804}, {"source": "如", "target": "오", "value": 288, "pmi": 2.801}, {"source": "則", "target": "리라", "value": 286, "pmi": 2.794}, {"source": "乎", "target": "리오", "value": 167, "pmi": 2.73}, {"source": "自", "target": "으로", "value": 518, "pmi": 2.72}, {"source": "者", "target": "는", "value": 9724, "pmi": 2.695}, {"source": "言", "target": "호되", "value": 299, "pmi": 2.658}, {"source": "可", "target": "아", "value": 688, "pmi": 2.65}, {"source": "亦", "target": "리라", "value": 111, "pmi": 2.633}, {"source": "我", "target": "로다", "value": 101, "pmi": 2.624}, {"source": "也", "target": "라", "value": 25115, "pmi": 2.609}, {"source": "若", "target": "하면", "value": 136, "pmi": 2.596}, {"source": "能", "target": "리오", "value": 237, "pmi": 2.568}, {"source": "年", "target": "이라", "value": 1503, "pmi": 2.557}, {"source": "可", "target": "니이다", "value": 565, "pmi": 2.538}, {"source": "年", "target": "에", "value": 2528, "pmi": 2.503}, {"source": "已", "target": "니라", "value": 317, "pmi": 2.497}, {"source": "矣", "target": "니이다", "value": 396, "pmi": 2.485}, {"source": "者", "target": "를", "value": 831, "pmi": 2.48}, {"source": "也", "target": "니이다", "value": 2019, "pmi": 2.461}, {"source": "也", "target": "니라", "value": 2803, "pmi": 2.443}, {"source": "可", "target": "로다", "value": 252, "pmi": 2.429}, {"source": "非", "target": "니이다", "value": 251, "pmi": 2.416}, {"source": "此", "target": "니이다", "value": 480, "pmi": 2.401}, {"source": "十", "target": "과", "value": 141, "pmi": 2.398}, {"source": "已", "target": "니이다", "value": 203, "pmi": 2.345}, {"source": "矣", "target": "니", "value": 961, "pmi": 2.326}, {"source": "未", "target": "니이다", "value": 233, "pmi": 2.325}, {"source": "十", "target": "에", "value": 2235, "pmi": 2.292}, {"source": "自", "target": "로", "value": 1012, "pmi": 2.291}, {"source": "以", "target": "으로", "value": 1737, "pmi": 2.289}, {"source": "也", "target": "니", "value": 4796, "pmi": 2.272}, {"source": "亦", "target": "아", "value": 278, "pmi": 2.269}, {"source": "可", "target": "리라", "value": 162, "pmi": 2.251}, {"source": "欲", "target": "한대", "value": 233, "pmi": 2.248}, {"source": "亦", "target": "니라", "value": 340, "pmi": 2.241}, {"source": "如", "target": "면", "value": 531, "pmi": 2.237}, {"source": "可", "target": "니라", "value": 637, "pmi": 2.22}, {"source": "後", "target": "에", "value": 1928, "pmi": 2.209}, {"source": "非", "target": "로되", "value": 99, "pmi": 2.208}, {"source": "能", "target": "아", "value": 350, "pmi": 2.202}, {"source": "若", "target": "오", "value": 109, "pmi": 2.195}, {"source": "州", "target": "할새", "value": 78, "pmi": 2.191}, {"source": "士", "target": "가", "value": 217, "pmi": 2.147}, {"source": "于", "target": "하다", "value": 1157, "pmi": 2.146}, {"source": "皆", "target": "로되", "value": 125, "pmi": 2.134}, {"source": "非", "target": "니라", "value": 290, "pmi": 2.133}, {"source": "皆", "target": "러라", "value": 111, "pmi": 2.117}, {"source": "事", "target": "를", "value": 240, "pmi": 2.11}, {"source": "時", "target": "에", "value": 1630, "pmi": 2.096}, {"source": "上", "target": "호되", "value": 141, "pmi": 2.087}, {"source": "使", "target": "한대", "value": 338, "pmi": 2.071}, {"source": "非", "target": "요", "value": 487, "pmi": 2.068}, {"source": "也", "target": "요", "value": 3774, "pmi": 2.06}, {"source": "矣", "target": "라하니", "value": 140, "pmi": 2.06}, {"source": "陽", "target": "으로", "value": 137, "pmi": 2.053}, {"source": "于", "target": "할새", "value": 79, "pmi": 2.046}, {"source": "矣", "target": "라", "value": 3277, "pmi": 2.045}, {"source": "謂", "target": "로다", "value": 125, "pmi": 2.041}, {"source": "亦", "target": "이니라", "value": 86, "pmi": 2.03}, {"source": "亦", "target": "로다", "value": 100, "pmi": 2.023}, {"source": "欲", "target": "나", "value": 135, "pmi": 2.022}, {"source": "十", "target": "와", "value": 82, "pmi": 1.993}, {"source": "欲", "target": "이어늘", "value": 191, "pmi": 1.993}, {"source": "已", "target": "러라", "value": 65, "pmi": 1.992}, {"source": "將", "target": "리라", "value": 85, "pmi": 1.987}, {"source": "非", "target": "면", "value": 318, "pmi": 1.986}, {"source": "州", "target": "러니", "value": 145, "pmi": 1.982}, {"source": "矣", "target": "러라", "value": 113, "pmi": 1.966}, {"source": "欲", "target": "어늘", "value": 200, "pmi": 1.946}, {"source": "無", "target": "리라", "value": 134, "pmi": 1.936}, {"source": "欲", "target": "러니", "value": 133, "pmi": 1.933}, {"source": "非", "target": "이면", "value": 321, "pmi": 1.931}, {"source": "已", "target": "니", "value": 412, "pmi": 1.929}, {"source": "此", "target": "니라", "value": 486, "pmi": 1.927}, {"source": "亦", "target": "니이다", "value": 194, "pmi": 1.923}, {"source": "二", "target": "와", "value": 78, "pmi": 1.92}, {"source": "可", "target": "라하니", "value": 173, "pmi": 1.906}, {"source": "侯", "target": "하다", "value": 714, "pmi": 1.889}, {"source": "乃", "target": "하다", "value": 855, "pmi": 1.872}, {"source": "欲", "target": "호되", "value": 77, "pmi": 1.869}, {"source": "安", "target": "아", "value": 139, "pmi": 1.861}, {"source": "見", "target": "하니라", "value": 167, "pmi": 1.837}, {"source": "矣", "target": "나", "value": 196, "pmi": 1.833}, {"source": "以", "target": "로", "value": 3326, "pmi": 1.831}, {"source": "侯", "target": "할새", "value": 50, "pmi": 1.825}, {"source": "日", "target": "에", "value": 1101, "pmi": 1.818}, {"source": "也", "target": "오", "value": 809, "pmi": 1.817}, {"source": "夫", "target": "와", "value": 66, "pmi": 1.812}, {"source": "無", "target": "이니이다", "value": 146, "pmi": 1.808}, {"source": "必", "target": "이니", "value": 235, "pmi": 1.803}, {"source": "非", "target": "아", "value": 184, "pmi": 1.795}, {"source": "可", "target": "리오", "value": 197, "pmi": 1.774}, {"source": "心", "target": "이니이다", "value": 50, "pmi": 1.768}, {"source": "我", "target": "아", "value": 130, "pmi": 1.76}, {"source": "州", "target": "하다", "value": 788, "pmi": 1.756}, {"source": "欲", "target": "이러니", "value": 113, "pmi": 1.751}, {"source": "王", "target": "이", "value": 2656, "pmi": 1.738}, {"source": "可", "target": "이니이다", "value": 135, "pmi": 1.736}, {"source": "言", "target": "하면", "value": 189, "pmi": 1.732}, {"source": "心", "target": "이면", "value": 209, "pmi": 1.729}, {"source": "所", "target": "니이다", "value": 455, "pmi": 1.713}, {"source": "陽", "target": "할새", "value": 43, "pmi": 1.706}, {"source": "當", "target": "이니", "value": 193, "pmi": 1.701}, {"source": "十", "target": "이라", "value": 849, "pmi": 1.7}, {"source": "我", "target": "오", "value": 69, "pmi": 1.694}, {"source": "我", "target": "라하니", "value": 52, "pmi": 1.686}, {"source": "得", "target": "리오", "value": 141, "pmi": 1.685}, {"source": "今", "target": "하면", "value": 98, "pmi": 1.673}, {"source": "五", "target": "와", "value": 43, "pmi": 1.672}, {"source": "矣", "target": "요", "value": 554, "pmi": 1.666}, {"source": "可", "target": "이니라", "value": 127, "pmi": 1.666}, {"source": "得", "target": "리라", "value": 82, "pmi": 1.662}, {"source": "已", "target": "요", "value": 311, "pmi": 1.657}, {"source": "知", "target": "로되", "value": 85, "pmi": 1.648}, {"source": "臣", "target": "으로", "value": 175, "pmi": 1.646}, {"source": "出", "target": "할새", "value": 51, "pmi": 1.641}, {"source": "三", "target": "과", "value": 85, "pmi": 1.638}, {"source": "知", "target": "나", "value": 144, "pmi": 1.636}, {"source": "未", "target": "니라", "value": 203, "pmi": 1.635}, {"source": "天", "target": "하시니", "value": 103, "pmi": 1.63}, {"source": "二", "target": "에", "value": 1411, "pmi": 1.627}, {"source": "心", "target": "을", "value": 60, "pmi": 1.625}, {"source": "兵", "target": "할새", "value": 54, "pmi": 1.623}, {"source": "知", "target": "니라", "value": 258, "pmi": 1.623}, {"source": "年", "target": "이요", "value": 305, "pmi": 1.611}, {"source": "將", "target": "러니", "value": 152, "pmi": 1.606}, {"source": "所", "target": "니라", "value": 594, "pmi": 1.606}, {"source": "臣", "target": "니이다", "value": 179, "pmi": 1.603}, {"source": "能", "target": "면", "value": 349, "pmi": 1.6}, {"source": "故", "target": "하니라", "value": 246, "pmi": 1.6}, {"source": "欲", "target": "로되", "value": 59, "pmi": 1.6}, {"source": "如", "target": "하니라", "value": 198, "pmi": 1.598}, {"source": "此", "target": "면", "value": 468, "pmi": 1.593}, {"source": "非", "target": "이요", "value": 253, "pmi": 1.585}, {"source": "則", "target": "이요", "value": 633, "pmi": 1.583}, {"source": "下", "target": "하시니", "value": 114, "pmi": 1.583}, {"source": "軍", "target": "하다", "value": 662, "pmi": 1.581}, {"source": "十", "target": "이요", "value": 305, "pmi": 1.578}, {"source": "民", "target": "이니이다", "value": 56, "pmi": 1.576}, {"source": "又", "target": "리오", "value": 79, "pmi": 1.575}, {"source": "我", "target": "리오", "value": 60, "pmi": 1.573}, {"source": "知", "target": "로다", "value": 85, "pmi": 1.568}, {"source": "王", "target": "과", "value": 144, "pmi": 1.563}, {"source": "必", "target": "이니이다", "value": 53, "pmi": 1.56}, {"source": "得", "target": "아", "value": 246, "pmi": 1.559}, {"source": "書", "target": "와", "value": 48, "pmi": 1.555}, {"source": "四", "target": "에", "value": 917, "pmi": 1.553}, {"source": "無", "target": "니이다", "value": 293, "pmi": 1.55}, {"source": "此", "target": "하니라", "value": 263, "pmi": 1.546}, {"source": "已", "target": "라하니", "value": 55, "pmi": 1.536}, {"source": "使", "target": "로", "value": 506, "pmi": 1.532}, {"source": "則", "target": "니라", "value": 478, "pmi": 1.529}, {"source": "知", "target": "리오", "value": 101, "pmi": 1.517}, {"source": "亦", "target": "이니이다", "value": 61, "pmi": 1.516}, {"source": "民", "target": "을", "value": 71, "pmi": 1.513}, {"source": "與", "target": "로", "value": 533, "pmi": 1.508}, {"source": "太", "target": "할새", "value": 49, "pmi": 1.503}, {"source": "書", "target": "호되", "value": 63, "pmi": 1.501}];
+
+        const width = window.innerWidth;
+
+        const height = window.innerHeight;
+
+        const svg = d3.select("#network")
+
+            .append("svg")
+
+            .attr("width", width)
+
+            .attr("height", height);
+
+        const simulation = d3.forceSimulation(nodes)
+
+            .force("link", d3.forceLink(links).id(d => d.id).distance(80))
+
+            .force("charge", d3.forceManyBody().strength(-200))
+
+            .force("center", d3.forceCenter(width / 2, height / 2));
+
+        const link = svg.append("g")
+
+            .selectAll("line")
+
+            .data(links)
+
+            .join("line")
+
+            .attr("class", "link")
+
+            .attr("stroke-width", d => Math.sqrt(d.value / 100));
+
+        const node = svg.append("g")
+
+            .selectAll("circle")
+
+            .data(nodes)
+
+            .join("circle")
+
+            .attr("r", d => d.type === 'hanja' ? 12 : 8)
+
+            .attr("class", d => d.type === 'hanja' ? 'node-hanja' : 'node-hyeonto')
+
+            .call(d3.drag()
+
+                .on("start", dragstarted)
+
+                .on("drag", dragged)
+
+                .on("end", dragended));
+
+        const label = svg.append("g")
+
+            .selectAll("text")
+
+            .data(nodes)
+
+            .join("text")
+
+            .text(d => d.id)
+
+            .attr("font-size", d => d.type === 'hanja' ? 14 : 11)
+
+            .attr("fill", "#fff")
+
+            .attr("text-anchor", "middle")
+
+            .attr("dy", d => d.type === 'hanja' ? -18 : -12);
+
+        const tooltip = d3.select(".tooltip");
+
+        node.on("mouseover", function(event, d) {
+
+            const connections = links.filter(l => l.source.id === d.id || l.target.id === d.id);
+
+            tooltip
+
+                .style("display", "block")
+
+                .style("left", (event.pageX + 10) + "px")
+
+                .style("top", (event.pageY + 10) + "px")
+
+                .html(`<strong>${d.id}</strong> (${d.type})<br>연결: ${connections.length}개`);
+
+        })
+
+        .on("mouseout", function() {
+
+            tooltip.style("display", "none");
+
+        });
+
+        simulation.on("tick", () => {
+
+            link
+
+                .attr("x1", d => d.source.x)
+
+                .attr("y1", d => d.source.y)
+
+                .attr("x2", d => d.target.x)
+
+                .attr("y2", d => d.target.y);
+
+            node
+
+                .attr("cx", d => d.x)
+
+                .attr("cy", d => d.y);
+
+            label
+
+                .attr("x", d => d.x)
+
+                .attr("y", d => d.y);
+
+        });
+
+        function dragstarted(event) {
+
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+
+            event.subject.fx = event.subject.x;
+
+            event.subject.fy = event.subject.y;
+
+        }
+
+        function dragged(event) {
+
+            event.subject.fx = event.x;
+
+            event.subject.fy = event.y;
+
+        }
+
+        function dragended(event) {
+
+            if (!event.active) simulation.alphaTarget(0);
+
+            event.subject.fx = null;
+
+            event.subject.fy = null;
+
+        }
+
+    </script>
+
+</body>
+
+</html>

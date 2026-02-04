@@ -30,13 +30,11 @@ if str(REPO_ROOT) not in sys.path:
 
 from accuracy.p2s_evaluator import _boundary_positions_normed, _norm, _prf1
 
-
 def _read_csv(path: Path) -> pd.DataFrame:
     try:
         return pd.read_csv(path, encoding="utf-8-sig")
     except UnicodeDecodeError:
         return pd.read_csv(path, encoding="utf-8")
-
 
 def _prep(df: pd.DataFrame, *, name: str) -> tuple[pd.DataFrame, bool]:
     required = {"문단식별자", "원문", "번역문"}
@@ -55,12 +53,10 @@ def _prep(df: pd.DataFrame, *, name: str) -> tuple[pd.DataFrame, bool]:
 
     return df, has_book
 
-
 def _group(df: pd.DataFrame, has_book: bool):
     if has_book:
         return df.groupby(["book_name", "문단식별자"], sort=False)
     return df.groupby("문단식별자", sort=False)
-
 
 def _key_sort(key):
     # key is (book, pid) or pid
@@ -68,7 +64,6 @@ def _key_sort(key):
         bk, pid = key
         return (str(bk), int(pid))
     return ("", int(key))
-
 
 @dataclass(frozen=True)
 class DiffRow:
@@ -83,10 +78,8 @@ class DiffRow:
     f1_gold_a: float | None
     f1_gold_b: float | None
 
-
 def _seq_norm(xs: Iterable[str]) -> list[str]:
     return [_norm(str(x).strip()) for x in xs]
-
 
 def _f1_vs_gold(pred_src: list[str], gold_src: list[str]) -> float:
     pb = _boundary_positions_normed(pred_src)
@@ -98,13 +91,16 @@ def _f1_vs_gold(pred_src: list[str], gold_src: list[str]) -> float:
     _, _, f1 = _prf1(tp, fp, fn)
     return float(f1)
 
-
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("a", type=Path, help="P2S output A (csv)")
     ap.add_argument("b", type=Path, help="P2S output B (csv)")
-    ap.add_argument("--gold", type=Path, default=None, help="Optional gold sentence CSV")
-    ap.add_argument("--top", type=int, default=30, help="How many differing pids to print")
+    ap.add_argument(
+        "--gold", type=Path, default=None, help="Optional gold sentence CSV"
+    )
+    ap.add_argument(
+        "--top", type=int, default=30, help="How many differing pids to print"
+    )
     args = ap.parse_args()
 
     a_df, a_has_book = _prep(_read_csv(args.a), name="A")
@@ -113,7 +109,9 @@ def main() -> int:
     # If one has book_name and the other doesn't, we still can diff by pid-only,
     # but warn since pid collisions are possible.
     if a_has_book != b_has_book:
-        print("[warn] A/B book_name column presence differs. Falling back to pid-only may be ambiguous.")
+        print(
+            "[warn] A/B book_name column presence differs. Falling back to pid-only may be ambiguous."
+        )
 
     use_book = a_has_book and b_has_book
 
@@ -139,9 +137,9 @@ def main() -> int:
         for col in ("원문", "번역문"):
             gold_df[col] = gold_df[col].fillna("")
         gold_df["book_name"] = gold_df["book_name"].fillna("").astype(str)
-        gold_g = gold_df.sort_values(["book_name", "문단식별자", "문장식별자"], kind="stable").groupby(
-            ["book_name", "문단식별자"], sort=False
-        )
+        gold_g = gold_df.sort_values(
+            ["book_name", "문단식별자", "문장식별자"], kind="stable"
+        ).groupby(["book_name", "문단식별자"], sort=False)
 
     diffs: list[DiffRow] = []
 
@@ -205,7 +203,9 @@ def main() -> int:
     if diffs:
         tgt_same = sum(1 for r in diffs if r.tgt_equal)
         src_concat_same = sum(1 for r in diffs if r.src_concat_equal)
-        print(f"diff breakdown: tgt_equal={tgt_same}/{len(diffs)}, src_concat_equal={src_concat_same}/{len(diffs)}")
+        print(
+            f"diff breakdown: tgt_equal={tgt_same}/{len(diffs)}, src_concat_equal={src_concat_same}/{len(diffs)}"
+        )
 
     # Print the earliest diffs in pid order.
     diffs_sorted = sorted(diffs, key=lambda r: _key_sort(r.key))
@@ -226,7 +226,7 @@ def main() -> int:
     # Print a few concrete examples for the very first diff.
     if diffs_sorted:
         first = diffs_sorted[0].key
-        print() 
+        print()
         print("EXAMPLE (first diff):", first)
         a_grp = a_g.get_group(first)
         b_grp = b_g.get_group(first)
@@ -267,7 +267,6 @@ def main() -> int:
                     print(f"  src length differs: A={len(a_src)} B={len(b_src)}")
 
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

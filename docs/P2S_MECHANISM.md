@@ -1,7 +1,7 @@
 # P2S (Paragraph-to-Sentence Aligner) 메커니즘 상세 설명
 
-**버전**: 2026-01-15  
-**목적**: 고전 한문(원문)과 현대 한국어(번역문) 간의 문장 단위 정렬  
+**버전**: 2026-01-15
+**목적**: 고전 한문(원문)과 현대 한국어(번역문) 간의 문장 단위 정렬
 **약칭**: P2S (구: PA)
 
 ---
@@ -60,7 +60,7 @@ PA(Paragraph Aligner)는 **문단 단위**로 입력된 원문-번역문 쌍을 
 PA는 크게 5단계로 구성됩니다:
 
 ```
-[입력 문단] 
+[입력 문단]
     ↓
 [1단계] 문장 분할 (각 언어별)
     ↓
@@ -216,7 +216,7 @@ similarity = (벡터A · 벡터B) / (||벡터A|| × ||벡터B||)
 
 **상태 정의**:
 ```
-dp[i][j] = i번째 번역문 문장까지 매칭할 때, 
+dp[i][j] = i번째 번역문 문장까지 매칭할 때,
            j번째 경계 후보를 선택했을 때의 최대 총점
 ```
 
@@ -256,7 +256,7 @@ DP 리파인 결과가 원래 결과보다 **명확히 좋을 때만** 적용합
 
 DP 알고리즘의 핵심 루프를 **Numba**로 컴파일하여 C 수준의 속도를 달성합니다.
 
-**적용 전**: Python 루프 → 느림  
+**적용 전**: Python 루프 → 느림
 **적용 후**: 기계어 컴파일 → 10~50배 빠름
 
 ### 7.3 GPU 배치 처리
@@ -330,7 +330,7 @@ F1 = 2 × (Precision × Recall) / (Precision + Recall)
 
 1. **1:1 매칭 가정**: 원문 1문장 = 번역문 1문장
    - 실제로는 1:2, 2:1 매칭도 존재
-   
+
 2. **문맥 무시**: 각 문단을 독립적으로 처리
    - 앞뒤 문단의 맥락 미반영
 
@@ -371,15 +371,15 @@ graph TD
     In["입력 텍스트 (문자 시퀀스)"] --> Emb["Embedding Layer (64D)"]
     Emb --> LSTM1["BiLSTM Layer 1 (128D x 2)"]
     LSTM1 --> LSTM2["BiLSTM Layer 2 (128D x 2)"]
-    
+
     LSTM2 --> PA["PA Head (Linear)"]
     LSTM2 --> SA["SA Head (Linear)"]
     LSTM2 --> PD["PD Head (Linear)"]
-    
+
     PA --> Out1["문장 경계 확률"]
     SA --> Out2["구 경계 확률"]
     PD --> Out3["구두점 위치 확률"]
-    
+
     style In fill:#f9f,stroke:#333
     style LSTM2 fill:#bbf,stroke:#333
     style PA fill:#bfb,stroke:#333

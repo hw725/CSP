@@ -239,29 +239,29 @@ from xlsx_pipeline.xlsx_pipeline_processor import XLSXPipelineProcessor
 processor = XLSXPipelineProcessor()
 book = processor.get_book("당송팔대가문초구양수1")
 
-# PA 분석 실행
+# P2S 분석 실행
 result = processor.process_book_pipeline(
     "당송팔대가문초구양수1",
-    config={"analysis": ["pa"]}
+    config={"analysis": ["p2s"]}
 )
 
-# 결과: {book_id}_pa_output.xlsx
+# 결과: {book_id}_p2s_output.xlsx
 ```
 
-### SA (Sentence Alignment) 분석
+### S2P (Sentence to Phrase Alignment) 분석
 ```python
-# SA 분석 실행
+# S2P 분석 실행
 result = processor.process_book_pipeline(
     "당송팔대가문초구양수1",
-    config={"analysis": ["sa"]}
+    config={"analysis": ["s2p"]}
 )
 
-# 결과: {book_id}_sa_output.xlsx
+# 결과: {book_id}_s2p_output.xlsx
 ```
 
-### 전체 파이프라인 (PA + SA + Accuracy)
+### 전체 파이프라인 (P2S + S2P + Accuracy)
 ```python
-# PA, SA 실행 후 정확도 자동 평가
+# P2S, S2P 실행 후 정확도 자동 평가
 result = processor.process_book_pipeline(
     "당송팔대가문초구양수1",
     config={
@@ -271,10 +271,10 @@ result = processor.process_book_pipeline(
 )
 
 # 결과:
-# - {book_id}_pa_output.xlsx
-# - {book_id}_sa_output.xlsx
-# - {book_id}_pa_accuracy.json
-# - {book_id}_sa_accuracy.json
+# - {book_id}_p2s_output.xlsx
+# - {book_id}_s2p_output.xlsx
+# - {book_id}_p2s_accuracy.json
+# - {book_id}_s2p_accuracy.json
 # - {book_id}_full_pipeline.json
 ```
 

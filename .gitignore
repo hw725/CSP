@@ -196,6 +196,12 @@ cython_debug/
 embeddings_cache_openai/
 embeddings_cache_similarity/
 
+# Local datasets (merged/split Excel)
+dataset/
+dataset_split/
+datasets/xlsx/
+datasets/splits/
+
 # Generated results / reports
 test_results/
 
@@ -240,6 +246,15 @@ hyeonto/cache/
 hyeonto/datasets/
 hyeonto/trash/
 hyeonto/reports/archive/
+hyeonto/results/dansa_level1_judgments.csv
+hyeonto/results/dansa_level2_judgments.csv
+hyeonto/results/classified_markers_phrase.json
+
+# Hyeonto clustering output CSVs (원본 텍스트 포함, 대용량)
+hyeonto/report_1-1/**/phrase_clusters.csv
+hyeonto/report_1-1/**/sentence_clusters.csv
+hyeonto/report_3-1/**/phrase_clusters.csv
+hyeonto/report_3-1/**/sentence_clusters.csv
 
 # Local analysis scratch (do not commit)
 analytics/analyze_sentence_eval.py
@@ -327,6 +342,12 @@ pyi/
 *.pt
 *.bz2
 *.lzma
+
+# Windows artifacts
+nul
+
+# Temporary scripts
+cleanup.py
 
 # Recovered junk folders (root-level, 복구 잔해 방지)
 /csv/

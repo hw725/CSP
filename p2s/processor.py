@@ -12,7 +12,6 @@ from datetime import datetime
 # 로거 설정
 logger = logging.getLogger(__name__)
 
-
 class _StageTracer:
     def __init__(self, path: str):
         self.path = str(path)
@@ -32,10 +31,16 @@ class _StageTracer:
             pass
 
 # 통합 진행률 관리자
-from common.progress_manager import start_unified_progress, update_unified_progress, finish_unified_progress, set_progress_description
+from common.progress_manager import (
+    start_unified_progress,
+    update_unified_progress,
+    finish_unified_progress,
+    set_progress_description,
+)
+
 # 전역 무결성 검증 모듈
 from common.integrity_verifier import verify_global_integrity
-from common.config import get_pa_selection_params
+from common.config import get_p2s_selection_params
 
 # 경로 설정
 current_dir = Path(__file__).parent
@@ -44,9 +49,11 @@ sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(current_dir))
 
 # 로컬 모듈 import
-from sentence_splitter import split_target_sentences_advanced, split_source_by_whitespace_and_align
+from sentence_splitter import (
+    split_target_sentences_advanced,
+    split_source_by_whitespace_and_align,
+)
 from aligner import compute_similarity_simple, safe_source_split
-
 
 def _split_target_sentences_pa(
     tgt_paragraph: str,
@@ -66,7 +73,9 @@ def _split_target_sentences_pa(
         return []
 
     try:
-        rule_based = split_target_sentences_advanced(tgt_paragraph, max_length=max_length)
+        rule_based = split_target_sentences_advanced(
+            tgt_paragraph, max_length=max_length
+        )
     except Exception as e:
         rule_based = []
         if verbose:
@@ -79,10 +88,14 @@ def _split_target_sentences_pa(
     # 1문장으로만 나오는 경우는 모델 fallback을 허용
     if boundary_model is not None:
         try:
-            model_based = boundary_model.segment_text(tgt_paragraph, task="pa", threshold=threshold)
+            model_based = boundary_model.segment_text(
+                tgt_paragraph, task="pa", threshold=threshold
+            )
             if model_based and len(model_based) >= 2:
                 if verbose:
-                    print(f"   🔁 번역문 분할 fallback: rule-based={len(rule_based) or 0} → boundary_model={len(model_based)}")
+                    print(
+                        f"   🔁 번역문 분할 fallback: rule-based={len(rule_based) or 0} → boundary_model={len(model_based)}"
+                    )
                 return model_based
         except Exception as e:
             if verbose:
@@ -90,7 +103,6 @@ def _split_target_sentences_pa(
 
     # 최후의 수단: 빈/단일 반환(상위에서 처리)
     return rule_based if rule_based else [tgt_paragraph]
-
 
 def _refine_alignments_with_models(
     alignments: List[Dict],
@@ -101,16 +113,16 @@ def _refine_alignments_with_models(
     threshold: float = 0.5,
     boundary_min_len: int | None = None,
     tgt_split_max_length: int = 150,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> List[Dict]:
     """
     기존 alignments를 경계 모델과 alignment 모델로 refinement
-    
+
     전략:
     1. 번역문 결합 → 경계 모델로 재분할 → 새 경계 제안
     2. Alignment 모델로 원문 재정렬
     3. 기존 메타데이터 유지 (문단식별자, 문장식별자 등)
-    
+
     Args:
         alignments: 기존 BGE/순차 방식 결과
         src_paragraph: 원본 원문 문단
@@ -119,13 +131,13 @@ def _refine_alignments_with_models(
         alignment_model: AlignmentMatcher
         threshold: 경계 확률 임계값
         verbose: 상세 로그
-    
+
     Returns:
         Refined alignments
     """
     if not alignments or not boundary_model or not alignment_model:
         return alignments
-    
+
     try:
         # 1) 번역문 문장 경계는 rule-based로 고정
         tgt_sentences = _split_target_sentences_pa(
@@ -135,12 +147,12 @@ def _refine_alignments_with_models(
             verbose=verbose,
             max_length=tgt_split_max_length,
         )
-        
+
         if verbose:
             old_count = len(alignments)
             new_count = len(tgt_sentences)
             print(f"   🔧 Refinement: {old_count}개 → {new_count}개 문장 (경계 모델)")
-        
+
         # 2) 원문 후보 경계 생성은 boundary 모델로 (원문 전용)
         # 3) tgt 문장 개수만큼 alignment 모델로 src를 매칭
         src_sentences: List[str]
@@ -164,28 +176,33 @@ def _refine_alignments_with_models(
 
         # match_segments는 tgt 개수만큼 src를 반환하도록 이미 보장됨
         src_sentences = alignment_model.match_segments(src_candidates, tgt_sentences)
-        
+
         # 3. 새 alignments 생성 (기존 메타데이터 참고)
-        base_para_id = alignments[0].get('문단식별자', 1) if alignments else 1
-        base_sent_id = alignments[0].get('문장식별자', 1) if alignments else 1
-        
+        base_para_id = alignments[0].get("문단식별자", 1) if alignments else 1
+        base_sent_id = alignments[0].get("문장식별자", 1) if alignments else 1
+
         refined = []
         for i, (src_sent, tgt_sent) in enumerate(zip(src_sentences, tgt_sentences)):
-            refined.append({
-                '문단식별자': base_para_id,
-                '문장식별자': base_sent_id + i,
-                '원문': src_sent,
-                '번역문': tgt_sent,
-                'similarity': alignment_model.compute_similarity(src_sent, tgt_sent) if alignment_model else compute_similarity_simple(src_sent, tgt_sent)
-            })
-        
+            refined.append(
+                {
+                    "문단식별자": base_para_id,
+                    "문장식별자": base_sent_id + i,
+                    "원문": src_sent,
+                    "번역문": tgt_sent,
+                    "similarity": (
+                        alignment_model.compute_similarity(src_sent, tgt_sent)
+                        if alignment_model
+                        else compute_similarity_simple(src_sent, tgt_sent)
+                    ),
+                }
+            )
+
         return refined
-        
+
     except Exception as e:
         if verbose:
             print(f"   ⚠️ Refinement 실패, 기존 결과 유지: {e}")
         return alignments
-
 
 def process_paragraph_alignment_with_boundary_model(
     src_paragraph: str,
@@ -208,7 +225,7 @@ def process_paragraph_alignment_with_boundary_model(
 ) -> List[Dict]:
     """
     Boundary 모델과 Alignment 모델을 사용한 문단 정렬
-    
+
     Args:
         src_paragraph: 원문 문단
         tgt_paragraph: 번역문 문단
@@ -217,13 +234,13 @@ def process_paragraph_alignment_with_boundary_model(
         threshold: 경계 확률 임계값
         boundary_min_len: boundary 모델 디코딩 min_len 오버라이드(task=pa). None이면 기본값 사용
         verbose: 상세 로그 여부
-    
+
     Returns:
         정렬된 문장 쌍 리스트
     """
     if not src_paragraph or not tgt_paragraph:
         return []
-    
+
     # 1. 번역문 문장 경계는 rule-based로 고정 (boundary 모델 사용 금지)
     try:
         tgt_sentences = _split_target_sentences_pa(
@@ -249,10 +266,12 @@ def process_paragraph_alignment_with_boundary_model(
         if verbose:
             print(f"   ⚠️ 번역문 분할 실패: {e}")
         return []
-    
+
     # 2. 원문 후보 경계 생성 + tgt 개수로 매칭 (alignment 모델)
     if boundary_model is None or alignment_model is None:
-        raise ValueError("boundary_model/alignment_model이 필요합니다 (--use-boundary-model 모드)")
+        raise ValueError(
+            "boundary_model/alignment_model이 필요합니다 (--use-boundary-model 모드)"
+        )
 
     desired = len(tgt_sentences)
 
@@ -272,7 +291,9 @@ def process_paragraph_alignment_with_boundary_model(
 
     src_paragraph_norm = _norm_for_boundary(src_paragraph)
     try:
-        src_boundary_logits = boundary_model.predict_boundary_logits(src_paragraph_norm, task="pa")
+        src_boundary_logits = boundary_model.predict_boundary_logits(
+            src_paragraph_norm, task="pa"
+        )
     except Exception:
         src_boundary_logits = None
 
@@ -309,9 +330,7 @@ def process_paragraph_alignment_with_boundary_model(
         def is_cjk(ch: str) -> bool:
             o = ord(ch)
             return (
-                0x4E00 <= o <= 0x9FFF
-                or 0x3400 <= o <= 0x4DBF
-                or 0xF900 <= o <= 0xFAFF
+                0x4E00 <= o <= 0x9FFF or 0x3400 <= o <= 0x4DBF or 0xF900 <= o <= 0xFAFF
             )
 
         end = j + 1
@@ -355,10 +374,11 @@ def process_paragraph_alignment_with_boundary_model(
         # AlignmentMatcher는 tgt 1개당 src 최대 4개까지 합쳐보므로,
         # 후보 개수가 과도하면 오히려 매칭이 제한에 걸릴 수 있다.
         import math
+
         group = int(math.ceil(len(parts) / max_parts))
         merged: List[str] = []
         for i in range(0, len(parts), group):
-            chunk = "".join([p for p in parts[i:i + group] if p is not None])
+            chunk = "".join([p for p in parts[i : i + group] if p is not None])
             if chunk:
                 merged.append(chunk)
         return merged if merged else ["".join(parts)]
@@ -407,9 +427,7 @@ def process_paragraph_alignment_with_boundary_model(
                 return False
             o = ord(ch)
             return (
-                0x4E00 <= o <= 0x9FFF
-                or 0x3400 <= o <= 0x4DBF
-                or 0xF900 <= o <= 0xFAFF
+                0x4E00 <= o <= 0x9FFF or 0x3400 <= o <= 0x4DBF or 0xF900 <= o <= 0xFAFF
             )
 
         def is_hangul(ch: str) -> bool:
@@ -446,7 +464,9 @@ def process_paragraph_alignment_with_boundary_model(
                 offsets.append(cursor)
                 # NOTE: 여기서는 strip()을 하지 않는다. 원문 내 중간 공백은 제거되지만,
                 # 문단 전체의 양끝 공백은 일반적으로 없으며, 있어도 raw<->norm 매핑에서 일관되게 처리된다.
-                cursor += len(str(p).replace(" ", "").replace("\n", "").replace("\t", ""))
+                cursor += len(
+                    str(p).replace(" ", "").replace("\n", "").replace("\t", "")
+                )
             return offsets
 
         def _norm_len_prefix(text: str, end_pos_raw: int) -> int:
@@ -498,7 +518,9 @@ def process_paragraph_alignment_with_boundary_model(
             scored = []
             for pos in range(a, b + 1):
                 scored.append((float(src_boundary_logits[pos]), pos))
-            scored.sort(key=lambda x: (x[0], -abs(x[1] - global_center_norm)), reverse=True)
+            scored.sort(
+                key=lambda x: (x[0], -abs(x[1] - global_center_norm)), reverse=True
+            )
             return [pos for _score, pos in scored[:k]]
 
         def sim(a: str, b: str) -> float:
@@ -570,7 +592,10 @@ def process_paragraph_alignment_with_boundary_model(
 
                     # 모델 신호는 '긍정'일 때만 보너스로 사용한다.
                     # (음수 logit을 패널티로 쓰면, 경계 모델의 오판이 DP를 강하게 왜곡할 수 있음)
-                    bonus += 0.020 * max(0.0, math.tanh(float(src_boundary_logits[global_pos_norm]) / 3.0))
+                    bonus += 0.020 * max(
+                        0.0,
+                        math.tanh(float(src_boundary_logits[global_pos_norm]) / 3.0),
+                    )
             except Exception:
                 pass
             return bonus
@@ -634,7 +659,12 @@ def process_paragraph_alignment_with_boundary_model(
                         continue
                     c_prev = combined[pos - 1]
                     c_next = combined[pos]
-                    if c_prev.isspace() or c_next.isspace() or (c_prev in punct) or (c_next in punct):
+                    if (
+                        c_prev.isspace()
+                        or c_next.isspace()
+                        or (c_prev in punct)
+                        or (c_next in punct)
+                    ):
                         candidates.add(pos)
 
                 # 토큰 단위 이동 후보
@@ -649,7 +679,7 @@ def process_paragraph_alignment_with_boundary_model(
                     return pos
 
                 # boundary가 토큰 내부면 토큰 시작/끝도 후보
-                for (a, b) in spans:
+                for a, b in spans:
                     if a < boundary < b:
                         candidates.add(a)
                         candidates.add(b)
@@ -695,21 +725,29 @@ def process_paragraph_alignment_with_boundary_model(
                 if src_boundary_logits is not None:
                     # norm 좌표계에서 top-k 후보 → raw pos로 매핑
                     global_start_norm = norm_offsets_local[i]
-                    boundary_norm = len(s1.replace(" ", "").replace("\n", "").replace("\t", ""))
+                    boundary_norm = len(
+                        s1.replace(" ", "").replace("\n", "").replace("\t", "")
+                    )
                     global_boundary_norm = global_start_norm + boundary_norm
-                    global_end_norm = global_start_norm + len(combined.replace(" ", "").replace("\n", "").replace("\t", ""))
+                    global_end_norm = global_start_norm + len(
+                        combined.replace(" ", "").replace("\n", "").replace("\t", "")
+                    )
                     window_norm = max(40, int(max_shift_tokens_local) * 30)
                     cand_norms = _topk_model_boundaries_near_norm(
                         global_center_norm=global_boundary_norm,
                         local_start_norm=max(1, global_boundary_norm - window_norm),
-                        local_end_norm=min(global_end_norm - 1, global_boundary_norm + window_norm),
+                        local_end_norm=min(
+                            global_end_norm - 1, global_boundary_norm + window_norm
+                        ),
                         k=20,
                     )
                     for gnorm in cand_norms:
                         graw = _raw_index_for_norm_boundary(text, int(gnorm))
                         local_start_raw = raw_offsets_local[i]
                         lpos = graw - local_start_raw
-                        if 0 < lpos < len(combined) and _is_natural_boundary(combined, int(lpos)):
+                        if 0 < lpos < len(combined) and _is_natural_boundary(
+                            combined, int(lpos)
+                        ):
                             candidates.add(int(lpos))
 
                 # global raw로 변환
@@ -717,7 +755,11 @@ def process_paragraph_alignment_with_boundary_model(
                 pos0 = orig_boundaries[i]
                 # 결정론 위해 안정 정렬 + 너무 많은 후보 컷
                 globals_sorted = sorted(
-                    {global_start_raw + int(p) for p in candidates if 0 < int(p) < len(combined)},
+                    {
+                        global_start_raw + int(p)
+                        for p in candidates
+                        if 0 < int(p) < len(combined)
+                    },
                     key=lambda p: (abs(p - pos0), p),
                 )
                 return globals_sorted[:60]
@@ -731,13 +773,13 @@ def process_paragraph_alignment_with_boundary_model(
 
             # === Pre-compute sim scores for DP (only DP-reachable pairs) ===
             sim_precomputed: Dict[tuple, float] = {}
-            
+
             # Init: (0, bpos, 0) for first segment
             for bpos in boundary_candidates[0]:
                 seg = text[0:bpos]
                 if seg.strip():
                     sim_precomputed[(0, bpos, 0)] = sim(seg, targets[0])
-            
+
             # Transitions: (apos, bpos, i) for i in [1, n_parts-2]
             for i in range(1, n_parts - 1):
                 for bpos in boundary_candidates[i]:
@@ -746,17 +788,20 @@ def process_paragraph_alignment_with_boundary_model(
                             seg = text[apos:bpos]
                             if seg.strip():
                                 sim_precomputed[(apos, bpos, i)] = sim(seg, targets[i])
-            
+
             # Finalize: (bpos, len(text), n_parts-1) for last segment
             if n_parts >= 2:
                 last_i = n_parts - 2
                 for bpos in boundary_candidates[last_i]:
                     seg = text[bpos:]
                     if seg.strip():
-                        sim_precomputed[(bpos, len(text), len(targets) - 1)] = sim(seg, targets[-1])
-            
+                        sim_precomputed[(bpos, len(text), len(targets) - 1)] = sim(
+                            seg, targets[-1]
+                        )
+
             def sim_cached(start: int, end: int, target_idx: int) -> float:
                 return sim_precomputed.get((start, end, target_idx), 0.0)
+
             # === End Pre-compute ===
 
             # DP: dp[i][j] = (score, prev_j)
@@ -822,10 +867,22 @@ def process_paragraph_alignment_with_boundary_model(
                                 {
                                     "pos": int(p),
                                     "delta": int(p - orig),
-                                    "is_natural": bool(_is_natural_boundary(text, int(p))),
-                                    "bonus": float(_boundary_bonus_at(text, int(p), global_start_norm=0)),
-                                    "shift_penalty": float(0.0008 * abs(int(p) - int(orig))),
-                                    "choice_penalty": float(_boundary_choice_penalty(int(p), orig_bpos=int(orig))),
+                                    "is_natural": bool(
+                                        _is_natural_boundary(text, int(p))
+                                    ),
+                                    "bonus": float(
+                                        _boundary_bonus_at(
+                                            text, int(p), global_start_norm=0
+                                        )
+                                    ),
+                                    "shift_penalty": float(
+                                        0.0008 * abs(int(p) - int(orig))
+                                    ),
+                                    "choice_penalty": float(
+                                        _boundary_choice_penalty(
+                                            int(p), orig_bpos=int(orig)
+                                        )
+                                    ),
                                 }
                             )
                         cand_feats.append(feats_i)
@@ -843,29 +900,34 @@ def process_paragraph_alignment_with_boundary_model(
                         "boundary_candidate_features": cand_feats,
                         "baseline_sum": float(baseline_sum),
                         "min_gain": float(min_gain),
-                        "best_total": float(best_total) if best_total is not None else None,
+                        "best_total": (
+                            float(best_total) if best_total is not None else None
+                        ),
                         "chosen_boundaries_abs": chosen_boundaries_abs,
                         "dp": dp,
                         "back": back,
                     }
                     if dp_debug_meta:
                         rec["meta"] = dp_debug_meta
-                    dp_debug_path.write_text(json.dumps(rec, ensure_ascii=False, indent=2), encoding="utf-8")
+                    dp_debug_path.write_text(
+                        json.dumps(rec, ensure_ascii=False, indent=2), encoding="utf-8"
+                    )
                 except Exception:
                     pass
 
             # === Numba Integration ===
-            if len(text) > 2500: # Safety fallback for very long text
+            if len(text) > 2500:  # Safety fallback for very long text
                 # ... Fallback to Python sim_cached logic (omitted to save tokens, assume rare)
                 # Actually, let's just use the Python logic if too long, or error out?
                 # For robustness, we should keep Python logic or implement fallback.
-                # Given context, let's just Raise Error or truncation? 
+                # Given context, let's just Raise Error or truncation?
                 # Better: Use optimized Python loop (from previous step) if Numba not feasible?
                 # No, just use Numba. 2500^2 * 20 * 4 bytes = 500MB per paragraph. Acceptable.
                 pass
 
             import numpy as np
             from numba.typed import List as NumbaList
+
             try:
                 from common import numba_ops
             except ImportError:
@@ -874,12 +936,14 @@ def process_paragraph_alignment_with_boundary_model(
 
             # 1. Prepare Sim Table (Dense)
             n_tgts = len(targets)
-            sim_table = np.zeros((len(text) + 1, len(text) + 1, n_tgts), dtype=np.float32)
+            sim_table = np.zeros(
+                (len(text) + 1, len(text) + 1, n_tgts), dtype=np.float32
+            )
 
             # Collect requests for Batch Processing
             # List of (start, end, tgt_idx)
             requests = []
-            
+
             # Init
             for bpos in boundary_candidates[0]:
                 seg = text[0:bpos]
@@ -894,7 +958,7 @@ def process_paragraph_alignment_with_boundary_model(
                             seg = text[apos:bpos]
                             if seg.strip():
                                 requests.append((apos, bpos, i))
-                                
+
             # Finalize
             if n_parts >= 2:
                 last_i = n_parts - 2
@@ -902,24 +966,29 @@ def process_paragraph_alignment_with_boundary_model(
                     seg = text[bpos:]
                     if seg.strip():
                         requests.append((bpos, len(text), n_tgts - 1))
-            
+
             # Batch Compute or Loop
             use_batch = False
             batch_scores = []
-            
+
             # Check if sim is a bound method of BoundaryAwareAlignmentMatcher
-            if hasattr(sim, '__self__') and hasattr(sim.__self__, 'compute_batch_similarity'):
+            if hasattr(sim, "__self__") and hasattr(
+                sim.__self__, "compute_batch_similarity"
+            ):
                 try:
                     pairs = []
                     for s, e, ti in requests:
                         pairs.append((text[s:e], targets[ti]))
-                        
+
                     # Call batch compute (GPU accelerated)
                     # batch_size=256 or 512
-                    batch_scores = sim.__self__.compute_batch_similarity(pairs, batch_size=512)
+                    batch_scores = sim.__self__.compute_batch_similarity(
+                        pairs, batch_size=512
+                    )
                     use_batch = True
                 except Exception:
                     import traceback
+
                     traceback.print_exc()
                     # Fallback if anything goes wrong
                     use_batch = False
@@ -938,10 +1007,10 @@ def process_paragraph_alignment_with_boundary_model(
             nb_candidates = NumbaList()
             for cs in boundary_candidates:
                 nb_candidates.append(np.array(cs, dtype=np.int32))
-                
+
             # 3. Prepare Other Args
             orig_bound_arr = np.array(orig_boundaries, dtype=np.int32)
-            
+
             # Bonus Array (optional, pre-compute bonus for all positions to avoid Python callback)
             # _boundary_bonus_at(text, bpos, ...)
             # We can pre-compute bonus for all candidate positions.
@@ -952,10 +1021,13 @@ def process_paragraph_alignment_with_boundary_model(
             unique_pos = set()
             for cs in boundary_candidates:
                 unique_pos.update(cs)
-            
+
             for bpos in unique_pos:
-                bonus_arr[bpos] = _boundary_bonus_at(text, bpos, global_start_norm=0) * boundary_bonus_factor
-                
+                bonus_arr[bpos] = (
+                    _boundary_bonus_at(text, bpos, global_start_norm=0)
+                    * boundary_bonus_factor
+                )
+
             # 4. Run Numba DP
             success, best_total, chosen_indices = numba_ops.run_dp_numba(
                 n_parts,
@@ -967,7 +1039,7 @@ def process_paragraph_alignment_with_boundary_model(
                 bonus_arr,
                 shift_penalty_factor=shift_penalty_factor,
             )
-            
+
             if not success:
                 # Fallback or dump debug
                 _dump_dp_debug(
@@ -984,7 +1056,7 @@ def process_paragraph_alignment_with_boundary_model(
             # 5. Do-No-Harm Check
             min_gain = max(0.02, 0.015 * max(1.0, float(baseline_sum)))
             if best_total < baseline_sum + min_gain:
-                 _dump_dp_debug(
+                _dump_dp_debug(
                     applied=False,
                     reason="do_no_harm_gate",
                     boundary_candidates_abs=boundary_candidates,
@@ -993,21 +1065,21 @@ def process_paragraph_alignment_with_boundary_model(
                     baseline_sum=baseline_sum,
                     chosen_boundaries_abs=list(chosen_indices),
                 )
-                 return parts
+                return parts
 
             # 6. Build Result
             # chosen_indices is aligned with boundary_candidates[i]
             # But wait, numba returned actual values or indices?
             # My numba implementation returns actual values (chosen array).
-            
+
             new_parts: List[str] = []
             start = 0
             for i in range(len(chosen_indices)):
                 end = chosen_indices[i]
                 new_parts.append(text[start:end])
                 start = end
-            new_parts.append(text[start:]) # Last part
-            
+            new_parts.append(text[start:])  # Last part
+
             return new_parts
 
             # build new segments
@@ -1047,7 +1119,9 @@ def process_paragraph_alignment_with_boundary_model(
 
                 combined = s1 + s2
                 boundary = len(s1)
-                boundary_norm = len(str(s1).replace(" ", "").replace("\n", "").replace("\t", ""))
+                boundary_norm = len(
+                    str(s1).replace(" ", "").replace("\n", "").replace("\t", "")
+                )
                 spans = _token_spans(combined)
 
                 if not spans:
@@ -1077,7 +1151,12 @@ def process_paragraph_alignment_with_boundary_model(
                         continue
                     c_prev = combined[pos - 1]
                     c_next = combined[pos]
-                    if c_prev.isspace() or c_next.isspace() or (c_prev in punct) or (c_next in punct):
+                    if (
+                        c_prev.isspace()
+                        or c_next.isspace()
+                        or (c_prev in punct)
+                        or (c_next in punct)
+                    ):
                         candidates.add(pos)
 
                 # 토큰이 1개뿐인 경우(공백/구두점이 거의 없는 원문)에는
@@ -1093,14 +1172,21 @@ def process_paragraph_alignment_with_boundary_model(
                     global_start_raw = raw_offsets[i]
                     global_start_norm = norm_offsets[i]
                     global_boundary_norm = global_start_norm + boundary_norm
-                    global_end_norm = global_start_norm + len(str(combined).replace(" ", "").replace("\n", "").replace("\t", ""))
+                    global_end_norm = global_start_norm + len(
+                        str(combined)
+                        .replace(" ", "")
+                        .replace("\n", "")
+                        .replace("\t", "")
+                    )
 
                     # 모델 신호는 매우 보조적으로만 사용: 너무 큰 윈도우는 엉뚱한 경계로 스냅될 수 있다.
                     window_norm = max(40, int(local_max_shift_tokens) * 30)
                     cand_norms = _topk_model_boundaries_near_norm(
                         global_center_norm=global_boundary_norm,
                         local_start_norm=max(1, global_boundary_norm - window_norm),
-                        local_end_norm=min(global_end_norm - 1, global_boundary_norm + window_norm),
+                        local_end_norm=min(
+                            global_end_norm - 1, global_boundary_norm + window_norm
+                        ),
                         k=30,
                     )
                     for gnorm in cand_norms:
@@ -1113,7 +1199,7 @@ def process_paragraph_alignment_with_boundary_model(
                                 candidates.add(int(lpos))
 
                 # 경계가 토큰 내부일 수 있으므로, 그 토큰의 시작/끝도 후보로 넣는다.
-                for (a, b) in spans:
+                for a, b in spans:
                     if a < boundary < b:
                         candidates.add(a)
                         candidates.add(b)
@@ -1204,7 +1290,9 @@ def process_paragraph_alignment_with_boundary_model(
 
                             # NOTE: 모델 신호는 tie-breaker 수준으로만(과도한 경계 이동 방지)
                             if _is_natural_boundary(combined, pos):
-                                boundary_bonus += 0.030 * math.tanh(float(src_boundary_logits[global_pos_norm]) / 3.0)
+                                boundary_bonus += 0.030 * math.tanh(
+                                    float(src_boundary_logits[global_pos_norm]) / 3.0
+                                )
 
                     # 이동거리 패널티(매우 약하게)
                     shift_penalty = 0.0006 * abs(pos - boundary)
@@ -1215,7 +1303,9 @@ def process_paragraph_alignment_with_boundary_model(
                     # '정확한 좌표'를 맞추는 게 목적이므로 기본 가드를 완화한다.
                     # sim 급락을 허용하면 경계가 크게 망가질 수 있어 보수적으로 제한
                     allowed_drop = 0.04
-                    if (score_1 < base_1 - allowed_drop) or (score_2 < base_2 - allowed_drop):
+                    if (score_1 < base_1 - allowed_drop) or (
+                        score_2 < base_2 - allowed_drop
+                    ):
                         continue
 
                     eps = 1e-6
@@ -1235,14 +1325,14 @@ def process_paragraph_alignment_with_boundary_model(
                     refined[i + 1] = combined[best_pos:]
                     changed = True
 
-
-
             if not changed:
                 break
 
         # 2차: 문단 전체 DP refine(손해면 적용 안 함)
         try:
-            refined = _global_dp_refine(refined, tgt_list, max_shift_tokens_local=max_shift_tokens)
+            refined = _global_dp_refine(
+                refined, tgt_list, max_shift_tokens_local=max_shift_tokens
+            )
         except Exception as e:
             # 디버그가 켜진 경우엔 조용히 삼키면 원인 파악이 불가능하므로 최소한의 정보는 남긴다.
             if verbose:
@@ -1254,7 +1344,8 @@ def process_paragraph_alignment_with_boundary_model(
                     dp_debug_path.write_text(
                         json.dumps(
                             {
-                                "ts": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+                                "ts": datetime.utcnow().isoformat(timespec="seconds")
+                                + "Z",
                                 "kind": "pa_global_dp_refine",
                                 "applied": False,
                                 "reason": "exception",
@@ -1274,7 +1365,7 @@ def process_paragraph_alignment_with_boundary_model(
     candidate_sets: List[tuple[str, List[str]]] = []
 
     # 후보 세트 제외 플래그를 먼저 읽음 (grid search에서 튜닝 가능)
-    _pa_sel_early = get_pa_selection_params()
+    _pa_sel_early = get_p2s_selection_params()
     disable_supar = bool(_pa_sel_early.get("disable_supar", False))
     disable_boundary = bool(_pa_sel_early.get("disable_boundary", False))
     disable_whitespace_dp = bool(_pa_sel_early.get("disable_whitespace_dp", False))
@@ -1283,6 +1374,7 @@ def process_paragraph_alignment_with_boundary_model(
     if not disable_supar:
         try:
             import common.new_parsers as new_parsers
+
             supar_parts = new_parsers.split_source_with_supar(src_paragraph)
             supar_parts = [p.strip() for p in (supar_parts or []) if str(p).strip()]
             if supar_parts:
@@ -1301,7 +1393,7 @@ def process_paragraph_alignment_with_boundary_model(
                 src_paragraph,
                 len(tgt_sentences),
                 target_sentences=tgt_sentences,
-                embedder_name='bge',
+                embedder_name="bge",
                 enable_src_marker_whitespace_dp_bonus=enable_src_marker_whitespace_dp_bonus,
                 debug_meta_out=ws_dp_debug_meta,
             )
@@ -1325,7 +1417,12 @@ def process_paragraph_alignment_with_boundary_model(
     boundary_best: List[str] = []
     boundary_best_tag = "boundary"
     if not disable_boundary:
-        for th in [threshold, max(0.05, threshold - 0.1), max(0.05, threshold - 0.2), max(0.05, threshold - 0.3)]:
+        for th in [
+            threshold,
+            max(0.05, threshold - 0.1),
+            max(0.05, threshold - 0.2),
+            max(0.05, threshold - 0.3),
+        ]:
             try:
                 parts = boundary_model.segment_text(
                     src_paragraph,
@@ -1344,6 +1441,7 @@ def process_paragraph_alignment_with_boundary_model(
                     boundary_best = parts
                     boundary_best_tag = f"boundary(th={th:.2f},{len(parts)})"
                 else:
+
                     def _score_len(n: int) -> tuple[int, int]:
                         # 1) desired 미만이면 패널티(1), 이상이면 0
                         # 2) desired와의 절대 거리
@@ -1366,7 +1464,9 @@ def process_paragraph_alignment_with_boundary_model(
     if not candidate_sets:
         # strict 모드: 후보 생성이 완전히 실패한 경우는 진행 불가
         disabled_info = f"disabled: supar={disable_supar}, boundary={disable_boundary}, whitespace_dp={disable_whitespace_dp}"
-        raise RuntimeError(f"원문 후보 경계 생성에 실패했습니다 (모든 활성 후보 방식 실패, {disabled_info})")
+        raise RuntimeError(
+            f"원문 후보 경계 생성에 실패했습니다 (모든 활성 후보 방식 실패, {disabled_info})"
+        )
 
     # 후보 세트별로 (1) 과분할 제한 → (2) match_segments → (3) 평균 유사도 비교
     best_tag = None
@@ -1374,8 +1474,10 @@ def process_paragraph_alignment_with_boundary_model(
     best_score = -1.0
     best_cand_len = 0
 
-    pa_sel_params = get_pa_selection_params()
-    prior_bonus_by_prefix: Dict[str, float] = pa_sel_params.get("candidate_prior_bonus_by_prefix", {}) or {}
+    pa_sel_params = get_p2s_selection_params()
+    prior_bonus_by_prefix: Dict[str, float] = (
+        pa_sel_params.get("candidate_prior_bonus_by_prefix", {}) or {}
+    )
     style_params: Dict = pa_sel_params.get("boundary_style_prior", {}) or {}
     penalty_short_cfg: Dict = pa_sel_params.get("penalty_short_pairs", {}) or {}
     penalty_empty_src: float = float(pa_sel_params.get("penalty_empty_src", 0.5))
@@ -1419,7 +1521,9 @@ def process_paragraph_alignment_with_boundary_model(
         )
         continuation_tail_cjk = set(style_params.get("continuation_tail_cjk", []) or [])
         terminal_suffixes = tuple(style_params.get("terminal_suffixes", []) or [])
-        terminal_punct = set(style_params.get("terminal_punct", [".", "!", "?", "。", "！", "？"]) or [])
+        terminal_punct = set(
+            style_params.get("terminal_punct", [".", "!", "?", "。", "！", "？"]) or []
+        )
 
         terminal_cnt = 0
         continuation_cnt = 0
@@ -1534,7 +1638,11 @@ def process_paragraph_alignment_with_boundary_model(
         # boundary 후보가 연결형(…하고/…하며/而/以/則 등)에서 더 많이 끊기면,
         # prior가 오답을 강제로 선택하게 만드는 부작용이 크다.
         # 이 경우에는 boundary prior를 적용하지 않는다(의미 유사도와 다른 페널티로 승부).
-        if prior_bonus > 0.0 and str(tag).startswith("boundary(") and continuation_cnt > terminal_cnt:
+        if (
+            prior_bonus > 0.0
+            and str(tag).startswith("boundary(")
+            and continuation_cnt > terminal_cnt
+        ):
             score -= prior_bonus
             prior_bonus = 0.0
         # 의미 유사도가 낮을 때는 스타일 신호가 오판을 키울 수 있어 보통은 무시한다.
@@ -1594,7 +1702,9 @@ def process_paragraph_alignment_with_boundary_model(
                 elif s_len <= short_src2:
                     ws_severe_pairs += 1
             penalty_ws_severe_total = penalty_short * ws_severe_pairs
-            penalty_ws_very_short_total = penalty_very_short * ws_severe_very_short_pairs
+            penalty_ws_very_short_total = (
+                penalty_very_short * ws_severe_very_short_pairs
+            )
             if ws_severe_pairs:
                 score -= penalty_ws_severe_total
             if ws_severe_very_short_pairs:
@@ -1619,7 +1729,12 @@ def process_paragraph_alignment_with_boundary_model(
 
                 src_lens = [len(str(s).strip()) for s in src_matched]
                 tgt_lens = [len(str(t).strip()) for t in tgt_sentences]
-                if src_lens and tgt_lens and len(src_lens) == len(tgt_lens) and len(src_lens) >= 2:
+                if (
+                    src_lens
+                    and tgt_lens
+                    and len(src_lens) == len(tgt_lens)
+                    and len(src_lens) >= 2
+                ):
                     # (1) 비율 outlier 탐지: 특정 한 쌍만 과도하게 "긴 tgt ↔ 짧은 src"면 붕괴 위험
                     ratios: list[float] = []
                     for s_len, t_len in zip(src_lens, tgt_lens):
@@ -1638,9 +1753,17 @@ def process_paragraph_alignment_with_boundary_model(
                         ratio = t_len / max(1, s_len)
                         # 전반적인 장황함(전체 비율 상승)은 허용하되,
                         # median 대비 과도하게 튀는 outlier만 벌점
-                        if ratio >= ratio_high_thr and ratio >= (median_ratio + med_margin_high) and s_len <= src_cap_high:
+                        if (
+                            ratio >= ratio_high_thr
+                            and ratio >= (median_ratio + med_margin_high)
+                            and s_len <= src_cap_high
+                        ):
                             penalty_ws_ratio_outlier_total += pen_high
-                        elif ratio >= ratio_mid_thr and ratio >= (median_ratio + med_margin_mid) and s_len <= src_cap_mid:
+                        elif (
+                            ratio >= ratio_mid_thr
+                            and ratio >= (median_ratio + med_margin_mid)
+                            and s_len <= src_cap_mid
+                        ):
                             penalty_ws_ratio_outlier_total += pen_mid
                     if penalty_ws_ratio_outlier_total > 0:
                         score -= penalty_ws_ratio_outlier_total
@@ -1695,7 +1818,9 @@ def process_paragraph_alignment_with_boundary_model(
             rep["penalty_ws_severe"] = float(penalty_ws_severe_total)
             rep["penalty_ws_very_short"] = float(penalty_ws_very_short_total)
             rep["penalty_ws_ratio_outlier"] = float(penalty_ws_ratio_outlier_total)
-            rep["penalty_ws_longest_shortest"] = float(penalty_ws_longest_shortest_total)
+            rep["penalty_ws_longest_shortest"] = float(
+                penalty_ws_longest_shortest_total
+            )
             # whitespace DP 내부에서 실제로 어떤 임베더/폴백/보너스가 적용됐는지(=기여도)
             if isinstance(ws_dp_debug_meta, dict) and ws_dp_debug_meta:
                 rep["ws_dp_debug"] = dict(ws_dp_debug_meta)
@@ -1747,7 +1872,9 @@ def process_paragraph_alignment_with_boundary_model(
             src_sentences = safe_source_split(tgt_sentences, src_paragraph)
         except Exception:
             # 최후의 수단: 공백 기반 분할(무결성 복원 단계가 있으므로 raw 자체는 보존됨)
-            src_sentences = split_source_by_whitespace_and_align(src_paragraph, len(tgt_sentences))
+            src_sentences = split_source_by_whitespace_and_align(
+                src_paragraph, len(tgt_sentences)
+            )
 
         # 길이 보정(무결성/리스트 길이 불변)
         while len(src_sentences) < len(tgt_sentences):
@@ -1770,7 +1897,9 @@ def process_paragraph_alignment_with_boundary_model(
                         "sufficient_exists": bool(sufficient_exists),
                         "candidates_total": int(len(candidate_sets)),
                         "candidates_considered": int(cand_considered),
-                        "candidates_skipped_insufficient": int(cand_skipped_insufficient),
+                        "candidates_skipped_insufficient": int(
+                            cand_skipped_insufficient
+                        ),
                         "candidate_reports": candidate_reports[-12:],
                     },
                 )
@@ -1785,23 +1914,42 @@ def process_paragraph_alignment_with_boundary_model(
     if trace is not None:
         try:
             # 후보 top-k 및 마진(1등-2등)을 meta에 추가
-            considered = [r for r in candidate_reports if r.get("considered") and ("score" in r)]
-            considered_sorted = sorted(considered, key=lambda r: float(r.get("score", -1e9)), reverse=True)
+            considered = [
+                r for r in candidate_reports if r.get("considered") and ("score" in r)
+            ]
+            considered_sorted = sorted(
+                considered, key=lambda r: float(r.get("score", -1e9)), reverse=True
+            )
             top_k = 6
             top_candidates = considered_sorted[:top_k]
             best_margin = None
             if len(considered_sorted) >= 2:
-                best_margin = float(considered_sorted[0]["score"]) - float(considered_sorted[1]["score"])
+                best_margin = float(considered_sorted[0]["score"]) - float(
+                    considered_sorted[1]["score"]
+                )
 
             best_tag_str = str(best_tag) if best_tag is not None else None
-            used_supar_candidate = bool(best_tag_str and best_tag_str.startswith("supar("))
-            used_boundary_candidate = bool(best_tag_str and best_tag_str.startswith("boundary("))
-            used_whitespace_dp_candidate = bool(best_tag_str and best_tag_str.startswith("whitespace_dp("))
+            used_supar_candidate = bool(
+                best_tag_str and best_tag_str.startswith("supar(")
+            )
+            used_boundary_candidate = bool(
+                best_tag_str and best_tag_str.startswith("boundary(")
+            )
+            used_whitespace_dp_candidate = bool(
+                best_tag_str and best_tag_str.startswith("whitespace_dp(")
+            )
 
             # 후보셋 존재 여부(생성되었는지)
-            had_supar_candidate_set = any(str(t).startswith("supar(") for t in candidate_set_lengths.keys())
-            had_boundary_candidate_set = any(str(t).startswith("boundary(") for t in candidate_set_lengths.keys())
-            had_whitespace_dp_candidate_set = any(str(t).startswith("whitespace_dp(") for t in candidate_set_lengths.keys())
+            had_supar_candidate_set = any(
+                str(t).startswith("supar(") for t in candidate_set_lengths.keys()
+            )
+            had_boundary_candidate_set = any(
+                str(t).startswith("boundary(") for t in candidate_set_lengths.keys()
+            )
+            had_whitespace_dp_candidate_set = any(
+                str(t).startswith("whitespace_dp(")
+                for t in candidate_set_lengths.keys()
+            )
 
             # 후보별 마진 표준화: JSONL만 봐도 "왜 이 후보가 이겼는지" 비교 가능
             top_candidate_margins: list[dict] = []
@@ -1809,29 +1957,45 @@ def process_paragraph_alignment_with_boundary_model(
                 best_score0 = float(considered_sorted[0].get("score", 0.0))
                 for i, cand in enumerate(top_candidates):
                     score_i = float(cand.get("score", 0.0))
-                    next_score = float(top_candidates[i + 1].get("score", 0.0)) if i + 1 < len(top_candidates) else None
+                    next_score = (
+                        float(top_candidates[i + 1].get("score", 0.0))
+                        if i + 1 < len(top_candidates)
+                        else None
+                    )
                     top_candidate_margins.append(
                         {
                             "rank": int(i + 1),
                             "tag": str(cand.get("tag")),
                             "score": float(score_i),
                             "margin_vs_best": float(score_i - best_score0),
-                            "margin_vs_next": (float(score_i - next_score) if next_score is not None else None),
+                            "margin_vs_next": (
+                                float(score_i - next_score)
+                                if next_score is not None
+                                else None
+                            ),
                         }
                     )
 
             # whitespace_dp가 존재하면 best와의 비교도 남긴다 (DP 사용/미사용 판단에 핵심)
             whitespace_best = None
             try:
-                ws_candidates = [r for r in considered_sorted if str(r.get("tag", "")).startswith("whitespace_dp(")]
+                ws_candidates = [
+                    r
+                    for r in considered_sorted
+                    if str(r.get("tag", "")).startswith("whitespace_dp(")
+                ]
                 if ws_candidates:
-                    whitespace_best = max(ws_candidates, key=lambda r: float(r.get("score", -1e9)))
+                    whitespace_best = max(
+                        ws_candidates, key=lambda r: float(r.get("score", -1e9))
+                    )
             except Exception:
                 whitespace_best = None
             margin_best_vs_whitespace = None
             if whitespace_best is not None and considered_sorted:
                 try:
-                    margin_best_vs_whitespace = float(considered_sorted[0]["score"]) - float(whitespace_best["score"])
+                    margin_best_vs_whitespace = float(
+                        considered_sorted[0]["score"]
+                    ) - float(whitespace_best["score"])
                 except Exception:
                     margin_best_vs_whitespace = None
 
@@ -1856,7 +2020,9 @@ def process_paragraph_alignment_with_boundary_model(
                     "used_whitespace_dp_candidate": used_whitespace_dp_candidate,
                     "had_supar_candidate_set": bool(had_supar_candidate_set),
                     "had_boundary_candidate_set": bool(had_boundary_candidate_set),
-                    "had_whitespace_dp_candidate_set": bool(had_whitespace_dp_candidate_set),
+                    "had_whitespace_dp_candidate_set": bool(
+                        had_whitespace_dp_candidate_set
+                    ),
                     "candidate_set_lengths": candidate_set_lengths,
                     "candidate_set_lengths_orig": candidate_set_lengths_orig,
                     "considered_tags": considered_tags,
@@ -1906,7 +2072,10 @@ def process_paragraph_alignment_with_boundary_model(
                             "src_adjacent_refined",
                             src_segments=[str(x) for x in src_sentences],
                             tgt_segments=[str(x) for x in tgt_sentences],
-                            meta={"best_tag": best_tag, "changed_segments": int(changed_segments)},
+                            meta={
+                                "best_tag": best_tag,
+                                "changed_segments": int(changed_segments),
+                            },
                         )
                     except Exception:
                         pass
@@ -1930,9 +2099,7 @@ def process_paragraph_alignment_with_boundary_model(
                 return False
             o = ord(ch)
             return (
-                0x4E00 <= o <= 0x9FFF
-                or 0x3400 <= o <= 0x4DBF
-                or 0xF900 <= o <= 0xFAFF
+                0x4E00 <= o <= 0x9FFF or 0x3400 <= o <= 0x4DBF or 0xF900 <= o <= 0xFAFF
             )
 
         def _is_hangul(ch: str) -> bool:
@@ -1948,7 +2115,9 @@ def process_paragraph_alignment_with_boundary_model(
                 continue
             if (not _is_boundary_char(a[-1])) and (not _is_boundary_char(b[0])):
                 # CJK/한글 연속 구간은 예외로 허용
-                if (_is_cjk(a[-1]) and _is_cjk(b[0])) or (_is_hangul(a[-1]) and _is_hangul(b[0])):
+                if (_is_cjk(a[-1]) and _is_cjk(b[0])) or (
+                    _is_hangul(a[-1]) and _is_hangul(b[0])
+                ):
                     cursor += len(str(a))
                     continue
                 return True
@@ -1963,7 +2132,11 @@ def process_paragraph_alignment_with_boundary_model(
         try:
             # safe_source_split은 문장 수를 tgt에 맞추면서(=불변), 공백 기반으로 원문을 안전하게 쪼갠다.
             fixed = safe_source_split(tgt_sentences, src_paragraph)
-            if fixed and len(fixed) == len(tgt_sentences) and not _has_intra_token_split(fixed):
+            if (
+                fixed
+                and len(fixed) == len(tgt_sentences)
+                and not _has_intra_token_split(fixed)
+            ):
                 src_sentences = fixed
                 if verbose:
                     print("   🛠️ 원문 경계 강제 보정: safe_source_split 적용")
@@ -1984,15 +2157,21 @@ def process_paragraph_alignment_with_boundary_model(
         print(
             f"   ✅ 원문 매칭(match_segments): selected={best_tag}, candidates={best_cand_len} → {len(src_sentences)}, avg_sim={best_score:.4f}"
         )
-    
+
     # 4. 결과 조립
     alignments = []
     for src_sent, tgt_sent in zip(src_sentences, tgt_sentences):
-        alignments.append({
-            '원문': src_sent,
-            '번역문': tgt_sent,
-            'similarity': alignment_model.compute_similarity(src_sent, tgt_sent) if alignment_model else compute_similarity_simple(src_sent, tgt_sent)
-        })
+        alignments.append(
+            {
+                "원문": src_sent,
+                "번역문": tgt_sent,
+                "similarity": (
+                    alignment_model.compute_similarity(src_sent, tgt_sent)
+                    if alignment_model
+                    else compute_similarity_simple(src_sent, tgt_sent)
+                ),
+            }
+        )
 
     if trace is not None:
         try:
@@ -2003,42 +2182,43 @@ def process_paragraph_alignment_with_boundary_model(
             )
         except Exception:
             pass
-    
+
     return alignments
+
 def _normalize_brackets_in_text(text: str) -> str:
     """텍스트의 연쇄/중첩 [-…] 괄호를 정상화한다.
-    
+
     SA의 mask/restore 방식 대신, 정규식으로 직접 제거하되,
     재귀적으로 반복해서 모든 중첩/연쇄 제거.
-    
+
     - 가장 안쪽 중첩부터 제거: [-..[-..]..]
     - 빈 블록 제거: [-], [- ]
     - 공백 정리
     """
     import re
-    
+
     if not text:
         return text
-    
+
     max_iterations = 20
     prev = None
     iteration = 0
-    
+
     while iteration < max_iterations and prev != text:
         prev = text
         iteration += 1
-        
+
         # 1단계: 가장 안쪽 중첩부터 제거
         # 패턴: [-내부[-안쪽]뒷부분]
         # 안쪽 [-...] 블록만 제거하되, 외쪽 괄호 유지
-        text = re.sub(r'\[-([^\[\]]*)\[-([^\]]*)\]([^\]]*)\]', r'[-\1\3]', text)
-        
+        text = re.sub(r"\[-([^\[\]]*)\[-([^\]]*)\]([^\]]*)\]", r"[-\1\3]", text)
+
         # 2단계: 완전히 비워진 또는 공백만인 블록 제거
         # [-], [- ], [-  ], [- abc - ] 같은 형태들 (공백만 포함)
-        text = re.sub(r'\[\-\s*\]', '', text)
-        
+        text = re.sub(r"\[\-\s*\]", "", text)
+
         # 3단계: 연속된 공백 정리 (마스킹 후 복원 시 발생할 수 있음)
-        text = re.sub(r' +', ' ', text)
+        text = re.sub(r" +", " ", text)
 
         # 4단계: 괄호 개수 불균형 보정
         open_cnt = text.count("[-")
@@ -2051,11 +2231,10 @@ def _normalize_brackets_in_text(text: str) -> str:
         while close_cnt > open_cnt:
             text = text.replace("]", "", 1)
             close_cnt -= 1
-    
+
     # 최종 정리
     text = text.strip()
     return text
-
 
 def _final_cleanup_brackets(text: str) -> str:
     """최종 출력 직전 괄호 블록 중복/불균형을 정리한다.
@@ -2068,14 +2247,15 @@ def _final_cleanup_brackets(text: str) -> str:
         return text
 
     import re
-    
+
     # 1단계: 괄호 내부의 앞뒤 공백만 제거 (빈 블록은 유지)
     # [-  내용  ] → [-내용]
     def trim_inside(m):
         content = m.group(1).strip()
         return f"[-{content}]"
-    text = re.sub(r'\[-([^\]]*)\]', trim_inside, text)
-    
+
+    text = re.sub(r"\[-([^\]]*)\]", trim_inside, text)
+
     # 2단계: 연속 중복 블록 제거
     pattern = re.compile(r"\[-[^\]]*\]")
     parts = []
@@ -2083,7 +2263,7 @@ def _final_cleanup_brackets(text: str) -> str:
     prev_block = None
     for m in pattern.finditer(text):
         # 중간 일반 텍스트
-        parts.append(text[last:m.start()])
+        parts.append(text[last : m.start()])
         block = m.group(0)
         if block == prev_block:
             # 중복 블록은 건너뜀
@@ -2093,7 +2273,7 @@ def _final_cleanup_brackets(text: str) -> str:
         prev_block = block
         last = m.end()
     parts.append(text[last:])
-    cleaned = ''.join(parts)
+    cleaned = "".join(parts)
 
     # 3단계: 괄호 개수 불균형 보정
     open_cnt = cleaned.count("[-")
@@ -2106,8 +2286,8 @@ def _final_cleanup_brackets(text: str) -> str:
         close_cnt -= 1
 
     # 4단계: 연속 공백 정리
-    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-    
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
     return cleaned
 
 def _ensure_atomic_brackets_in_alignments(alignments: List[Dict]) -> List[Dict]:
@@ -2121,6 +2301,7 @@ def _ensure_atomic_brackets_in_alignments(alignments: List[Dict]) -> List[Dict]:
     - 먼저 텍스트 정규화로 연쇄/중첩 제거.
     """
     import re
+
     if not alignments:
         return alignments
 
@@ -2129,8 +2310,8 @@ def _ensure_atomic_brackets_in_alignments(alignments: List[Dict]) -> List[Dict]:
         for a in alignments:
             if col_name in a and a[col_name]:
                 a[col_name] = _normalize_brackets_in_text(str(a[col_name]))
-        
-        segments = [str(a.get(col_name, '')) for a in alignments]
+
+        segments = [str(a.get(col_name, "")) for a in alignments]
         if not segments:
             return
 
@@ -2138,7 +2319,7 @@ def _ensure_atomic_brackets_in_alignments(alignments: List[Dict]) -> List[Dict]:
         for s in segments:
             cumulative.append(cumulative[-1] + len(s))
 
-        full = ''.join(segments)
+        full = "".join(segments)
         pattern = re.compile(r"\[-(?:\([^)]*\)|[^\]]*)\]", re.S)
         matches = list(pattern.finditer(full))
         if matches:
@@ -2147,7 +2328,7 @@ def _ensure_atomic_brackets_in_alignments(alignments: List[Dict]) -> List[Dict]:
 
                 def find_idx(pos: int) -> int:
                     for i in range(len(segments)):
-                        if cumulative[i] <= pos < cumulative[i+1]:
+                        if cumulative[i] <= pos < cumulative[i + 1]:
                             return i
                     return len(segments) - 1
 
@@ -2162,7 +2343,7 @@ def _ensure_atomic_brackets_in_alignments(alignments: List[Dict]) -> List[Dict]:
 
                 seg_start = segments[i_start]
                 for k in range(i_start + 1, i_end):
-                    segments[k] = ''
+                    segments[k] = ""
 
                 seg_end = segments[i_end]
                 if local_end_in_end_seg > 0:
@@ -2171,29 +2352,29 @@ def _ensure_atomic_brackets_in_alignments(alignments: List[Dict]) -> List[Dict]:
                 segments[i_start] = seg_start + block
 
                 cumulative = [0]
-                full = ''.join(segments)
+                full = "".join(segments)
                 for s in segments:
                     cumulative.append(cumulative[-1] + len(s))
 
         # 2차 보정: 다음 조각이 ']'로 시작하면 이전 조각으로 흡수
         for i in range(len(segments) - 1):
-            nxt = segments[i+1]
+            nxt = segments[i + 1]
             if not nxt:
                 continue
             j = 0
             while j < len(nxt) and nxt[j].isspace():
                 j += 1
-            if j < len(nxt) and nxt[j] == ']':
-                rest = nxt[j+1:]
-                segments[i] = segments[i] + ']'
-                segments[i+1] = rest.lstrip()
+            if j < len(nxt) and nxt[j] == "]":
+                rest = nxt[j + 1 :]
+                segments[i] = segments[i] + "]"
+                segments[i + 1] = rest.lstrip()
 
         for idx, s in enumerate(segments):
             alignments[idx][col_name] = s
 
     # 두 컬럼 모두 처리
-    _process_column('원문')
-    _process_column('번역문')
+    _process_column("원문")
+    _process_column("번역문")
     return alignments
 
 # === 인용 표지 병합 유틸 ===
@@ -2204,20 +2385,33 @@ def _is_quotation_marker_sentence(text: str) -> bool:
     - 동사/존칭/시제/종결어미 조합 반복(연쇄 마커) 허용
     """
     import re
+
     if not text or not text.strip():
         return False
     closing_quote = r'["”’]?'
-    quotation_particles = r'(고|[이]?라?고|하고|며|면서)'
-    speech_verbs = r'(하|말하|말씀하|명하|이르|대답하|답하|묻|문|여쭙|아뢰|전하|칭하|부르|외치)'
-    honorific_tense = r'(?:셨|ㅆ|시었|시어|시는|시ㄴ|시ㄹ|시|었|았|였|는|ㄴ|ㄹ|을)?'
-    endings = r'(다|ㄴ다|는다|습니다|ㅂ니다|까|ㄹ까|을까|느냐|ㄴ가|는가|라|거라|소|오|어라|아라|니|으니)'
-    punctuation = r'[\.。?!,，]?'
-    marker_chunk = (
-        closing_quote + r'\s*' + quotation_particles + r'\s+' + speech_verbs + honorific_tense + endings + r'\s*' + punctuation + r'\s*' + closing_quote + r'\s*'
+    quotation_particles = r"(고|[이]?라?고|하고|며|면서)"
+    speech_verbs = (
+        r"(하|말하|말씀하|명하|이르|대답하|답하|묻|문|여쭙|아뢰|전하|칭하|부르|외치)"
     )
-    pattern = r'^\s*(?:' + marker_chunk + r')+$'
+    honorific_tense = r"(?:셨|ㅆ|시었|시어|시는|시ㄴ|시ㄹ|시|었|았|였|는|ㄴ|ㄹ|을)?"
+    endings = r"(다|ㄴ다|는다|습니다|ㅂ니다|까|ㄹ까|을까|느냐|ㄴ가|는가|라|거라|소|오|어라|아라|니|으니)"
+    punctuation = r"[\.。?!,，]?"
+    marker_chunk = (
+        closing_quote
+        + r"\s*"
+        + quotation_particles
+        + r"\s+"
+        + speech_verbs
+        + honorific_tense
+        + endings
+        + r"\s*"
+        + punctuation
+        + r"\s*"
+        + closing_quote
+        + r"\s*"
+    )
+    pattern = r"^\s*(?:" + marker_chunk + r")+$"
     return re.match(pattern, text.strip()) is not None
-
 
 def _merge_quote_marker_rows(alignments: List[Dict]) -> List[Dict]:
     """인용 표지 단독 번역문 행을 직전 행과 병합한다.
@@ -2235,21 +2429,29 @@ def _merge_quote_marker_rows(alignments: List[Dict]) -> List[Dict]:
         j = i + 1
         acc_tgt = []
         acc_src = []
-        while j < len(alignments) and _is_quotation_marker_sentence(alignments[j].get('번역문', '')):
-            acc_tgt.append(alignments[j].get('번역문', ''))
+        while j < len(alignments) and _is_quotation_marker_sentence(
+            alignments[j].get("번역문", "")
+        ):
+            acc_tgt.append(alignments[j].get("번역문", ""))
             # 원문도 함께 병합하여 무결성 유지
-            if alignments[j].get('원문', '').strip():
-                acc_src.append(alignments[j].get('원문', ''))
+            if alignments[j].get("원문", "").strip():
+                acc_src.append(alignments[j].get("원문", ""))
             j += 1
         if acc_tgt:
             # 직전 행과 병합
             new_entry = dict(cur)  # shallow copy
-            new_entry['번역문'] = (cur.get('번역문', '') + ' ' + ' '.join(acc_tgt)).strip()
+            new_entry["번역문"] = (
+                cur.get("번역문", "") + " " + " ".join(acc_tgt)
+            ).strip()
             if acc_src:
-                new_entry['원문'] = (cur.get('원문', '') + ' ' + ' '.join(acc_src)).strip()
+                new_entry["원문"] = (
+                    cur.get("원문", "") + " " + " ".join(acc_src)
+                ).strip()
             # 유사도 재계산
             try:
-                new_entry['similarity'] = compute_similarity_simple(new_entry.get('원문', ''), new_entry.get('번역문', ''))
+                new_entry["similarity"] = compute_similarity_simple(
+                    new_entry.get("원문", ""), new_entry.get("번역문", "")
+                )
             except Exception:
                 pass
             merged.append(new_entry)
@@ -2267,7 +2469,7 @@ try:
     )
 except ImportError as e:
     print(f"❌ aligner import 실패: {e}")
-    
+
     def get_embedder_function(*args, **kwargs):
         print("❌ 임베더 기능을 사용할 수 없습니다.")
         return None
@@ -2277,10 +2479,10 @@ except ImportError as e:
         return []
 
 def process_paragraph_file(
-    input_file, 
-    output_file, 
-    embedder_name="bge", 
-    max_length=150, 
+    input_file,
+    output_file,
+    embedder_name="bge",
+    max_length=150,
     similarity_threshold=0.7,
     openai_model=None,
     openai_api_key=None,
@@ -2302,20 +2504,19 @@ def process_paragraph_file(
     resume: bool = False,
     checkpoint_every: int = 25,
     boundary_bonus_factor: float = 1.0,  # 🆕 DP 튜닝
-    shift_penalty_factor: float = 0.0008, # 🆕 DP 튜닝
-
+    shift_penalty_factor: float = 0.0008,  # 🆕 DP 튜닝
 ):
     """입력 엑셀 파일을 읽어 문단 단위로 정렬하고, 결과를 출력 파일로 저장
-    
+
     🆕 통합 모드: use_boundary_model=True이면
     - 기존 BGE/순차 방식으로 초기 분할
     - 경계 모델로 경계 refinement
     - Alignment 모델로 정렬 개선
     """
-    print(f"📂 PA 파일 처리 시작: {input_file}")
+    print(f"📂 P2S 파일 처리 시작: {input_file}")
 
     if trace_stages_path is None:
-        trace_stages_path = os.getenv("CSP_PA_TRACE_STAGES_JSONL")
+        trace_stages_path = os.getenv("CSP_P2S_TRACE_STAGES_JSONL")
 
     tracer: _StageTracer | None = None
     if trace_stages_path:
@@ -2330,18 +2531,28 @@ def process_paragraph_file(
     # 목적: seed 1~10 비교에서 "무엇을 요청했는지(옵션)"를 JSONL만 보고 검증 가능하게.
     # NOTE: SUPAR/KIWI 등 '가용성'은 환경/로그로도 확인 가능하므로 여기서는 옵션 위주로만 남긴다.
     trace_ctx: Dict = {
-        "seed": int(seed) if isinstance(seed, int) else (int(seed) if str(seed or "").isdigit() else None),
+        "seed": (
+            int(seed)
+            if isinstance(seed, int)
+            else (int(seed) if str(seed or "").isdigit() else None)
+        ),
         "embedder": str(embedder_name),
         "device": str(device),
         "use_boundary_model": bool(use_boundary_model),
         "boundary_threshold": float(boundary_threshold),
-        "boundary_min_len": (int(boundary_min_len) if boundary_min_len is not None else None),
+        "boundary_min_len": (
+            int(boundary_min_len) if boundary_min_len is not None else None
+        ),
         "tgt_split_max_length": int(max_length),
         "enable_refine": bool(enable_refine),
         "enable_adjacent_boundary_refine": bool(enable_adjacent_boundary_refine),
         "enable_src_marker_boundary_bonus": bool(enable_src_marker_boundary_bonus),
-        "enable_src_marker_whitespace_dp_bonus": bool(enable_src_marker_whitespace_dp_bonus),
-        "tokenizer_init_ok": (bool(tokenizer_init_ok) if tokenizer_init_ok is not None else None),
+        "enable_src_marker_whitespace_dp_bonus": bool(
+            enable_src_marker_whitespace_dp_bonus
+        ),
+        "tokenizer_init_ok": (
+            bool(tokenizer_init_ok) if tokenizer_init_ok is not None else None
+        ),
     }
 
     # (의도적으로: 가용성/설치 여부는 여기서 기록하지 않음)
@@ -2365,8 +2576,10 @@ def process_paragraph_file(
 
     # 사용자 요구사항: 임베더는 bge 또는 gemini 허용
     if embedder_name not in ["bge", "gemini"]:
-        raise RuntimeError(f"PA는 embedder_name='bge' 또는 'gemini'만 허용합니다. 현재 값: {embedder_name}")
-    
+        raise RuntimeError(
+            f"P2S는 embedder_name='bge' 또는 'gemini'만 허용합니다. 현재 값: {embedder_name}"
+        )
+
     # Boundary/Alignment 모델 로드
     boundary_model = None
     alignment_pa = None
@@ -2374,30 +2587,39 @@ def process_paragraph_file(
         try:
             from pathlib import Path
             from common.boundary_model_loader import BoundaryModelLoader
-            from common.boundary_aware_alignment_loader import BoundaryAwareAlignmentMatcher
-            
+            from common.boundary_aware_alignment_loader import (
+                BoundaryAwareAlignmentMatcher,
+            )
+
             models_root = Path(__file__).parent.parent / "models"
             boundary_path = models_root / "boundary_multitask.pt"
             # 원본 이름이 없으면 p2s 정렬 모델 사용
             alignment_path = models_root / "dual_encoder_alignment_p2s.pt"
-            
+
             if not boundary_path.exists():
                 raise FileNotFoundError(f"경계 모델 파일 없음: {boundary_path}")
             if not alignment_path.exists():
                 raise FileNotFoundError(f"정렬 모델 파일 없음: {alignment_path}")
 
-            boundary_model = BoundaryModelLoader(model_path=boundary_path, device=device)
-            pa_sel_params = get_pa_selection_params()
-            boundary_aware_weight = float(pa_sel_params.get("boundary_aware_weight", 0.3))
+            boundary_model = BoundaryModelLoader(
+                model_path=boundary_path, device=device
+            )
+            pa_sel_params = get_p2s_selection_params()
+            boundary_aware_weight = float(
+                pa_sel_params.get("boundary_aware_weight", 0.3)
+            )
             alignment_pa = BoundaryAwareAlignmentMatcher(
                 model_path=alignment_path,
                 device=device,
                 boundary_weight=boundary_aware_weight,
             )
-            print(f"✅ 경계/정렬 모델 로드 완료 (threshold={boundary_threshold}, strict 모드)")
+            print(
+                f"✅ 경계/정렬 모델 로드 완료 (threshold={boundary_threshold}, strict 모드)"
+            )
 
             # strict 요구사항: SuPar-Kanbun + Stanza 파서도 반드시 함께 사용(초기화 실패 시 즉시 중단)
             import common.new_parsers as new_parsers
+
             new_parsers.ensure_kanbun_pipeline()
             new_parsers.ensure_stanza_pipeline(lang="ko")
             print(
@@ -2413,11 +2635,13 @@ def process_paragraph_file(
 
     # use_boundary_model이면 폴백을 허용하지 않는다: 모델 로드 실패는 즉시 중단
     if use_boundary_model and (boundary_model is None or alignment_pa is None):
-        raise RuntimeError("--use-boundary-model 모드인데 boundary/alignment 모델 로드에 실패했습니다. Docker 환경/모델 경로를 확인하세요.")
-    
+        raise RuntimeError(
+            "--use-boundary-model 모드인데 boundary/alignment 모델 로드에 실패했습니다. Docker 환경/모델 경로를 확인하세요."
+        )
+
     try:
         # CSV 또는 Excel 자동 감지
-        if str(input_file).endswith('.csv'):
+        if str(input_file).endswith(".csv"):
             df = pd.read_csv(input_file)
         else:
             df = pd.read_excel(input_file)
@@ -2428,9 +2652,9 @@ def process_paragraph_file(
     except Exception as e:
         print(f"❌ 파일 로드 오류: {e}")
         return None
-    
+
     # 필수 컬럼 확인
-    required_columns = ['원문', '번역문']
+    required_columns = ["원문", "번역문"]
     missing_columns = [col for col in required_columns if col not in df.columns]
     if missing_columns:
         print(f"❌ 입력 파일에 필수 컬럼이 없습니다: {missing_columns}")
@@ -2452,7 +2676,7 @@ def process_paragraph_file(
             total=len(df),
             description="📊 PA 분할" + (" (경계 보강)" if boundary_model else ""),
             unit="문단",
-            bar_format='{desc}: {percentage:3.0f}%|{bar:50}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]',
+            bar_format="{desc}: {percentage:3.0f}%|{bar:50}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
             mininterval=0.5,
             maxinterval=2.0,
         )
@@ -2465,8 +2689,10 @@ def process_paragraph_file(
     global_sent_idx = 1  # 전체 문장 번호 연속 부여
 
     # (옵션) DP refine 디버그: 특정 (book:pid)만 JSON 덤프
-    dp_debug_keys_raw = os.getenv("CSP_PA_DP_DEBUG_KEYS", "").strip()
-    dp_debug_dir_raw = os.getenv("CSP_PA_DP_DEBUG_DIR", "").strip() or "test_results/dp_debug"
+    dp_debug_keys_raw = os.getenv("CSP_P2S_DP_DEBUG_KEYS", "").strip()
+    dp_debug_dir_raw = (
+        os.getenv("CSP_P2S_DP_DEBUG_DIR", "").strip() or "test_results/dp_debug"
+    )
 
     dp_debug_keys: set[tuple[str, int]] = set()
     if dp_debug_keys_raw:
@@ -2488,11 +2714,11 @@ def process_paragraph_file(
         return out.strip() or "_"
 
     for idx, row in df.iterrows():
-        src_paragraph = str(row.get('원문', ''))
-        tgt_paragraph = str(row.get('번역문', ''))
-        original_para_id = row.get('문단식별자', idx + 1)  # 문단식별자를 미리 가져옴
-        original_sent_id = row.get('문장식별자')  # 🔧 원본 문장식별자 추출
-        book_name = str(row.get('book_name', '')).strip()
+        src_paragraph = str(row.get("원문", ""))
+        tgt_paragraph = str(row.get("번역문", ""))
+        original_para_id = row.get("문단식별자", idx + 1)  # 문단식별자를 미리 가져옴
+        original_sent_id = row.get("문장식별자")  # 🔧 원본 문장식별자 추출
+        book_name = str(row.get("book_name", "")).strip()
 
         dp_debug_out: str | None = None
         dp_debug_pid: int | None = None
@@ -2502,17 +2728,30 @@ def process_paragraph_file(
             except Exception:
                 pid_int = None
             if pid_int is not None and (book_name, pid_int) in dp_debug_keys:
-                dp_path = Path(dp_debug_dir_raw) / f"dp_{_safe_name(book_name)}__{pid_int}.json"
+                dp_path = (
+                    Path(dp_debug_dir_raw)
+                    / f"dp_{_safe_name(book_name)}__{pid_int}.json"
+                )
                 dp_debug_out = str(dp_path)
                 dp_debug_pid = int(pid_int)
 
-        def _trace(stage: str, *, src_segments=None, tgt_segments=None, meta: Dict | None = None):
+        def _trace(
+            stage: str,
+            *,
+            src_segments=None,
+            tgt_segments=None,
+            meta: Dict | None = None,
+        ):
             if tracer is None:
                 return
             rec = {
                 "ts": datetime.utcnow().isoformat(timespec="seconds") + "Z",
                 "stage": stage,
-                "paragraph_id": int(original_para_id) if str(original_para_id).isdigit() else original_para_id,
+                "paragraph_id": (
+                    int(original_para_id)
+                    if str(original_para_id).isdigit()
+                    else original_para_id
+                ),
                 "book_name": book_name,
                 "src_segments": [str(x) for x in (src_segments or [])],
                 "tgt_segments": [str(x) for x in (tgt_segments or [])],
@@ -2521,7 +2760,7 @@ def process_paragraph_file(
             if meta:
                 rec["meta"] = meta
             tracer.write(rec)
-        
+
         if src_paragraph.strip() and tgt_paragraph.strip():
             if use_boundary_model:
                 # strict baseline: (경계모델 후보 + alignment 선택)
@@ -2544,7 +2783,14 @@ def process_paragraph_file(
                         trace=_trace,
                         dp_debug_out=dp_debug_out,
                         # JSON serialization safety: pandas가 numpy scalar로 읽으면 json.dumps가 실패할 수 있음
-                        dp_debug_meta={"book_name": str(book_name), "paragraph_id": (dp_debug_pid if dp_debug_pid is not None else str(original_para_id))},
+                        dp_debug_meta={
+                            "book_name": str(book_name),
+                            "paragraph_id": (
+                                dp_debug_pid
+                                if dp_debug_pid is not None
+                                else str(original_para_id)
+                            ),
+                        },
                     )
 
                     # strict baseline이 비는 건 원칙적으로 없어야 하지만, 방어적으로 유지
@@ -2553,8 +2799,12 @@ def process_paragraph_file(
                     try:
                         _trace(
                             "after_model_alignment",
-                            src_segments=[a.get('원문', '') for a in (alignments or [])],
-                            tgt_segments=[a.get('번역문', '') for a in (alignments or [])],
+                            src_segments=[
+                                a.get("원문", "") for a in (alignments or [])
+                            ],
+                            tgt_segments=[
+                                a.get("번역문", "") for a in (alignments or [])
+                            ],
                         )
                     except Exception:
                         pass
@@ -2562,73 +2812,97 @@ def process_paragraph_file(
                     if not alignments:
                         # 🛡️ Zero Drop Mandate: 결과가 비어도 절대 누락시키지 않음 - 원본을 1:1로 fallback
                         if verbose:
-                            print(f"⚠️ 문단 {original_para_id}: 분할 결과 없음 - 원본 1:1 fallback")
-                        alignments = [{
-                            '원문': src_paragraph.strip(),
-                            '번역문': tgt_paragraph.strip(),
-                            'similarity': 1.0,
-                        }]
+                            print(
+                                f"⚠️ 문단 {original_para_id}: 분할 결과 없음 - 원본 1:1 fallback"
+                            )
+                        alignments = [
+                            {
+                                "원문": src_paragraph.strip(),
+                                "번역문": tgt_paragraph.strip(),
+                                "similarity": 1.0,
+                            }
+                        ]
                 except Exception as e:
                     # 🛡️ Zero Drop Mandate: 예외 발생 시에도 절대 누락시키지 않음
-                    logger.warning(f"⚠️ 문단 {original_para_id} 처리 중 예외 발생 - 원본 1:1 fallback: {e}")
-                    alignments = [{
-                        '원문': src_paragraph.strip(),
-                        '번역문': tgt_paragraph.strip(),
-                        'similarity': 1.0,
-                    }]
+                    logger.warning(
+                        f"⚠️ 문단 {original_para_id} 처리 중 예외 발생 - 원본 1:1 fallback: {e}"
+                    )
+                    alignments = [
+                        {
+                            "원문": src_paragraph.strip(),
+                            "번역문": tgt_paragraph.strip(),
+                            "similarity": 1.0,
+                        }
+                    ]
             else:
                 # 기존 BGE/순차 방식
                 try:
                     alignments = process_paragraph_alignment(
-                            src_paragraph,
-                            tgt_paragraph,
-                            embedder_name=embedder_name,
-                            max_length=max_length,
-                            similarity_threshold=similarity_threshold,
-                            device=device,
-                            quality_threshold=0.8,
-                            use_spacy_tokenizer=False,
-                            max_workers=max_workers,
-                            batch_size=batch_size,
-                        )
-                    
+                        src_paragraph,
+                        tgt_paragraph,
+                        embedder_name=embedder_name,
+                        max_length=max_length,
+                        similarity_threshold=similarity_threshold,
+                        device=device,
+                        quality_threshold=0.8,
+                        use_spacy_tokenizer=False,
+                        max_workers=max_workers,
+                        batch_size=batch_size,
+                    )
+
                     # 🛡️ Zero Drop Mandate: 결과가 비어도 절대 누락시키지 않음
                     if not alignments:
                         if verbose:
-                            print(f"⚠️ 문단 {original_para_id}: BGE 분할 결과 없음 - 원본 1:1 fallback")
-                        alignments = [{
-                            '원문': src_paragraph.strip(),
-                            '번역문': tgt_paragraph.strip(),
-                            'similarity': 1.0,
-                        }]
+                            print(
+                                f"⚠️ 문단 {original_para_id}: BGE 분할 결과 없음 - 원본 1:1 fallback"
+                            )
+                        alignments = [
+                            {
+                                "원문": src_paragraph.strip(),
+                                "번역문": tgt_paragraph.strip(),
+                                "similarity": 1.0,
+                            }
+                        ]
                 except Exception as e:
                     # 🛡️ Zero Drop Mandate: 예외 발생 시에도 절대 누락시키지 않음
-                    logger.warning(f"⚠️ 문단 {original_para_id} BGE 처리 중 예외 발생 - 원본 1:1 fallback: {e}")
-                    alignments = [{
-                        '원문': src_paragraph.strip(),
-                        '번역문': tgt_paragraph.strip(),
-                        'similarity': 1.0,
-                    }]
+                    logger.warning(
+                        f"⚠️ 문단 {original_para_id} BGE 처리 중 예외 발생 - 원본 1:1 fallback: {e}"
+                    )
+                    alignments = [
+                        {
+                            "원문": src_paragraph.strip(),
+                            "번역문": tgt_paragraph.strip(),
+                            "similarity": 1.0,
+                        }
+                    ]
 
             # 🔧 최종 보정: [-…] 블록을 문장 경계에 걸치지 않도록 원문 조각에 원자적으로 붙임
             try:
                 alignments = _ensure_atomic_brackets_in_alignments(alignments)
                 _trace(
                     "after_atomic_brackets",
-                    src_segments=[a.get('원문', '') for a in (alignments or [])],
-                    tgt_segments=[a.get('번역문', '') for a in (alignments or [])],
+                    src_segments=[a.get("원문", "") for a in (alignments or [])],
+                    tgt_segments=[a.get("번역문", "") for a in (alignments or [])],
                 )
             except Exception as e:
                 if verbose:
                     print(f"⚠️ 괄호 블록 원자화 보정 실패: {e}")
                 try:
-                    _trace("after_atomic_brackets", src_segments=[], tgt_segments=[], meta={"error": str(e)})
+                    _trace(
+                        "after_atomic_brackets",
+                        src_segments=[],
+                        tgt_segments=[],
+                        meta={"error": str(e)},
+                    )
                 except Exception:
                     pass
-            
+
             # 🆕 한글 토씨 힌트로 매칭 보정 (기존 로직은 보존)
             try:
-                from common.korean_particle_matcher import enhance_pa_alignments_with_particles
+                from common.korean_particle_matcher import (
+                    enhance_pa_alignments_with_particles,
+                )
+
                 alignments = enhance_pa_alignments_with_particles(alignments)
 
                 # 변화량 집계: similarity 전/후(원본/보정) 및 구성요소(토씨/고어 부스트)를 기록
@@ -2658,7 +2932,9 @@ def process_paragraph_file(
                         continue
                     if "original_similarity" in a:
                         applied = True
-                    orig = _sf(a.get("original_similarity", a.get("similarity", 0.0)), 0.0)
+                    orig = _sf(
+                        a.get("original_similarity", a.get("similarity", 0.0)), 0.0
+                    )
                     enh = _sf(a.get("similarity", orig), orig)
                     d = float(enh - orig)
                     deltas.append(d)
@@ -2677,33 +2953,69 @@ def process_paragraph_file(
                                 "enhanced_similarity": float(enh),
                                 "particle_boost": float(pb),
                                 "archaic_boost": float(ab),
-                                "particle_similarity": (a.get("particle_similarity") if "particle_similarity" in a else None),
-                                "archaic_bonus": (a.get("archaic_bonus") if "archaic_bonus" in a else None),
-                                "src": (str(a.get("원문", ""))[:120] if a.get("원문") is not None else ""),
-                                "tgt": (str(a.get("번역문", ""))[:120] if a.get("번역문") is not None else ""),
+                                "particle_similarity": (
+                                    a.get("particle_similarity")
+                                    if "particle_similarity" in a
+                                    else None
+                                ),
+                                "archaic_bonus": (
+                                    a.get("archaic_bonus")
+                                    if "archaic_bonus" in a
+                                    else None
+                                ),
+                                "src": (
+                                    str(a.get("원문", ""))[:120]
+                                    if a.get("원문") is not None
+                                    else ""
+                                ),
+                                "tgt": (
+                                    str(a.get("번역문", ""))[:120]
+                                    if a.get("번역문") is not None
+                                    else ""
+                                ),
                             }
                         )
 
-                changed_examples = sorted(changed_examples, key=lambda r: abs(float(r.get("delta", 0.0))), reverse=True)[:5]
+                changed_examples = sorted(
+                    changed_examples,
+                    key=lambda r: abs(float(r.get("delta", 0.0))),
+                    reverse=True,
+                )[:5]
 
                 delta_mean = (sum(deltas) / len(deltas)) if deltas else None
-                pb_mean = (sum(particle_boosts) / len(particle_boosts)) if particle_boosts else None
-                ab_mean = (sum(archaic_boosts) / len(archaic_boosts)) if archaic_boosts else None
+                pb_mean = (
+                    (sum(particle_boosts) / len(particle_boosts))
+                    if particle_boosts
+                    else None
+                )
+                ab_mean = (
+                    (sum(archaic_boosts) / len(archaic_boosts))
+                    if archaic_boosts
+                    else None
+                )
 
                 _trace(
                     "after_particle_enhance",
-                    src_segments=[a.get('원문', '') for a in (alignments or [])],
-                    tgt_segments=[a.get('번역문', '') for a in (alignments or [])],
+                    src_segments=[a.get("원문", "") for a in (alignments or [])],
+                    tgt_segments=[a.get("번역문", "") for a in (alignments or [])],
                     meta={
                         "applied": bool(applied),
                         "n_alignments": int(len(alignments or [])),
-                        "delta_mean": (float(delta_mean) if delta_mean is not None else None),
+                        "delta_mean": (
+                            float(delta_mean) if delta_mean is not None else None
+                        ),
                         "delta_median": (_median(deltas) if deltas else None),
                         "delta_min": (float(min(deltas)) if deltas else None),
                         "delta_max": (float(max(deltas)) if deltas else None),
-                        "delta_changed_count": int(sum(1 for d in deltas if abs(d) > 1e-9)),
-                        "particle_boost_mean": (float(pb_mean) if pb_mean is not None else None),
-                        "archaic_boost_mean": (float(ab_mean) if ab_mean is not None else None),
+                        "delta_changed_count": int(
+                            sum(1 for d in deltas if abs(d) > 1e-9)
+                        ),
+                        "particle_boost_mean": (
+                            float(pb_mean) if pb_mean is not None else None
+                        ),
+                        "archaic_boost_mean": (
+                            float(ab_mean) if ab_mean is not None else None
+                        ),
                         "top_delta_examples": changed_examples,
                     },
                 )
@@ -2712,23 +3024,28 @@ def process_paragraph_file(
                     print(f"⚠️ 토씨 매칭 보정 실패 (기존 결과 유지): {e}")
                 # 실패해도 기존 alignments 그대로 사용
                 try:
-                    _trace("after_particle_enhance", src_segments=[], tgt_segments=[], meta={"error": str(e)})
+                    _trace(
+                        "after_particle_enhance",
+                        src_segments=[],
+                        tgt_segments=[],
+                        meta={"error": str(e)},
+                    )
                 except Exception:
                     pass
 
             # 🛡️ 최종 무결성 복원: 일시적으로 비활성화하여 원본 alignment 상태 확인
             # try:
             #     alignments = restore_paragraph_integrity(src_paragraph, tgt_paragraph, alignments)
-            #     
+            #
             #     # 🔒 무결성 검증: 복원 후에도 완벽하지 않으면 경고
             #     aligned_src_check = ''.join([a.get('원문', '') for a in alignments]).replace(' ', '').replace('\n', '').replace('\t', '')
             #     aligned_tgt_check = ''.join([a.get('번역문', '') for a in alignments]).replace(' ', '').replace('\n', '').replace('\t', '')
             #     original_src_check = src_paragraph.replace(' ', '').replace('\n', '').replace('\t', '')
             #     original_tgt_check = tgt_paragraph.replace(' ', '').replace('\n', '').replace('\t', '')
-            #     
+            #
             #     src_match = (aligned_src_check == original_src_check)
             #     tgt_match = (aligned_tgt_check == original_tgt_check)
-            #     
+            #
             #     if not src_match or not tgt_match:
             #         if not src_match:
             #             src_diff = len(original_src_check) - len(aligned_src_check)
@@ -2736,7 +3053,7 @@ def process_paragraph_file(
             #         if not tgt_match:
             #             tgt_diff = len(original_tgt_check) - len(aligned_tgt_check)
             #             logger.warning(f"⚠️ 문단 {original_para_id} 번역문 무결성 경고: 차이 {tgt_diff:+d}자")
-            #             
+            #
             # except Exception as e:
             #     logger.error(f"❌ 문단 {original_para_id} 무결성 복원 실패: {e}")
             #     if verbose:
@@ -2745,116 +3062,143 @@ def process_paragraph_file(
 
             # 🛡️ 무결성 복원 재활성화
             try:
-                alignments = restore_paragraph_integrity(src_paragraph, tgt_paragraph, alignments)
+                alignments = restore_paragraph_integrity(
+                    src_paragraph, tgt_paragraph, alignments
+                )
 
                 _trace(
                     "after_restore_integrity",
-                    src_segments=[a.get('원문', '') for a in (alignments or [])],
-                    tgt_segments=[a.get('번역문', '') for a in (alignments or [])],
+                    src_segments=[a.get("원문", "") for a in (alignments or [])],
+                    tgt_segments=[a.get("번역문", "") for a in (alignments or [])],
                 )
-                
+
                 # 무결성 검증
-                aligned_src_check = ''.join([a.get('원문', '') for a in alignments]).replace(' ', '').replace('\n', '').replace('\t', '')
-                aligned_tgt_check = ''.join([a.get('번역문', '') for a in alignments]).replace(' ', '').replace('\n', '').replace('\t', '')
-                original_src_check = src_paragraph.replace(' ', '').replace('\n', '').replace('\t', '')
-                original_tgt_check = tgt_paragraph.replace(' ', '').replace('\n', '').replace('\t', '')
-                
-                src_match = (aligned_src_check == original_src_check)
-                tgt_match = (aligned_tgt_check == original_tgt_check)
-                
+                aligned_src_check = (
+                    "".join([a.get("원문", "") for a in alignments])
+                    .replace(" ", "")
+                    .replace("\n", "")
+                    .replace("\t", "")
+                )
+                aligned_tgt_check = (
+                    "".join([a.get("번역문", "") for a in alignments])
+                    .replace(" ", "")
+                    .replace("\n", "")
+                    .replace("\t", "")
+                )
+                original_src_check = (
+                    src_paragraph.replace(" ", "").replace("\n", "").replace("\t", "")
+                )
+                original_tgt_check = (
+                    tgt_paragraph.replace(" ", "").replace("\n", "").replace("\t", "")
+                )
+
+                src_match = aligned_src_check == original_src_check
+                tgt_match = aligned_tgt_check == original_tgt_check
+
                 if src_match and tgt_match:
-                    logger.info(f"✅ 문단 {original_para_id} 무결성 완벽 ({len(alignments)}개 alignments)")
+                    logger.info(
+                        f"✅ 문단 {original_para_id} 무결성 완벽 ({len(alignments)}개 alignments)"
+                    )
                 else:
                     if not src_match:
                         src_diff = len(original_src_check) - len(aligned_src_check)
-                        logger.warning(f"⚠️ 문단 {original_para_id} 원문 불일치: {src_diff:+d}자")
+                        logger.warning(
+                            f"⚠️ 문단 {original_para_id} 원문 불일치: {src_diff:+d}자"
+                        )
                     if not tgt_match:
                         tgt_diff = len(original_tgt_check) - len(aligned_tgt_check)
-                        logger.warning(f"⚠️ 문단 {original_para_id} 번역문 불일치: {tgt_diff:+d}자")
-                        
+                        logger.warning(
+                            f"⚠️ 문단 {original_para_id} 번역문 불일치: {tgt_diff:+d}자"
+                        )
+
             except Exception as e:
                 logger.error(f"❌ 문단 {original_para_id} 무결성 복원 실패: {e}")
                 if verbose:
                     import traceback
+
                     traceback.print_exc()
                 try:
-                    _trace("after_restore_integrity", src_segments=[], tgt_segments=[], meta={"error": str(e)})
+                    _trace(
+                        "after_restore_integrity",
+                        src_segments=[],
+                        tgt_segments=[],
+                        meta={"error": str(e)},
+                    )
                 except Exception:
                     pass
 
-
             # 🔧 최종 괄호 중복/불균형 정리 (원문/번역문 모두)
             for a in alignments:
-                a['원문'] = _final_cleanup_brackets(a.get('원문', ''))
-                a['번역문'] = _final_cleanup_brackets(a.get('번역문', ''))
+                a["원문"] = _final_cleanup_brackets(a.get("원문", ""))
+                a["번역문"] = _final_cleanup_brackets(a.get("번역문", ""))
 
             try:
                 _trace(
                     "after_final_cleanup",
-                    src_segments=[a.get('원문', '') for a in (alignments or [])],
-                    tgt_segments=[a.get('번역문', '') for a in (alignments or [])],
+                    src_segments=[a.get("원문", "") for a in (alignments or [])],
+                    tgt_segments=[a.get("번역문", "") for a in (alignments or [])],
                 )
             except Exception:
                 pass
-            
+
             # 문단식별자 추가 + 문장식별자 유지 (원본 있으면 유지, 없으면 생성)
             for a in alignments:
-                a['문단식별자'] = original_para_id
+                a["문단식별자"] = original_para_id
                 if book_name:
-                    a['book_name'] = book_name
+                    a["book_name"] = book_name
                 # 🔧 원본 문장식별자 유지 (없을 때만 새로 생성)
                 if original_sent_id is not None:
-                    a['문장식별자'] = original_sent_id
+                    a["문장식별자"] = original_sent_id
                 else:
-                    a['문장식별자'] = global_sent_idx
+                    a["문장식별자"] = global_sent_idx
                     global_sent_idx += 1
-            
+
             all_results.extend(alignments)
 
             try:
                 _trace(
                     "final",
-                    src_segments=[a.get('원문', '') for a in (alignments or [])],
-                    tgt_segments=[a.get('번역문', '') for a in (alignments or [])],
+                    src_segments=[a.get("원문", "") for a in (alignments or [])],
+                    tgt_segments=[a.get("번역문", "") for a in (alignments or [])],
                     meta={"rows": int(len(alignments or []))},
                 )
             except Exception:
                 pass
-            
+
             # 🔧 SA와 동일한 진행률 업데이트
             if use_progress_bar:
                 try:
                     update_unified_progress(1, 처리됨=len(all_results))
                 except:
                     pass
-        
+
         else:
             # 🛡️ Zero Drop Mandate: 빈 문단이어도 절대 누락시키지 않음
             if verbose:
                 print(f"⚠️ 문단 {idx + 1}: 빈 원문 또는 번역문 - 원본 그대로 추가")
-            
+
             fallback_alignment = {
-                '원문': src_paragraph.strip() if src_paragraph else '',
-                '번역문': tgt_paragraph.strip() if tgt_paragraph else '',
-                'similarity': 1.0,
-                '문단식별자': original_para_id,
+                "원문": src_paragraph.strip() if src_paragraph else "",
+                "번역문": tgt_paragraph.strip() if tgt_paragraph else "",
+                "similarity": 1.0,
+                "문단식별자": original_para_id,
             }
             # 🔧 원본 문장식별자 유지 (없을 때만 새로 생성)
             if original_sent_id is not None:
-                fallback_alignment['문장식별자'] = original_sent_id
+                fallback_alignment["문장식별자"] = original_sent_id
             else:
-                fallback_alignment['문장식별자'] = global_sent_idx
+                fallback_alignment["문장식별자"] = global_sent_idx
                 global_sent_idx += 1
             if book_name:
-                fallback_alignment['book_name'] = book_name
+                fallback_alignment["book_name"] = book_name
             all_results.append(fallback_alignment)
-            
+
             if use_progress_bar:
                 try:
                     update_unified_progress(1, 처리됨=len(all_results))
                 except:
                     pass
-    
+
     if not all_results:
         if tracer is not None:
             tracer.close()
@@ -2865,69 +3209,80 @@ def process_paragraph_file(
                 pass
         print("❌ 처리된 결과가 없습니다.")
         return None
-    
+
     # 결과 DataFrame 생성
     result_df = pd.DataFrame(all_results)
-    
+
     # 🔧 무결성 확인 후 최종 strip 적용
     if len(result_df) > 0:
         # 원문과 번역문에 대해 strip 적용 (공백 정리)
-        if '원문' in result_df.columns:
-            result_df['원문'] = result_df['원문'].astype(str).str.strip()
-        if '번역문' in result_df.columns:
-            result_df['번역문'] = result_df['번역문'].astype(str).str.strip()
-        
+        if "원문" in result_df.columns:
+            result_df["원문"] = result_df["원문"].astype(str).str.strip()
+        if "번역문" in result_df.columns:
+            result_df["번역문"] = result_df["번역문"].astype(str).str.strip()
+
         if verbose:
             print("✅ 무결성 확인 후 최종 공백 정리 완료")
-    
+
     # 🔧 SA와 동일한 진행률 완료
     if use_progress_bar:
         try:
             finish_unified_progress(f"PA 완료: {len(all_results):,}개 문장 쌍 생성")
         except:
             pass
-    
+
     # 컬럼 순서 정리 - 요구 형식(기본): 문단식별자, 문장식별자, 원문, 번역문, similarity
     # book_name이 있으면 (book_name, 문단식별자)로 문단을 구분할 수 있게 포함한다.
-    final_columns = ['문단식별자', 'book_name', '문장식별자', '원문', '번역문', 'similarity']
+    final_columns = [
+        "문단식별자",
+        "book_name",
+        "문장식별자",
+        "원문",
+        "번역문",
+        "similarity",
+    ]
     available_columns = [col for col in final_columns if col in result_df.columns]
     result_df = result_df[available_columns]
-    
+
     # 결과 저장
     try:
         # CSV 또는 Excel 자동 감지하여 저장
-        if str(output_file).endswith('.csv'):
+        if str(output_file).endswith(".csv"):
             result_df.to_csv(output_file, index=False)
         else:
-            with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-                result_df.to_excel(writer, index=False, sheet_name='results')
+            with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
+                result_df.to_excel(writer, index=False, sheet_name="results")
 
         if verbose:
             print(f"💾 결과 저장: {output_file}")
             print(f"📊 총 {len(all_results)}개 문장 쌍 생성")
             analyze_alignment_results(result_df)
-        
+
         # 🆕 전역 무결성 검증 (정규화 없음, 순수 텍스트 비교)
         try:
             # CSV 또는 Excel 자동 감지
-            if str(input_file).endswith('.csv'):
+            if str(input_file).endswith(".csv"):
                 input_df = pd.read_csv(input_file)
             else:
                 input_df = pd.read_excel(input_file)
             passed, integrity_losses_df, analysis = verify_global_integrity(
-                input_df, result_df, 
-                source_col='원문', target_col='번역문',
-                verbose=verbose
+                input_df,
+                result_df,
+                source_col="원문",
+                target_col="번역문",
+                verbose=verbose,
             )
-            
+
             # 무결성 손실 시트를 결과 파일에 추가 (Excel만)
-            if len(integrity_losses_df) > 0 and not str(output_file).endswith('.csv'):
-                with pd.ExcelWriter(output_file, engine='openpyxl', mode='a') as writer:
-                    integrity_losses_df.to_excel(writer, index=False, sheet_name='integrity_losses')
+            if len(integrity_losses_df) > 0 and not str(output_file).endswith(".csv"):
+                with pd.ExcelWriter(output_file, engine="openpyxl", mode="a") as writer:
+                    integrity_losses_df.to_excel(
+                        writer, index=False, sheet_name="integrity_losses"
+                    )
         except Exception as e:
             if verbose:
                 print(f"⚠️ 무결성 검증 오류: {e}")
-        
+
         # 기본 모드에서는 통합 진행률에서 완료 메시지 처리됨
         if tracer is not None:
             tracer.close()
@@ -2942,29 +3297,33 @@ def process_paragraph_file(
 def analyze_alignment_results(result_df: pd.DataFrame):
     """정렬 결과 분석"""
     print("\n📊 정렬 결과 분석:")
-    
+
     # 전체 유사도 분포
-    if 'similarity' in result_df.columns:
+    if "similarity" in result_df.columns:
         print(f"🎯 전체 유사도:")
         print(f"   평균: {result_df['similarity'].mean():.3f}")
         print(f"   최고: {result_df['similarity'].max():.3f}")
         print(f"   최저: {result_df['similarity'].min():.3f}")
-        
+
         # 고품질 매칭 비율
-        high_quality = sum(1 for x in result_df['similarity'] if x > 0.7)
-        medium_quality = sum(1 for x in result_df['similarity'] if 0.5 <= x <= 0.7)
-        low_quality = sum(1 for x in result_df['similarity'] if x < 0.5)
+        high_quality = sum(1 for x in result_df["similarity"] if x > 0.7)
+        medium_quality = sum(1 for x in result_df["similarity"] if 0.5 <= x <= 0.7)
+        low_quality = sum(1 for x in result_df["similarity"] if x < 0.5)
         total = len(result_df)
-        
+
         print(f"📊 품질별 매칭:")
-        print(f"   고품질 (>0.7): {high_quality}/{total} ({high_quality/total*100:.1f}%)")
-        print(f"   중품질 (0.5-0.7): {medium_quality}/{total} ({medium_quality/total*100:.1f}%)")
+        print(
+            f"   고품질 (>0.7): {high_quality}/{total} ({high_quality/total*100:.1f}%)"
+        )
+        print(
+            f"   중품질 (0.5-0.7): {medium_quality}/{total} ({medium_quality/total*100:.1f}%)"
+        )
         print(f"   저품질 (<0.5): {low_quality}/{total} ({low_quality/total*100:.1f}%)")
-    
+
     # 빈 매칭 확인
-    empty_source = sum(1 for x in result_df['원문'] if not str(x).strip())
-    empty_target = sum(1 for x in result_df['번역문'] if not str(x).strip())
-    
+    empty_source = sum(1 for x in result_df["원문"] if not str(x).strip())
+    empty_target = sum(1 for x in result_df["번역문"] if not str(x).strip())
+
     if empty_source > 0:
         print(f"⚠️ 빈 원문: {empty_source}개")
     if empty_target > 0:

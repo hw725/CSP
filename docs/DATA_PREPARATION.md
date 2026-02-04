@@ -41,7 +41,7 @@
                 </s>
               </단락>
             </원문>
-            
+
             <!-- 번역문 콘텐츠 (별도 파일 또는 동일 파일 내 존재 가능) -->
             <!-- 실제 파일 구조상 번역문은 별도 파일로 제공되기도 함 -->
             <!-- 예시를 위해 구조만 차용 -->
@@ -279,11 +279,11 @@ docker-compose run --rm csp python xlsx_scripts/log_nan_values.py
 ```python
 def join_texts(texts):
     filtered = [t for t in texts if not pd.isna(t)]
-    
+
     # 모든 값이 NaN이면 NaN 반환
     if not filtered and any(pd.isna(t) for t in texts):
         return pd.NA
-    
+
     # 그 외: 공백으로 연결
     return ' '.join(filtered)
 ```

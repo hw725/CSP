@@ -47,6 +47,7 @@ RUN uv pip install --system --no-cache \
     numpy==1.26.4 \
     scikit-learn==1.8.0 \
     scipy \
+    matplotlib \
     umap-learn \
     plotly \
     openpyxl==3.1.5 \

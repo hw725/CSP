@@ -24,15 +24,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Sequence
 
-
 WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
-
 
 @dataclass(frozen=True)
 class CmdResult:
     argv: Sequence[str]
     returncode: int
-
 
 def _run(argv: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> CmdResult:
     print("\n$ " + " ".join(argv))
@@ -40,7 +37,6 @@ def _run(argv: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> Cm
     if proc.returncode != 0:
         raise SystemExit(f"명령 실패(returncode={proc.returncode}): {' '.join(argv)}")
     return CmdResult(argv=argv, returncode=proc.returncode)
-
 
 def _run_allow(
     argv: list[str],
@@ -64,9 +60,10 @@ def _run_allow(
         print(f"\n[warn] returncode={proc.returncode} 허용됨: {' '.join(argv)}")
     return CmdResult(argv=argv, returncode=proc.returncode)
 
-
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Train-only P2S alignment + P2S strict + gold eval")
+    parser = argparse.ArgumentParser(
+        description="Train-only P2S alignment + P2S strict + gold eval"
+    )
 
     # train (P2S sentence-parallel)
     parser.add_argument(
@@ -99,7 +96,9 @@ def main() -> int:
     )
 
     parser.add_argument("--enable-hard-neg", action="store_true")
-    parser.add_argument("--hard-neg-mode", default="prefix_token", choices=["prefix_token", "full"])
+    parser.add_argument(
+        "--hard-neg-mode", default="prefix_token", choices=["prefix_token", "full"]
+    )
     parser.add_argument("--hard-neg-weight", type=float, default=0.5)
     parser.add_argument("--hard-neg-margin", type=float, default=0.15)
 
@@ -129,7 +128,9 @@ def main() -> int:
         default=None,
         help="평가 pid 목록(미지정 시 전체 pid를 평가)",
     )
-    parser.add_argument("--book-name", default=None, help="(선택) book_name 필터 (gold 비교용)")
+    parser.add_argument(
+        "--book-name", default=None, help="(선택) book_name 필터 (gold 비교용)"
+    )
 
     # P2S strict
     parser.add_argument("--boundary-threshold", type=float, default=0.72)
@@ -182,7 +183,9 @@ def main() -> int:
         pd_input_name = Path(str(args.pd_input)).name
         gold_name = Path(str(args.gold)).name
         if pd_input_name == "test_100.csv" and gold_name == "test_100.csv":
-            from_pd_gold = WORKSPACE_ROOT / "datasets" / "sentence" / "test_100_from_pd.csv"
+            from_pd_gold = (
+                WORKSPACE_ROOT / "datasets" / "sentence" / "test_100_from_pd.csv"
+            )
             if from_pd_gold.exists():
                 print(
                     "\n[warn] 현재 입력은 datasets/pd/test_100.csv인데 gold를 datasets/sentence/test_100.csv로 지정했습니다."
@@ -234,7 +237,5 @@ def main() -> int:
     print(f"- P2S output: {out_p2s_csv}")
     return 0
 
-
 if __name__ == "__main__":
     raise SystemExit(main())
-

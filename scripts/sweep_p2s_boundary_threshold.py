@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sweep PA boundary threshold while keeping alignment model fixed.
+"""Sweep P2S boundary threshold while keeping alignment model fixed.
 
 목적
 - 번역문 문장리스트가 gold와 일치하는 subset에서("tgt exact subset")
@@ -8,15 +8,15 @@
 이 스윕은 누수와 무관 (학습 없음). 이미 학습된 모델을 사용해 추론+평가만 한다.
 
 예)
-  docker-compose run --rm csp python scripts/sweep_pa_boundary_threshold.py \
+    docker-compose run --rm csp python scripts/sweep_p2s_boundary_threshold.py \
     --pd-input datasets/sentenceragraph/test_100.csv \
     --gold datasets/p2s/test_100.csv \
     --thresholds 0.3 0.4 0.5 0.6 0.7 \
     --device cuda
 
 출력
-- test_results/sweep_pa_boundary_threshold_<timestamp>.csv
-- trial별 PA 출력은 test_results/sweep_threshold_runs/ 아래에 저장
+- test_results/sweep_p2s_boundary_threshold_<timestamp>.csv
+- trial별 P2S 출력은 test_results/sweep_threshold_runs/ 아래에 저장
 """
 
 from __future__ import annotations
@@ -32,9 +32,7 @@ from datetime import datetime
 from pathlib import Path
 from statistics import mean, median
 
-
 WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
-
 
 @dataclass(frozen=True)
 class ParsedEval:
@@ -44,16 +42,18 @@ class ParsedEval:
     micro_f1_tgt_exact: float | None
     returncode: int | None
 
-
-_F1_ALL_RE = re.compile(r"\(micro,\s*전체\):\s*([0-9.]+)\s*/\s*([0-9.]+)\s*/\s*([0-9.]+)")
+_F1_ALL_RE = re.compile(
+    r"\(micro,\s*전체\):\s*([0-9.]+)\s*/\s*([0-9.]+)\s*/\s*([0-9.]+)"
+)
 _F1_TGT_EXACT_RE = re.compile(
     r"\(micro,\s*tgt\s*완전일치\s*subset\):\s*([0-9.]+)\s*/\s*([0-9.]+)\s*/\s*([0-9.]+)"
 )
 _F1_LEGACY_RE = re.compile(r"\(micro\):\s*([0-9.]+)\s*/\s*([0-9.]+)\s*/\s*([0-9.]+)")
 _TRANSL_RE = re.compile(r"번역문 문장리스트 완전일치:\s*(\d+)\s*/\s*(\d+)")
 
-
-def _run(argv: list[str], *, cwd: Path, env: dict[str, str], allow_failure: bool = False) -> tuple[int, str]:
+def _run(
+    argv: list[str], *, cwd: Path, env: dict[str, str], allow_failure: bool = False
+) -> tuple[int, str]:
     print("\n$ " + " ".join(argv))
     proc = subprocess.run(argv, cwd=str(cwd), env=env, text=True, capture_output=True)
     if proc.returncode != 0 and not allow_failure:
@@ -63,7 +63,6 @@ def _run(argv: list[str], *, cwd: Path, env: dict[str, str], allow_failure: bool
     sys.stdout.write(proc.stdout)
     sys.stderr.write(proc.stderr)
     return proc.returncode, (proc.stdout + "\n" + proc.stderr)
-
 
 def _parse_integrity_report(text: str, *, returncode: int | None = None) -> ParsedEval:
     ok = total = None
@@ -93,17 +92,14 @@ def _parse_integrity_report(text: str, *, returncode: int | None = None) -> Pars
         returncode=returncode,
     )
 
-
 @dataclass(frozen=True)
 class P2sOutputGroup:
     src_sentences: list[str]
     tgt_sentences: list[str]
 
-
 def _norm(s: str) -> str:
     # integrity_report.py와 동일한 정규화(공백/개행/탭 제거)
     return str(s).replace(" ", "").replace("\n", "").replace("\t", "").strip()
-
 
 def _load_p2s_output_groups(path: Path) -> dict[tuple[str, int], P2sOutputGroup]:
     """P2S 출력 CSV를 (book_name, pid) -> (src_sentence_list, tgt_sentence_list)로 로드."""
@@ -114,7 +110,9 @@ def _load_p2s_output_groups(path: Path) -> dict[tuple[str, int], P2sOutputGroup]
         required = {"문단식별자", "book_name", "문장식별자", "원문", "번역문"}
         missing = required - set(reader.fieldnames or [])
         if missing:
-            raise ValueError(f"P2S 출력 CSV 스키마가 예상과 다릅니다. missing={sorted(missing)} path={path}")
+            raise ValueError(
+                f"P2S 출력 CSV 스키마가 예상과 다릅니다. missing={sorted(missing)} path={path}"
+            )
 
         for row in reader:
             book = str(row["book_name"])
@@ -124,15 +122,14 @@ def _load_p2s_output_groups(path: Path) -> dict[tuple[str, int], P2sOutputGroup]
             tgt = str(row["번역문"])
             groups.setdefault((book, pid), []).append((sid, src, tgt))
 
-    out: dict[tuple[str, int], PaOutputGroup] = {}
+    out: dict[tuple[str, int], P2sOutputGroup] = {}
     for key, triples in groups.items():
         triples.sort(key=lambda x: x[0])
-        out[key] = PaOutputGroup(
+        out[key] = P2sOutputGroup(
             src_sentences=[t[1] for t in triples],
             tgt_sentences=[t[2] for t in triples],
         )
     return out
-
 
 def _boundary_set_from_src_sentences(src_sentences: list[str]) -> set[int]:
     """src sentence list로부터 boundary 위치(문자 오프셋) 집합을 만든다.
@@ -148,7 +145,6 @@ def _boundary_set_from_src_sentences(src_sentences: list[str]) -> set[int]:
         if i != len(src_sentences) - 1:
             boundaries.add(pos)
     return boundaries
-
 
 def _compute_drift_vs_reference(
     *,
@@ -175,7 +171,9 @@ def _compute_drift_vs_reference(
         r = ref_groups[k]
 
         # integrity_report 기준과 동일하게 비교는 정규화 기준으로 수행
-        is_tgt_equal = [ _norm(x) for x in g.tgt_sentences ] == [ _norm(x) for x in r.tgt_sentences ]
+        is_tgt_equal = [_norm(x) for x in g.tgt_sentences] == [
+            _norm(x) for x in r.tgt_sentences
+        ]
         if is_tgt_equal:
             tgt_equal += 1
 
@@ -196,7 +194,9 @@ def _compute_drift_vs_reference(
             boundary_symdiff_total += len(g_b.symmetric_difference(r_b))
 
     boundary_symdiff_mean = (
-        (boundary_symdiff_total / boundary_only_drift) if boundary_only_drift > 0 else 0.0
+        (boundary_symdiff_total / boundary_only_drift)
+        if boundary_only_drift > 0
+        else 0.0
     )
 
     stats: dict[str, float | int | str | None] = {
@@ -214,9 +214,10 @@ def _compute_drift_vs_reference(
     cache[p2s_output] = stats
     return stats
 
-
 def main() -> int:
-    p = argparse.ArgumentParser(description="Sweep P2S boundary threshold (no training)")
+    p = argparse.ArgumentParser(
+        description="Sweep P2S boundary threshold (no training)"
+    )
 
     p.add_argument(
         "--pd-input",
@@ -270,7 +271,12 @@ def main() -> int:
     )
     p.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
     p.add_argument("--out-dir", default=str(WORKSPACE_ROOT / "test_results"))
-    p.add_argument("--seed", type=int, default=None, help="P2S 추론 재현성 seed (p2s/main.py로 전달)")
+    p.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="P2S 추론 재현성 seed (p2s/main.py로 전달)",
+    )
     p.add_argument(
         "--boundary-min-len",
         type=int,
@@ -283,7 +289,11 @@ def main() -> int:
         help="P2S 추론 deterministic 모드 사용 (p2s/main.py로 전달, 속도 저하 가능)",
     )
 
-    default_ref = WORKSPACE_ROOT / "test_results" / "p2s_strict_thr0p72_ml10_seed1_adjref_adaptive.csv"
+    default_ref = (
+        WORKSPACE_ROOT
+        / "test_results"
+        / "p2s_strict_thr0p72_ml10_seed1_adjref_adaptive.csv"
+    )
     p.add_argument(
         "--reference-output",
         default=str(default_ref) if default_ref.exists() else None,
@@ -323,7 +333,9 @@ def main() -> int:
             print(f"[drift] reference_output={ref_path}")
             ref_groups = _load_p2s_output_groups(ref_path)
         else:
-            print(f"[drift] reference_output not found: {ref_path} (skip drift metrics)")
+            print(
+                f"[drift] reference_output not found: {ref_path} (skip drift metrics)"
+            )
             ref_path = None
 
     with out_csv.open("w", newline="", encoding="utf-8") as f:
@@ -362,7 +374,11 @@ def main() -> int:
         best = None
 
         def _pick_score(parsed: ParsedEval) -> float | None:
-            return parsed.micro_f1_tgt_exact if parsed.micro_f1_tgt_exact is not None else parsed.micro_f1_all
+            return (
+                parsed.micro_f1_tgt_exact
+                if parsed.micro_f1_tgt_exact is not None
+                else parsed.micro_f1_all
+            )
 
         def _aggregate(values: list[float]) -> float:
             if args.rank_by == "max":
@@ -416,7 +432,9 @@ def main() -> int:
                     "--gold",
                     str(args.gold),
                 ]
-                eval_rc, report_text = _run(eval_cmd, cwd=WORKSPACE_ROOT, env=env, allow_failure=True)
+                eval_rc, report_text = _run(
+                    eval_cmd, cwd=WORKSPACE_ROOT, env=env, allow_failure=True
+                )
                 parsed = _parse_integrity_report(report_text, returncode=eval_rc)
 
                 row: dict[str, float | int | str | None] = {
@@ -470,7 +488,14 @@ def main() -> int:
                 )
 
                 if best is None or agg > best[0]:
-                    best = (agg, best_single[1] if best_single is not None else {"boundary_threshold": thr})
+                    best = (
+                        agg,
+                        (
+                            best_single[1]
+                            if best_single is not None
+                            else {"boundary_threshold": thr}
+                        ),
+                    )
 
         print("\n완료: " + str(out_csv))
         if best:
@@ -479,7 +504,6 @@ def main() -> int:
             print(best[1])
 
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

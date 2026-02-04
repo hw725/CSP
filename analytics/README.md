@@ -11,6 +11,10 @@
 | `monitoring_dashboard.py` | 실시간 모니터링 대시보드 생성 |
 | `book_metadata_extractor.py` | 서종 메타데이터 추출기 |
 
+## 대시보드 파일
+
+- [analytics/monitoring_dashboard.html](monitoring_dashboard.html) (정적 HTML, 브라우저에서 바로 열기)
+
 ## 메타데이터 관리
 
 | 파일 | 설명 |

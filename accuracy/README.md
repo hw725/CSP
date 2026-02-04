@@ -87,7 +87,7 @@ Docker 컨테이너에서는 다음 한글 폰트들이 자동으로 설정됩�
 ### 데이터 경로 설정
 분석 도구들은 다음 경로에서 데이터를 읽습니다:
 - PA 분석: `p2s/output.xlsx`
-- SA 분석: `s2p/output.xlsx` 
+- SA 분석: `s2p/output.xlsx`
 - 정확도 평가: `accuracy/관자4_문단병렬.xlsx`
 
 ## 🔍 문제 해결

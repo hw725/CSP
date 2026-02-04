@@ -2,7 +2,7 @@
 """
 장르별 고유 현토 예문 추출 스크립트
 
-K=4 클러스터 분석 결과를 바탕으로 각 장르(사서/삼경/역사서/문집)의 
+K=4 클러스터 분석 결과를 바탕으로 각 장르(사서/삼경/역사서/문집)의
 고유한 현토 패턴을 보이는 문장을 추출합니다.
 """
 
@@ -126,7 +126,7 @@ for genre in df["genre"].unique():
     genre_markers_count = Counter()
     for marker_str in df_genre["marker_normalized"].dropna():
         genre_markers_count[marker_str] += 1
-    
+
     # 비율 계산 (장르 내 비율 / 전체 비율)
     ratios = {}
     for marker, count in genre_markers_count.items():
@@ -138,18 +138,22 @@ for genre in df["genre"].unique():
                 "count": count,
                 "genre_ratio": genre_ratio,
                 "overall_ratio": overall_ratio,
-                "specificity": specificity
+                "specificity": specificity,
             }
-    
+
     # 특이성 순으로 정렬 (빈도가 일정 이상인 것만)
     significant_ratios = {k: v for k, v in ratios.items() if v["count"] >= 50}
-    sorted_ratios = sorted(significant_ratios.items(), key=lambda x: x[1]["specificity"], reverse=True)
+    sorted_ratios = sorted(
+        significant_ratios.items(), key=lambda x: x[1]["specificity"], reverse=True
+    )
     genre_marker_ratios[genre] = sorted_ratios
-    
+
     print(f"\n[{genre}] 특이적 마커 (특이성 > 1.2)")
     for marker, stats in sorted_ratios[:15]:
         if stats["specificity"] > 1.2:
-            print(f"  {marker}: 특이성={stats['specificity']:.2f}, 빈도={stats['count']:,}")
+            print(
+                f"  {marker}: 특이성={stats['specificity']:.2f}, 빈도={stats['count']:,}"
+            )
 
 # 각 장르별 대표 예문 추출
 print("\n=== 장르별 대표 예문 추출 ===")
@@ -158,23 +162,25 @@ def extract_representative_examples(df, genre, specific_markers, n=5):
     """장르 특이적 마커를 포함하는 대표 예문 추출"""
     df_genre = df[df["genre"] == genre]
     examples = []
-    
+
     for marker in specific_markers:
         df_with_marker = df_genre[df_genre["marker_normalized"] == marker]
         if len(df_with_marker) > 0:
             sample = df_with_marker.head(n)
             for _, row in sample.iterrows():
-                examples.append({
-                    "genre": genre,
-                    "book": row["book"],
-                    "marker": marker,
-                    "src_left": row.get("src_left", ""),
-                    "src_right": row.get("src_right", ""),
-                    "tgt_left": row.get("tgt_left", ""),
-                    "tgt_right": row.get("tgt_right", ""),
-                    "marker_left": row.get("marker_left", ""),
-                    "marker_right": row.get("marker_right", ""),
-                })
+                examples.append(
+                    {
+                        "genre": genre,
+                        "book": row["book"],
+                        "marker": marker,
+                        "src_left": row.get("src_left", ""),
+                        "src_right": row.get("src_right", ""),
+                        "tgt_left": row.get("tgt_left", ""),
+                        "tgt_right": row.get("tgt_right", ""),
+                        "marker_left": row.get("marker_left", ""),
+                        "marker_right": row.get("marker_right", ""),
+                    }
+                )
     return examples
 
 # 장르별 특이 마커 추출 (상위 5개)
@@ -202,34 +208,40 @@ print(f"\n예문 저장 완료: {output_json}")
 report_md = OUTPUT_DIR / "GENRE_SPECIFIC_EXAMPLES.md"
 with open(report_md, "w", encoding="utf-8") as f:
     f.write("# 장르별 고유 현토 예문 보고서\n\n")
-    f.write("이 보고서는 K=4 클러스터 분석 결과를 바탕으로 각 장르(사서/삼경/기타)의 고유한 현토 패턴을 보이는 문장을 추출한 것입니다.\n\n")
-    
+    f.write(
+        "이 보고서는 K=4 클러스터 분석 결과를 바탕으로 각 장르(사서/삼경/기타)의 고유한 현토 패턴을 보이는 문장을 추출한 것입니다.\n\n"
+    )
+
     f.write("## 1. 장르별 분포\n\n")
     f.write("| 장르 | 문장 수 | 비율 |\n")
     f.write("|:-----|-------:|-----:|\n")
     for genre, count in genre_dist.items():
         f.write(f"| {genre} | {count:,} | {count/len(df)*100:.1f}% |\n")
-    
+
     f.write("\n## 2. 장르별 특이적 마커\n\n")
-    f.write("'특이성'은 해당 마커가 특정 장르에서 전체 평균 대비 얼마나 높은 비율로 출현하는지를 나타냅니다.\n\n")
-    
+    f.write(
+        "'특이성'은 해당 마커가 특정 장르에서 전체 평균 대비 얼마나 높은 비율로 출현하는지를 나타냅니다.\n\n"
+    )
+
     for genre, ratios in genre_marker_ratios.items():
         f.write(f"### {genre}\n\n")
         f.write("| 마커 | 특이성 | 빈도 |\n")
         f.write("|:-----|-------:|-----:|\n")
         for marker, stats in ratios[:10]:
             if stats["specificity"] > 1.0:
-                f.write(f"| {marker} | {stats['specificity']:.2f} | {stats['count']:,} |\n")
+                f.write(
+                    f"| {marker} | {stats['specificity']:.2f} | {stats['count']:,} |\n"
+                )
         f.write("\n")
-    
+
     f.write("\n## 3. 장르별 대표 예문\n\n")
-    
+
     current_genre = None
     for ex in all_examples:
         if ex["genre"] != current_genre:
             current_genre = ex["genre"]
             f.write(f"### {current_genre}\n\n")
-        
+
         f.write(f"**서명**: {ex['book']} | **마커**: `{ex['marker']}`\n\n")
         f.write(f"- **원문(左)**: {ex['src_left']}\n")
         f.write(f"- **원문(右)**: {ex['src_right']}\n")

@@ -9,4 +9,4 @@ from common.config import get_thresholds
 # 하위 호환성을 위한 직접 import
 THRESHOLDS = get_thresholds()
 
-LABEL_ORDER = ['below', 'min', 'recommended', 'top']
+LABEL_ORDER = ["below", "min", "recommended", "top"]

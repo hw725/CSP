@@ -1,0 +1,60 @@
+{
+  "analysis_date": "2026-02-04T04:25:13.454152",
+  "data_source": "hyeonto/reports/sentence_k3_normalized/sentence_clusters.csv",
+  "n_records": 183322,
+  "recommended_scenarios": [
+    "data_driven",
+    "strong"
+  ],
+  "data_driven_weights": {
+    "canon": 2.8308,
+    "other": 1.0
+  },
+  "data_driven_counts": {
+    "canon": 47855,
+    "other": 135467
+  },
+  "scenarios": [
+    {
+      "name": "uniform",
+      "avg_weighted_canonicity": 7.852331640742249,
+      "max_weighted_canonicity": 12.952612393681653,
+      "avg_genre_entropy": 5.613727178013318
+    },
+    {
+      "name": "weak",
+      "avg_weighted_canonicity": 11.656147894996309,
+      "max_weighted_canonicity": 17.91735622672735,
+      "avg_genre_entropy": 5.380029397295462
+    },
+    {
+      "name": "moderate",
+      "avg_weighted_canonicity": 14.015986439330026,
+      "max_weighted_canonicity": 20.54193471880466,
+      "avg_genre_entropy": 5.187746628221916
+    },
+    {
+      "name": "strong",
+      "avg_weighted_canonicity": 16.905185725719075,
+      "max_weighted_canonicity": 23.268699921419024,
+      "avg_genre_entropy": 4.906221387137353
+    },
+    {
+      "name": "inverse",
+      "avg_weighted_canonicity": 2.2290657752229097,
+      "max_weighted_canonicity": 4.02663892746936,
+      "avg_genre_entropy": 5.719392139154867
+    },
+    {
+      "name": "data_driven",
+      "avg_weighted_canonicity": 13.678597893705524,
+      "max_weighted_canonicity": 20.188418691774306,
+      "avg_genre_entropy": 5.217317166236044
+    }
+  ],
+  "conclusion": {
+    "cluster_stability": "sensitive",
+    "canonicity_delta_uniform_to_strong": 10.316087527737372,
+    "entropy_delta_uniform_to_strong": -0.707505790875965
+  }
+}

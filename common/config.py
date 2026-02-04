@@ -9,6 +9,7 @@ import os
 import json
 from pathlib import Path
 from typing import Optional, Any, Dict
+
 _CONFIG_CACHE: Dict[str, Any] | None = None
 
 def _load_file_config() -> Dict[str, Any]:
@@ -28,13 +29,15 @@ def _load_file_config() -> Dict[str, Any]:
         _CONFIG_CACHE = {}
     return _CONFIG_CACHE
 
-
 def get_results_dir() -> Path:
     """XLSX 파이프라인 결과 디렉토리"""
     cfg = _load_file_config()
-    val = cfg.get("results_dir") or os.getenv("CSP_XLSX_RESULTS") or "xlsx_pipeline_results"
+    val = (
+        cfg.get("results_dir")
+        or os.getenv("CSP_XLSX_RESULTS")
+        or "xlsx_pipeline_results"
+    )
     return Path(val)
-
 
 def get_embedder(kind: str = "pa") -> str:
     """
@@ -44,37 +47,26 @@ def get_embedder(kind: str = "pa") -> str:
     """
     cfg = _load_file_config()
     common = cfg.get("embedder") or os.getenv("CSP_EMBEDDER")
-    if kind == "sa":
+    if kind == "s2p":
         return (
-            cfg.get("sa_embedder")
-            or os.getenv("CSP_SA_EMBEDDER")
-            or common
-            or "bge-m3"
+            cfg.get("s2p_embedder") or os.getenv("CSP_S2P_EMBEDDER") or common or "bge-m3"
         )
-    return (
-        cfg.get("pa_embedder")
-        or os.getenv("CSP_PA_EMBEDDER")
-        or common
-        or "bge-m3"
-    )
-
+    return cfg.get("p2s_embedder") or os.getenv("CSP_P2S_EMBEDDER") or common or "bge-m3"
 
 def get_device() -> Optional[str]:
     """장치 설정 (예: cuda:0, cpu). 미설정 시 None 반환."""
     cfg = _load_file_config()
     return cfg.get("device") or os.getenv("CSP_DEVICE")
 
-
 def get_openai_api_key() -> Optional[str]:
     cfg = _load_file_config()
     return cfg.get("openai_api_key") or os.getenv("OPENAI_API_KEY")
-
 
 def get_alignment_params() -> Dict[str, Any]:
     """PA/SA 정렬 파라미터 반환 (임계값, 페널티, 보너스 등)"""
     cfg = _load_file_config()
     params = cfg.get("alignment_params", {})
-    
+
     # 기본값 정의 (정확도 중심)
     defaults = {
         "similarity_threshold": 0.65,
@@ -88,19 +80,19 @@ def get_alignment_params() -> Dict[str, Any]:
         "hanja_bonus": 0.3,
         "hanja_strict": True,
     }
-    
+
     # 설정 파일 값으로 덮어쓰기
     for key, default_val in defaults.items():
         if key not in params:
             params[key] = default_val
-    
+
     return params
 
 def get_thresholds() -> Dict[str, Any]:
     """PA/SA 임계값 설정을 반환 (csp_config.json 우선, 없으면 기본값)"""
     cfg = _load_file_config()
     thresholds = cfg.get("thresholds", {})
-    
+
     # 기본값 정의
     defaults = {
         "pa": {
@@ -122,21 +114,21 @@ def get_thresholds() -> Dict[str, Any]:
             },
         },
     }
-    
+
     # 설정 파일 값으로 기본값 덮어쓰기 (deep merge)
     if "pa" in thresholds:
         defaults["pa"].update(thresholds["pa"])
     if "sa" in thresholds:
         defaults["sa"].update(thresholds["sa"])
-    
+
     return defaults
 
-
-def get_pa_selection_params() -> Dict[str, Any]:
-    """PA strict의 후보 선택(prior/style bonus 등) 파라미터.
+def get_p2s_selection_params() -> Dict[str, Any]:
+    """P2S strict의 후보 선택(prior/style bonus 등) 파라미터.
 
     우선순위:
-    - csp_config.json의 pa_selection_params
+    - csp_config.json의 p2s_selection_params
+    - (없으면) 레거시 pa_selection_params로 fallback
     - (없으면) 안전한 기본값
 
     목적:
@@ -145,7 +137,8 @@ def get_pa_selection_params() -> Dict[str, Any]:
     """
 
     cfg = _load_file_config()
-    params = cfg.get("pa_selection_params", {}) or {}
+    # 새로운 p2s_selection_params 찾기, 없으면 레거시 pa_selection_params로 fallback
+    params = cfg.get("p2s_selection_params") or cfg.get("pa_selection_params") or {}
 
     defaults: Dict[str, Any] = {
         # boundary-aware alignment matcher에서 (의미 유사도 vs 경계 일치) 결합 가중치
@@ -227,13 +220,12 @@ def get_pa_selection_params() -> Dict[str, Any]:
             merged[key] = val
     return merged
 
-
 def as_dict() -> dict:
     """디버깅/로깅용 현재 설정 스냅샷"""
     return {
         "results_dir": str(get_results_dir()),
-        "pa_embedder": get_embedder("pa"),
-        "sa_embedder": get_embedder("sa"),
+        "p2s_embedder": get_embedder("p2s"),
+        "s2p_embedder": get_embedder("s2p"),
         "device": get_device(),
         "openai_key_set": bool(get_openai_api_key()),
         "thresholds_loaded": bool(_load_file_config().get("thresholds")),

@@ -1,6 +1,7 @@
 """
 43권 전체에서 원문 식별자가 동일한 (단락 ID 기반 추출 필요한) 책 찾기
 """
+
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -9,23 +10,23 @@ def check_wonmun_identifiers(xml_path):
     try:
         tree = ET.parse(xml_path)
         root = tree.getroot()
-        
-        wonmun_list = root.findall('.//원문')
+
+        wonmun_list = root.findall(".//원문")
         if not wonmun_list:
             return None, 0, None
-        
+
         identifiers = set()
         for wonmun in wonmun_list:
-            ident = wonmun.get('식별자', '')
+            ident = wonmun.get("식별자", "")
             if ident:
                 identifiers.add(ident)
-        
+
         return len(identifiers), len(wonmun_list), identifiers
     except Exception as e:
         return None, 0, None
 
-source_dir = Path('sources')
-xml_files = sorted(source_dir.glob('*_원문_*.xml'))
+source_dir = Path("sources")
+xml_files = sorted(source_dir.glob("*_원문_*.xml"))
 
 print("=" * 80)
 print("원문 식별자 동일 여부 확인 (단락 ID 기반 추출 필요 여부)")
@@ -34,9 +35,9 @@ print("=" * 80)
 danlak_based_books = []
 
 for xml_file in xml_files:
-    book_name = xml_file.stem.split('_')[1]
+    book_name = xml_file.stem.split("_")[1]
     unique_count, total_count, identifiers = check_wonmun_identifiers(xml_file)
-    
+
     if unique_count is not None:
         if unique_count == 1:
             # 원문 식별자가 모두 동일 -> 단락 ID 기반 추출 필요

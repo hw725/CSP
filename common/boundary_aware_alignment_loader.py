@@ -11,10 +11,9 @@ from typing import List, Dict, Tuple
 import torch
 from torch import nn
 
-
 class BoundaryAwareCharEncoder(nn.Module):
     """Boundary 정보를 포함한 Character Encoder"""
-    
+
     def __init__(self, vocab_size: int, emb_dim: int = 128, hidden: int = 256):
         super().__init__()
         self.char_emb = nn.Embedding(vocab_size, emb_dim, padding_idx=0)
@@ -23,17 +22,21 @@ class BoundaryAwareCharEncoder(nn.Module):
             emb_dim,  # embedding only, no boundary embedding
             hidden,
             bidirectional=True,
-            batch_first=True
+            batch_first=True,
         )
         self.proj = nn.Linear(hidden * 2, 256)
-    
+
     def forward(self, x, b=None):
         # Checkpoint는 boundary 없이 학습됨, inference에서도 무시
         # x: [batch_size, seq_len]
         if x is None or x.numel() == 0:
             # Empty input handling
-            return torch.zeros(1, 256, device=x.device if x is not None else self.char_emb.weight.device)
-        
+            return torch.zeros(
+                1,
+                256,
+                device=x.device if x is not None else self.char_emb.weight.device,
+            )
+
         char_emb = self.char_emb(x)
         lstm_out, _ = self.lstm(char_emb)
         pooled = lstm_out.mean(dim=1) if lstm_out.shape[0] > 0 else lstm_out[0]
@@ -41,28 +44,27 @@ class BoundaryAwareCharEncoder(nn.Module):
         z = nn.functional.normalize(z, dim=-1)
         return z
 
-
 class BoundaryAwareDualEncoder(nn.Module):
     """Context-aware Dual Encoder"""
-    
+
     def __init__(self, vocab_src: int, vocab_tgt: int):
         super().__init__()
         self.enc_src = BoundaryAwareCharEncoder(vocab_src)
         self.enc_tgt = BoundaryAwareCharEncoder(vocab_tgt)
-        
+
         self.boundary_classifier = nn.Sequential(
             nn.Linear(256 * 2, 128),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(128, 1),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
-    
+
     def forward(self, xs, xt, bs=None, bt=None, compute_boundary_match=True):
         # Checkpoint는 boundary 없이 학습됨 (bs, bt 무시)
         zs = self.enc_src(xs)
         zt = self.enc_tgt(xt)
-        
+
         if compute_boundary_match:
             combined = torch.cat([zs, zt], dim=-1)
             boundary_score = self.boundary_classifier(combined).squeeze(-1)
@@ -70,27 +72,30 @@ class BoundaryAwareDualEncoder(nn.Module):
         else:
             return zs, zt
 
-
 class BoundaryAwareAlignmentMatcher:
     """
     Boundary-aware Alignment Matcher
-    
+
     기존 AlignmentMatcher와 호환되는 인터페이스 + boundary match score 추가
     """
-    
-    def __init__(self, model_path: Path, device: str = "cuda", boundary_weight: float = 0.3):
+
+    def __init__(
+        self, model_path: Path, device: str = "cuda", boundary_weight: float = 0.3
+    ):
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
         self.model_path = Path(model_path)
         self.boundary_weight = float(boundary_weight)
-        
+
         if not self.model_path.exists():
             raise FileNotFoundError(f"❌ 모델 파일 없음: {self.model_path}")
-        
+
         # 체크포인트 로드
-        checkpoint = torch.load(self.model_path, map_location=self.device, weights_only=False)
-        
+        checkpoint = torch.load(
+            self.model_path, map_location=self.device, weights_only=False
+        )
+
         # 모델 파일 형식에 따라 처리
-        if 'model_src' in checkpoint and 'model_tgt' in checkpoint:
+        if "model_src" in checkpoint and "model_tgt" in checkpoint:
             # 새 형식: model_src, model_tgt는 OrderedDict (state_dict)
             self.vocab_src = checkpoint.get("vocab_src", {})
             self.vocab_tgt = checkpoint.get("vocab_tgt", {})
@@ -102,38 +107,45 @@ class BoundaryAwareAlignmentMatcher:
             state_dict = checkpoint.get("state_dict", checkpoint)
             self.vocab_src = checkpoint.get("vocab_src", {})
             self.vocab_tgt = checkpoint.get("vocab_tgt", {})
-            actual_vocab_src = state_dict['enc_src.char_emb.weight'].shape[0] if 'enc_src.char_emb.weight' in state_dict else len(self.vocab_src) + 1
-            actual_vocab_tgt = state_dict['enc_tgt.char_emb.weight'].shape[0] if 'enc_tgt.char_emb.weight' in state_dict else len(self.vocab_tgt) + 1
-        
+            actual_vocab_src = (
+                state_dict["enc_src.char_emb.weight"].shape[0]
+                if "enc_src.char_emb.weight" in state_dict
+                else len(self.vocab_src) + 1
+            )
+            actual_vocab_tgt = (
+                state_dict["enc_tgt.char_emb.weight"].shape[0]
+                if "enc_tgt.char_emb.weight" in state_dict
+                else len(self.vocab_tgt) + 1
+            )
+
         self.model = BoundaryAwareDualEncoder(
-            vocab_src=actual_vocab_src,
-            vocab_tgt=actual_vocab_tgt
+            vocab_src=actual_vocab_src, vocab_tgt=actual_vocab_tgt
         ).to(self.device)
-        
+
         # 상태 딕셔너리 로드
-        if 'state_dict' in checkpoint:
+        if "state_dict" in checkpoint:
             # 기존 형식
-            self.model.load_state_dict(checkpoint['state_dict'], strict=False)
-        elif 'model_src' in checkpoint and 'model_tgt' in checkpoint:
+            self.model.load_state_dict(checkpoint["state_dict"], strict=False)
+        elif "model_src" in checkpoint and "model_tgt" in checkpoint:
             # 새 형식: model_src와 model_tgt가 각각 encoder state_dict
             try:
                 # 모델의 full state_dict를 가져옴
                 full_state = self.model.state_dict()
-                
+
                 # model_src (src encoder) 가중치를 enc_src로 매핑
-                src_state = checkpoint['model_src']
+                src_state = checkpoint["model_src"]
                 for key, value in src_state.items():
                     full_key = f"enc_src.{key}"
                     if full_key in full_state:
                         full_state[full_key] = value
-                
+
                 # model_tgt (tgt encoder) 가중치를 enc_tgt로 매핑
-                tgt_state = checkpoint['model_tgt']
+                tgt_state = checkpoint["model_tgt"]
                 for key, value in tgt_state.items():
                     full_key = f"enc_tgt.{key}"
                     if full_key in full_state:
                         full_state[full_key] = value
-                
+
                 # 부분 로드 (strict=False는 매핑되지 않은 가중치는 초기화된 상태로 유지)
                 self.model.load_state_dict(full_state, strict=False)
             except Exception as e:
@@ -143,34 +155,36 @@ class BoundaryAwareAlignmentMatcher:
                 self.model.load_state_dict(checkpoint, strict=False)
             except Exception as e:
                 print(f"⚠️ 상태 로드 실패: {e}")
-        
+
         self.model.eval()
-        
+
         print(f"✅ Boundary-aware Alignment 모델 로드: {self.model_path}")
         print(f"   vocab_src={len(self.vocab_src)}, vocab_tgt={len(self.vocab_tgt)}")
-    
-    def _extract_boundaries(self, text: str, is_src: bool = True, extra_boundaries: List[int] | None = None) -> List[int]:
+
+    def _extract_boundaries(
+        self, text: str, is_src: bool = True, extra_boundaries: List[int] | None = None
+    ) -> List[int]:
         """텍스트에서 어절/구절 경계 추출"""
         import re
-        
+
         if not text:
             return []
-        
+
         boundaries = [0]
-        
+
         if is_src:
             # 원문: 공백 기준
-            for match in re.finditer(r'\s+', text):
+            for match in re.finditer(r"\s+", text):
                 boundary_pos = match.end()
                 if boundary_pos < len(text):
                     boundaries.append(boundary_pos)
         else:
             # 번역문: 공백 + 구두점
-            for match in re.finditer(r'[\s,\.!?\)\]\}]+', text):
+            for match in re.finditer(r"[\s,\.!?\)\]\}]+", text):
                 boundary_pos = match.end()
                 if boundary_pos < len(text):
                     boundaries.append(boundary_pos)
-        
+
         if extra_boundaries:
             boundaries.extend([int(x) for x in extra_boundaries if x is not None])
 
@@ -180,8 +194,10 @@ class BoundaryAwareAlignmentMatcher:
             if 0 <= int(b) < len(text):
                 cleaned.append(int(b))
         return sorted(set(cleaned))
-    
-    def _encode_text(self, text: str, is_src: bool = True, max_len: int = 512) -> torch.Tensor:
+
+    def _encode_text(
+        self, text: str, is_src: bool = True, max_len: int = 512
+    ) -> torch.Tensor:
         """텍스트를 character ID로 변환"""
         vocab = self.vocab_src if is_src else self.vocab_tgt
         ids = [vocab.get(ch, 0) for ch in text]
@@ -190,23 +206,20 @@ class BoundaryAwareAlignmentMatcher:
         if pad_len > 0:
             ids += [0] * pad_len
         return torch.tensor([ids], dtype=torch.long).to(self.device)
-    
+
     def _encode_boundaries(
-        self, 
-        text_len: int, 
-        boundaries: List[int], 
-        max_len: int = 512
+        self, text_len: int, boundaries: List[int], max_len: int = 512
     ) -> torch.Tensor:
         """Boundary 위치를 binary flag로 변환"""
         flags = [0] * min(text_len, max_len)
         for b in boundaries:
             if 0 <= b < len(flags):
                 flags[b] = 1
-        
+
         pad_len = max_len - len(flags)
         if pad_len > 0:
             flags += [0] * pad_len
-        
+
         return torch.tensor([flags], dtype=torch.float32).to(self.device)
 
     def _segment_boundaries_from_segments(self, segments: List[str]) -> List[int]:
@@ -233,7 +246,7 @@ class BoundaryAwareAlignmentMatcher:
         tgt_boundaries: List[int] | None = None,
     ) -> Tuple[float, float]:
         """외부에서 주어진 boundary list를 그대로 사용해 (sim, boundary) 계산.
-        
+
         Checkpoint는 boundary flags 없이 저장되어 있으므로 flags를 보내지 않음.
         """
         if not src_text or not tgt_text:
@@ -253,25 +266,23 @@ class BoundaryAwareAlignmentMatcher:
             boundary_match = boundary_score.item()
 
         return cos_sim, boundary_match
-    
+
     def compute_similarity_with_boundary(
-        self, 
-        src_text: str, 
-        tgt_text: str
+        self, src_text: str, tgt_text: str
     ) -> Tuple[float, float]:
         """
         원문과 번역문 사이의 유사도 및 경계 일치 점수 계산
-        
+
         Returns:
             (similarity, boundary_match_score)
         """
         if not src_text or not tgt_text:
             return 0.0, 0.0
-        
+
         # Text encoding
         src_ids = self._encode_text(src_text, is_src=True)
         tgt_ids = self._encode_text(tgt_text, is_src=False)
-        
+
         src_boundaries = self._extract_boundaries(src_text, is_src=True)
         tgt_boundaries = self._extract_boundaries(tgt_text, is_src=False)
 
@@ -284,27 +295,26 @@ class BoundaryAwareAlignmentMatcher:
         )
 
         return cos_sim, boundary_match
-    
+
     def compute_similarity(self, src_text: str, tgt_text: str) -> float:
         """
         기존 AlignmentMatcher와 호환되는 인터페이스
         - 기본값으로 '의미 유사도 + 경계 일치' 결합 점수를 반환한다.
         - strict 후보 선택/매칭에서 이 값이 직접 사용되므로, PA 파이프라인 교체 시 별도 수정이 필요 없다.
         """
-        return self.compute_combined_score(src_text, tgt_text, boundary_weight=self.boundary_weight)
-    
+        return self.compute_combined_score(
+            src_text, tgt_text, boundary_weight=self.boundary_weight
+        )
+
     def compute_combined_score(
-        self, 
-        src_text: str, 
-        tgt_text: str,
-        boundary_weight: float = 0.3
+        self, src_text: str, tgt_text: str, boundary_weight: float = 0.3
     ) -> float:
         """
         의미 유사도 + 경계 일치를 결합한 최종 점수
-        
+
         Args:
             boundary_weight: 경계 점수 가중치 (0~1)
-        
+
         Returns:
             combined_score = (1-w)*similarity + w*boundary_match
         """
@@ -312,7 +322,9 @@ class BoundaryAwareAlignmentMatcher:
         combined = (1 - boundary_weight) * sim + boundary_weight * boundary
         return combined
 
-    def match_segments(self, src_segments: List[str], tgt_segments: List[str]) -> List[str]:
+    def match_segments(
+        self, src_segments: List[str], tgt_segments: List[str]
+    ) -> List[str]:
         """원문 세그먼트를 번역문 세그먼트와 greedy matching.
 
         반환 개수/순서 무결성 규칙은 기존 AlignmentMatcher.match_segments와 동일하게 유지한다.
@@ -327,7 +339,9 @@ class BoundaryAwareAlignmentMatcher:
         if joined_src and len(src_segments) < len(tgt_segments):
             target_count = min(len(joined_src), len(tgt_segments))
             if target_count >= 1:
-                base_segments: List[str] = [s for s in src_segments if s is not None and s != ""]
+                base_segments: List[str] = [
+                    s for s in src_segments if s is not None and s != ""
+                ]
                 if not base_segments:
                     base_segments = [joined_src]
 
@@ -376,9 +390,16 @@ class BoundaryAwareAlignmentMatcher:
         src_idx = 0
         total_tgt_len = sum(len(t) for t in tgt_segments) or 1
 
-        def _score_pair(src_text: str, tgt_text: str, *, src_extra_boundaries: List[int] | None = None) -> float:
+        def _score_pair(
+            src_text: str,
+            tgt_text: str,
+            *,
+            src_extra_boundaries: List[int] | None = None,
+        ) -> float:
             # segment concat 경계를 boundary flag로 추가한다.
-            src_boundaries = self._extract_boundaries(src_text, is_src=True, extra_boundaries=src_extra_boundaries)
+            src_boundaries = self._extract_boundaries(
+                src_text, is_src=True, extra_boundaries=src_extra_boundaries
+            )
             tgt_boundaries = self._extract_boundaries(tgt_text, is_src=False)
             sim, boundary = self._compute_similarity_with_boundaries(
                 src_text,
@@ -394,13 +415,17 @@ class BoundaryAwareAlignmentMatcher:
             best_score = -1.0
             best_end = min(src_idx + 1, len(src_segments))
 
-            latest_end_allowed = max(src_idx + 1, len(src_segments) - (remaining_tgt - 1))
+            latest_end_allowed = max(
+                src_idx + 1, len(src_segments) - (remaining_tgt - 1)
+            )
             max_end = min(src_idx + 5, latest_end_allowed + 1)
             for end_idx in range(src_idx + 1, max_end):
                 window = src_segments[src_idx:end_idx]
                 src_text = "".join(window)
                 extra_bounds = self._segment_boundaries_from_segments(window)
-                score = _score_pair(src_text, tgt_seg, src_extra_boundaries=extra_bounds)
+                score = _score_pair(
+                    src_text, tgt_seg, src_extra_boundaries=extra_bounds
+                )
                 if score > best_score:
                     best_score = score
                     best_end = end_idx

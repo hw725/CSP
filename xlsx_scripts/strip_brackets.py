@@ -6,15 +6,14 @@ from typing import Iterable, Optional
 from openpyxl import load_workbook
 from openpyxl.workbook.workbook import Workbook
 
-
 def clean_text(value: Optional[str]) -> Optional[str]:
     """
-        Normalize editorial bracket markup in text cells.
+    Normalize editorial bracket markup in text cells.
 
-        Behavior:
-        - Replace '[- ... ]' spans with inner content (e.g., '[-나의]' -> '나의', '[-(792)]' -> '(792)')
-        - Clean residual artifacts like '],[-' and '][-'
-        - Do NOT modify general whitespace or punctuation spacing (handled elsewhere)
+    Behavior:
+    - Replace '[- ... ]' spans with inner content (e.g., '[-나의]' -> '나의', '[-(792)]' -> '(792)')
+    - Clean residual artifacts like '],[-' and '][-'
+    - Do NOT modify general whitespace or punctuation spacing (handled elsewhere)
     """
     if value is None:
         return value
@@ -40,17 +39,17 @@ def clean_text(value: Optional[str]) -> Optional[str]:
     # 그대로 반환 (공백/구두점 정규화는 다른 단계에서 처리됨)
     return s
 
-
 def iter_xlsx_files(src_dir: str) -> Iterable[str]:
     for root, _, files in os.walk(src_dir):
         for f in files:
-            if f.lower().endswith('.xlsx'):
+            if f.lower().endswith(".xlsx"):
                 yield os.path.join(root, f)
 
-
-def clean_workbook(path: str,
-                   out_path: Optional[str] = None,
-                   columns_to_clean: Optional[Iterable[str]] = None) -> str:
+def clean_workbook(
+    path: str,
+    out_path: Optional[str] = None,
+    columns_to_clean: Optional[Iterable[str]] = None,
+) -> str:
     """
     Clean bracket markup in the given workbook.
 
@@ -65,7 +64,9 @@ def clean_workbook(path: str,
         if columns_to_clean:
             # Try to build a header map from the first row
             header_map = {}
-            first_row = next(ws.iter_rows(min_row=1, max_row=1)) if ws.max_row >= 1 else []
+            first_row = (
+                next(ws.iter_rows(min_row=1, max_row=1)) if ws.max_row >= 1 else []
+            )
             for idx, cell in enumerate(first_row, start=1):
                 header = str(cell.value) if cell.value is not None else None
                 if header:
@@ -92,19 +93,32 @@ def clean_workbook(path: str,
     wb.save(write_path)
     return write_path
 
-
 def main():
-    parser = argparse.ArgumentParser(description='Strip editorial bracket markup ([-...]) from xlsx files.')
-    parser.add_argument('--src-dir', type=str, default='xlsx',
-                        help='Source directory containing .xlsx files (recursively processed). Default: xlsx')
-    parser.add_argument('--dst-dir', type=str, default=None,
-                        help='Destination root directory for cleaned files. If omitted, files are overwritten in place.')
-    parser.add_argument('--columns', type=str, default=None,
-                        help='Comma-separated column headers to clean (e.g., "원문,번역문"). If omitted, cleans all string cells.')
+    parser = argparse.ArgumentParser(
+        description="Strip editorial bracket markup ([-...]) from xlsx files."
+    )
+    parser.add_argument(
+        "--src-dir",
+        type=str,
+        default="xlsx",
+        help="Source directory containing .xlsx files (recursively processed). Default: xlsx",
+    )
+    parser.add_argument(
+        "--dst-dir",
+        type=str,
+        default=None,
+        help="Destination root directory for cleaned files. If omitted, files are overwritten in place.",
+    )
+    parser.add_argument(
+        "--columns",
+        type=str,
+        default=None,
+        help='Comma-separated column headers to clean (e.g., "원문,번역문"). If omitted, cleans all string cells.',
+    )
 
     args = parser.parse_args()
 
-    columns = [c.strip() for c in args.columns.split(',')] if args.columns else None
+    columns = [c.strip() for c in args.columns.split(",")] if args.columns else None
     for xlsx_path in iter_xlsx_files(args.src_dir):
         rel = os.path.relpath(xlsx_path, args.src_dir)
         if args.dst_dir:
@@ -119,6 +133,5 @@ def main():
         )
         print(f"Cleaned: {xlsx_path} -> {written}")
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -11,15 +11,15 @@
 graph TD
     A["main.py::main()"] --> B["io_manager.py::process_files_parallel()"]
     B --> C["io_manager.py::safe_process_sa_row()"]
-    
+
     C --> D["s2p_aligner.py::process_single_row()"]
     C --> E["sa_crossattn_boundary_loader.py::get_crossattn_boundary_tagger()"]
-    
+
     D --> F["bge.py::EmbeddingManager"]
     D --> G["alignment_model_loader.py::AlignmentMatcher"]
-    
+
     E --> E1["CrossAttnBoundaryModel (Torch)"]
-    
+
     style C fill:#f9f,stroke:#333
     style E1 fill:#bbf,stroke:#333
     style G fill:#bfb,stroke:#333
@@ -111,7 +111,7 @@ loss = weighted_bce.sum() / mask.sum().clamp(min=1)
 
 ### 3.1 병렬 처리 안전성 (Concurrency & Safety)
 - **`safe_process_sa_row`**: 개별 행(row) 처리 중 발생하는 에러가 전체 파이프라인을 중단시키지 않도록 `try-except`와 폴백(Fallback) 로직이 내장되어 있습니다.
-- **Import Caching**: 
+- **Import Caching**:
   ```python
   if not hasattr(safe_process_sa_row, '_process_func'):
       from s2p.s2p_aligner import process_single_row

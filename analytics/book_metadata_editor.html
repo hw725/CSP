@@ -1074,18 +1074,18 @@
         function savePerson() {
             const name = document.getElementById('personName').value.trim();
             if (!name) { alert('이름을 입력하세요'); return; }
-            
+
             const roles = [];
             if (document.getElementById('roleAuthor').checked) roles.push('author');
             if (document.getElementById('roleCommentator').checked) roles.push('commentator');
             if (document.getElementById('roleCompiler').checked) roles.push('compiler');
             if (document.getElementById('roleTranslator').checked) roles.push('translator');
-            
+
             data.people[name] = {
                 ...(document.getElementById('personPeriod').value ? { period: document.getElementById('personPeriod').value } : {}),
                 role: roles.length ? roles : ['author']
             };
-            
+
             closePersonModal();
             render();
             showToast('저장되었습니다');
@@ -1119,13 +1119,13 @@
         function saveLayerType() {
             const id = document.getElementById('layerTypeId').value.trim();
             if (!id) { alert('ID를 입력하세요'); return; }
-            
+
             const hanja = document.getElementById('layerTypeHanja').value.trim();
             const desc = document.getElementById('layerTypeDesc').value.trim();
             const editingId = document.getElementById('editingLayerTypeId').value;
-            
+
             if (!data.layer_types) data.layer_types = [];
-            
+
             if (editingId) {
                 const idx = data.layer_types.findIndex(l => l.id === editingId);
                 if (idx >= 0) data.layer_types[idx] = { id, hanja, desc };
@@ -1136,7 +1136,7 @@
                 }
                 data.layer_types.push({ id, hanja, desc });
             }
-            
+
             closeLayerTypeModal();
             render();
             showToast('저장되었습니다');

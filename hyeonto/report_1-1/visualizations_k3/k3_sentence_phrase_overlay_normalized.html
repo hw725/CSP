@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+
+<html lang="ko">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Sentence/Phrase K=3 클러스터 비교 오버레이</title>
+
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+    <style>
+
+        * {
+
+            margin: 0;
+
+            padding: 0;
+
+            box-sizing: border-box;
+
+        }
+
+        body {
+
+            font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+
+            min-height: 100vh;
+
+            color: #fff;
+
+            padding: 20px;
+
+        }
+
+        .container {
+
+            max-width: 1600px;
+
+            margin: 0 auto;
+
+        }
+
+        h1 {
+
+            text-align: center;
+
+            font-size: 2.2rem;
+
+            margin-bottom: 10px;
+
+            background: linear-gradient(90deg, #e94560, #4ecca3);
+
+            -webkit-background-clip: text;
+
+            -webkit-text-fill-color: transparent;
+
+        }
+
+        .subtitle {
+
+            text-align: center;
+
+            color: #888;
+
+            margin-bottom: 30px;
+
+            font-size: 1.1rem;
+
+        }
+
+        .chart-container {
+
+            background: rgba(255,255,255,0.05);
+
+            border-radius: 16px;
+
+            padding: 20px;
+
+            margin-bottom: 30px;
+
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+
+        }
+
+        .chart-title {
+
+            font-size: 1.3rem;
+
+            color: #4ecca3;
+
+            margin-bottom: 15px;
+
+            padding-left: 10px;
+
+            border-left: 4px solid #e94560;
+
+        }
+
+        #radar-chart, #bar-chart, #heatmap-combined {
+
+            width: 100%;
+
+            height: 500px;
+
+        }
+
+        .grid {
+
+            display: grid;
+
+            grid-template-columns: repeat(2, 1fr);
+
+            gap: 20px;
+
+        }
+
+        .insight-box {
+
+            background: rgba(233, 69, 96, 0.1);
+
+            border: 1px solid rgba(233, 69, 96, 0.3);
+
+            border-radius: 12px;
+
+            padding: 20px;
+
+            margin-top: 20px;
+
+        }
+
+        .insight-box h3 {
+
+            color: #e94560;
+
+            margin-bottom: 15px;
+
+        }
+
+        .insight-item {
+
+            padding: 10px 15px;
+
+            background: rgba(0,0,0,0.2);
+
+            border-radius: 8px;
+
+            margin: 10px 0;
+
+            border-left: 3px solid #4ecca3;
+
+        }
+
+        .legend-panel {
+
+            display: flex;
+
+            justify-content: center;
+
+            gap: 40px;
+
+            margin: 20px 0;
+
+        }
+
+        .legend-item {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 10px;
+
+        }
+
+        .legend-color {
+
+            width: 30px;
+
+            height: 6px;
+
+            border-radius: 3px;
+
+        }
+
+        .pa-color { background: #e94560; }
+
+        .sa-color { background: #4ecca3; }
+
+        @media (max-width: 1200px) {
+
+            .grid {
+
+                grid-template-columns: 1fr;
+
+            }
+
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>? Sentence/Phrase K=3 클러스터 비교 오버레이</h1>
+
+        <p class="subtitle">문장경계(Sentence)와 구경계(Phrase)의 서종 분포 패턴 직접 비교</p>
+
+        <div class="legend-panel">
+
+            <div class="legend-item">
+
+                <div class="legend-color pa-color"></div>
+
+                <span>Sentence (문장경계) - 183,322건</span>
+
+            </div>
+
+            <div class="legend-item">
+
+                <div class="legend-color sa-color"></div>
+
+                <span>Phrase (구경계) - 643,357건</span>
+
+            </div>
+
+        </div>
+
+        <!-- 레이더 차트 -->
+
+        <div class="chart-container">
+
+            <h2 class="chart-title">? 클러스터별 서종 분포 레이더 (Sentence vs Phrase)</h2>
+
+            <div id="radar-chart"></div>
+
+        </div>
+
+        <!-- 그룹 바 차트 -->
+
+        <div class="chart-container">
+
+            <h2 class="chart-title">? 서종별 클러스터 비교 (Sentence vs Phrase 오버레이)</h2>
+
+            <div id="bar-chart"></div>
+
+        </div>
+
+        <!-- 통합 히트맵 -->
+
+        <div class="chart-container">
+
+            <h2 class="chart-title">? Sentence-Phrase 통합 히트맵 (8개 클러스터 나란히)</h2>
+
+            <div id="heatmap-combined"></div>
+
+        </div>
+
+        <!-- 발견 사항 -->
+
+        <div class="insight-box">
+
+            <h3>? Sentence-Phrase 비교 핵심 발견</h3>
+
+            <div class="insight-item">
+
+                <strong>일관성</strong>: Sentence와 Phrase 모두 K=3에서 유사한 4가지 언어 모드(서사/정의/논증/혼합)가 발현됨
+
+            </div>
+
+            <div class="insight-item">
+
+                <strong>삼경 집중도</strong>: 두 레벨 모두 p2 클러스터에서 삼경(三經)이 46-53%로 압도적
+
+            </div>
+
+            <div class="insight-item">
+
+                <strong>사서 분포</strong>: Phrase에서는 사서(四書)가 p1에 더 집중 (13.4%), Sentence에서는 p1(18.1%)과 p2(12.8%)에 분산
+
+            </div>
+
+            <div class="insight-item">
+
+                <strong>역사 서사</strong>: Sentence-p3과 Phrase-p0에서 사서(史書) 비율이 38-43%로 유사
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+
+        const categories = ["\uacbd\ubd80", "\uc0ac\ubd80", "\uc790\ubd80", "\uc9d1\ubd80", "\uae30\ud0c0"];
+
+        const paData = [[53.62, 22.56, 0, 23.82, 0], [38.33, 20.95, 0, 40.72, 0], [23.64, 51.18, 0, 25.19, 0]];
+
+        const saData = [[25.74, 42.34, 0, 31.92, 0], [47.16, 28.71, 0, 24.13, 0], [35.01, 25.63, 0, 39.36, 0]];
+
+        const paClusters = ["Sentence-p0", "Sentence-p1", "Sentence-p2"];
+
+        const saClusters = ["Phrase-p0", "Phrase-p1", "Phrase-p2"];
+
+        // 색상 팔레트
+
+        const sentenceColors = ['#e94560', '#ff6b6b', '#ffc93c', '#ff8c42'];
+
+        const phraseColors = ['#4ecca3', '#45b7aa', '#38a3a5', '#22577a'];
+
+        // 1. 레이더 차트 (각 클러스터별)
+
+        const radarTraces = [];
+
+        for (let i = 0; i < 4; i++) {
+
+            // Sentence 클러스터
+
+            radarTraces.push({
+
+                type: 'scatterpolar',
+
+                r: [...paData[i], paData[i][0]],
+
+                theta: [...categories, categories[0]],
+
+                fill: 'toself',
+
+                fillcolor: sentenceColors[i] + '20',
+
+                line: { color: sentenceColors[i], width: 2 },
+
+                name: paClusters[i],
+
+                legendgroup: 'pa'
+
+            });
+
+            // Phrase 클러스터
+
+            radarTraces.push({
+
+                type: 'scatterpolar',
+
+                r: [...saData[i], saData[i][0]],
+
+                theta: [...categories, categories[0]],
+
+                fill: 'toself',
+
+                fillcolor: phraseColors[i] + '20',
+
+                line: { color: phraseColors[i], width: 2, dash: 'dot' },
+
+                name: saClusters[i],
+
+                legendgroup: 'sa'
+
+            });
+
+        }
+
+        Plotly.newPlot('radar-chart', radarTraces, {
+
+            polar: {
+
+                radialaxis: {
+
+                    visible: true,
+
+                    range: [0, 60],
+
+                    tickfont: { color: '#fff' },
+
+                    gridcolor: 'rgba(255,255,255,0.2)'
+
+                },
+
+                angularaxis: {
+
+                    tickfont: { color: '#fff', size: 12 }
+
+                },
+
+                bgcolor: 'rgba(0,0,0,0)'
+
+            },
+
+            paper_bgcolor: 'rgba(0,0,0,0)',
+
+            plot_bgcolor: 'rgba(0,0,0,0)',
+
+            legend: {
+
+                font: { color: '#fff' },
+
+                x: 1.1,
+
+                y: 0.5
+
+            },
+
+            margin: { t: 50, b: 50 }
+
+        }, { responsive: true });
+
+        // 2. 그룹 바 차트
+
+        const barTraces = [];
+
+        for (let i = 0; i < 4; i++) {
+
+            barTraces.push({
+
+                x: categories,
+
+                y: paData[i],
+
+                name: paClusters[i],
+
+                type: 'bar',
+
+                marker: { color: sentenceColors[i], opacity: 0.7 }
+
+            });
+
+            barTraces.push({
+
+                x: categories,
+
+                y: saData[i],
+
+                name: saClusters[i],
+
+                type: 'bar',
+
+                marker: { color: phraseColors[i], opacity: 0.7 }
+
+            });
+
+        }
+
+        Plotly.newPlot('bar-chart', barTraces, {
+
+            barmode: 'group',
+
+            paper_bgcolor: 'rgba(0,0,0,0)',
+
+            plot_bgcolor: 'rgba(0,0,0,0)',
+
+            xaxis: {
+
+                tickfont: { color: '#fff' },
+
+                gridcolor: 'rgba(255,255,255,0.1)'
+
+            },
+
+            yaxis: {
+
+                title: '비율 (%)',
+
+                tickfont: { color: '#fff' },
+
+                titlefont: { color: '#fff' },
+
+                gridcolor: 'rgba(255,255,255,0.1)'
+
+            },
+
+            legend: {
+
+                font: { color: '#fff' },
+
+                orientation: 'h',
+
+                y: -0.2
+
+            },
+
+            margin: { t: 30, b: 100 }
+
+        }, { responsive: true });
+
+        // 3. 통합 히트맵
+
+        const allClusters = [...paClusters, ...saClusters];
+
+        const allData = [...paData, ...saData];
+
+        Plotly.newPlot('heatmap-combined', [{
+
+            z: allData,
+
+            x: categories,
+
+            y: allClusters,
+
+            type: 'heatmap',
+
+            colorscale: [
+
+                [0, '#0f0c29'],
+
+                [0.25, '#302b63'],
+
+                [0.5, '#e94560'],
+
+                [0.75, '#ffc93c'],
+
+                [1, '#4ecca3']
+
+            ],
+
+            hovertemplate: '<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>',
+
+            colorbar: {
+
+                title: '비율 (%)',
+
+                titlefont: { color: '#fff' },
+
+                tickfont: { color: '#fff' }
+
+            }
+
+        }], {
+
+            paper_bgcolor: 'rgba(0,0,0,0)',
+
+            plot_bgcolor: 'rgba(0,0,0,0)',
+
+            xaxis: {
+
+                tickfont: { color: '#fff', size: 11 },
+
+                tickangle: -30
+
+            },
+
+            yaxis: {
+
+                tickfont: { color: '#fff', size: 12 }
+
+            },
+
+            margin: { t: 30, l: 100, r: 80, b: 100 },
+
+            annotations: []
+
+        }, { responsive: true });
+
+    </script>
+
+</body>
+
+</html>

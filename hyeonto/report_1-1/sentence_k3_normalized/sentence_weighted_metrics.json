@@ -1,0 +1,52 @@
+{
+  "canonicity": {
+    "0": {
+      "raw_canon_count": 23849,
+      "raw_other_count": 29646,
+      "raw_total": 53495,
+      "raw_canonicity": 44.58173661089822,
+      "weighted_canon": 23849.0,
+      "weighted_other": 29646.0,
+      "weighted_total": 53495.0,
+      "weighted_canonicity": 44.58173661089822
+    },
+    "1": {
+      "raw_canon_count": 20350,
+      "raw_other_count": 52731,
+      "raw_total": 73081,
+      "raw_canonicity": 27.845814917694067,
+      "weighted_canon": 20350.0,
+      "weighted_other": 52731.0,
+      "weighted_total": 73081.0,
+      "weighted_canonicity": 27.845814917694067
+    },
+    "2": {
+      "raw_canon_count": 3656,
+      "raw_other_count": 53090,
+      "raw_total": 56746,
+      "raw_canonicity": 6.442744863074049,
+      "weighted_canon": 3656.0,
+      "weighted_other": 53090.0,
+      "weighted_total": 56746.0,
+      "weighted_canonicity": 6.442744863074049
+    }
+  },
+  "entropy": {
+    "0": {
+      "num_unique_books": 65,
+      "weighted_entropy": 5.403805805809883,
+      "raw_entropy": 5.403805805809883
+    },
+    "1": {
+      "num_unique_books": 65,
+      "weighted_entropy": 5.7821720173692555,
+      "raw_entropy": 5.7821720173692555
+    },
+    "2": {
+      "num_unique_books": 65,
+      "weighted_entropy": 5.655203738993368,
+      "raw_entropy": 5.655203738993368
+    }
+  },
+  "canon_weight": 1.0
+}

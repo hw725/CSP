@@ -8,10 +8,9 @@ import numpy as np
 import pandas as pd
 import difflib
 
-
 def detect_columns(df: pd.DataFrame) -> Tuple[str, str, str, str | None]:
     def norm(s: str) -> str:
-        s = (s or '').replace('\ufeff', '')
+        s = (s or "").replace("\ufeff", "")
         s = re.sub(r"[\s_\-]+", "", s)
         return s.lower()
 
@@ -20,12 +19,23 @@ def detect_columns(df: pd.DataFrame) -> Tuple[str, str, str, str | None]:
 
     # 후보(특정 -> 일반 순)
     cand_id = [
-        '문장식별자', '문장식별', '문장번호', '문장번', '문장id', '문장id',
-        'sentenceid', 'sentence', 'sentence_id', 'sentid', 'sent_id', 'id', '번호'
+        "문장식별자",
+        "문장식별",
+        "문장번호",
+        "문장번",
+        "문장id",
+        "문장id",
+        "sentenceid",
+        "sentence",
+        "sentence_id",
+        "sentid",
+        "sent_id",
+        "id",
+        "번호",
     ]
-    cand_src = ['원문', 'source', 'sourcetext', 'original', 'chinese', 'src']
-    cand_tgt = ['번역문', 'target', 'targettext', 'translation', 'korean', 'tgt']
-    cand_seg = ['구식별자', '구식별', 'segmentid', 'segment_id', 'segid', 'seg_id']
+    cand_src = ["원문", "source", "sourcetext", "original", "chinese", "src"]
+    cand_tgt = ["번역문", "target", "targettext", "translation", "korean", "tgt"]
+    cand_seg = ["구식별자", "구식별", "segmentid", "segment_id", "segid", "seg_id"]
 
     def pick(cands):
         # 1) 완전 일치
@@ -49,20 +59,23 @@ def detect_columns(df: pd.DataFrame) -> Tuple[str, str, str, str | None]:
     # id는 없을 수 있음(추후 보완)
     return id_col, src_col, tgt_col, seg_col
 
-
 def normalize_ws(s: str) -> str:
     if s is None:
-        return ''
+        return ""
     s = str(s)
     s = re.sub(r"\s+", "", s)
     return s
 
-
 def seq_sim(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
-
-def group_by_id(df: pd.DataFrame, id_col: str | None, src_col: str, tgt_col: str, seg_col: str | None) -> Dict[int, List[Tuple[str, str, int]]]:
+def group_by_id(
+    df: pd.DataFrame,
+    id_col: str | None,
+    src_col: str,
+    tgt_col: str,
+    seg_col: str | None,
+) -> Dict[int, List[Tuple[str, str, int]]]:
     out: Dict[int, List[Tuple[str, str, int]]] = {}
     auto_id = 0
     for _, row in df.iterrows():
@@ -75,15 +88,14 @@ def group_by_id(df: pd.DataFrame, id_col: str | None, src_col: str, tgt_col: str
         else:
             auto_id += 1
             sid = auto_id
-        src = '' if pd.isna(row[src_col]) else str(row[src_col])
-        tgt = '' if pd.isna(row[tgt_col]) else str(row[tgt_col])
+        src = "" if pd.isna(row[src_col]) else str(row[src_col])
+        tgt = "" if pd.isna(row[tgt_col]) else str(row[tgt_col])
         seg = int(row[seg_col]) if (seg_col and pd.notna(row.get(seg_col))) else 10**9
         out.setdefault(sid, []).append((src, tgt, seg))
     # sort by seg then stable index
     for k in list(out.keys()):
         out[k] = sorted(out[k], key=lambda x: x[2])
     return out
-
 
 def jaccard(a: List[str], b: List[str]) -> float:
     A = set(a)
@@ -94,7 +106,6 @@ def jaccard(a: List[str], b: List[str]) -> float:
         return 0.0
     return len(A & B) / len(A | B)
 
-
 def avg_max_sim(gts: List[str], preds: List[str]) -> float:
     if not gts:
         return 1.0 if not preds else 0.0
@@ -102,20 +113,25 @@ def avg_max_sim(gts: List[str], preds: List[str]) -> float:
         return 0.0
     sims = []
     for gs in gts:
-        sims.append(max(seq_sim(normalize_ws(gs), normalize_ws(ps)) for ps in preds) if preds else 0.0)
+        sims.append(
+            max(seq_sim(normalize_ws(gs), normalize_ws(ps)) for ps in preds)
+            if preds
+            else 0.0
+        )
     return float(np.mean(sims)) if sims else 0.0
 
-
-def evaluate_sentence(gt_rows: List[Tuple[str, str, int]], pred_rows: List[Tuple[str, str, int]]) -> Dict[str, float]:
+def evaluate_sentence(
+    gt_rows: List[Tuple[str, str, int]], pred_rows: List[Tuple[str, str, int]]
+) -> Dict[str, float]:
     gt_srcs = [r[0] for r in gt_rows]
     gt_tgts = [r[1] for r in gt_rows]
     pd_srcs = [r[0] for r in pred_rows]
     pd_tgts = [r[1] for r in pred_rows]
 
-    gt_src_full = ''.join(gt_srcs)
-    pd_src_full = ''.join(pd_srcs)
-    gt_tgt_full = ''.join(gt_tgts)
-    pd_tgt_full = ''.join(pd_tgts)
+    gt_src_full = "".join(gt_srcs)
+    pd_src_full = "".join(pd_srcs)
+    gt_tgt_full = "".join(gt_tgts)
+    pd_tgt_full = "".join(pd_tgts)
 
     # Matches (whitespace-insensitive)
     src_match = normalize_ws(gt_src_full) == normalize_ws(pd_src_full)
@@ -130,7 +146,9 @@ def evaluate_sentence(gt_rows: List[Tuple[str, str, int]], pred_rows: List[Tuple
     tgt_text_sim = seq_sim(normalize_ws(gt_tgt_full), normalize_ws(pd_tgt_full))
 
     # Partial (source)
-    src_j = jaccard([normalize_ws(s) for s in gt_srcs], [normalize_ws(s) for s in pd_srcs])
+    src_j = jaccard(
+        [normalize_ws(s) for s in gt_srcs], [normalize_ws(s) for s in pd_srcs]
+    )
     src_avg_seg = avg_max_sim(gt_srcs, pd_srcs)
     src_partial = (src_j + src_text_sim + src_avg_seg) / 3.0
 
@@ -140,18 +158,17 @@ def evaluate_sentence(gt_rows: List[Tuple[str, str, int]], pred_rows: List[Tuple
     partial = (src_partial + tgt_partial) / 2.0
 
     return {
-        'exact_match': float(exact_match),
-        'segment_count_match': float(count_match),
-        'text_match': float(text_match),
-        'source_text_match': float(src_match),
-        'target_text_match': float(tgt_match),
-        'source_text_similarity': src_text_sim,
-        'target_text_similarity': tgt_text_sim,
-        'source_partial': src_partial,
-        'target_partial': tgt_partial,
-        'partial': partial,
+        "exact_match": float(exact_match),
+        "segment_count_match": float(count_match),
+        "text_match": float(text_match),
+        "source_text_match": float(src_match),
+        "target_text_match": float(tgt_match),
+        "source_text_similarity": src_text_sim,
+        "target_text_similarity": tgt_text_sim,
+        "source_partial": src_partial,
+        "target_partial": tgt_partial,
+        "partial": partial,
     }
-
 
 def summarize(metrics: List[Dict[str, float]], label: str):
     if not metrics:
@@ -164,8 +181,9 @@ def summarize(metrics: List[Dict[str, float]], label: str):
         a = arrs[k]
         p50, p75, p90 = np.percentile(a, [50, 75, 90])
         mean = a.mean()
-        print(f"{k:>24}: mean={mean:6.3f}  p50={p50:6.3f}  p75={p75:6.3f}  p90={p90:6.3f}")
-
+        print(
+            f"{k:>24}: mean={mean:6.3f}  p50={p50:6.3f}  p75={p75:6.3f}  p90={p90:6.3f}"
+        )
 
 def run(gt_path: str, pred_path: str, label: str):
     print(f"\n>>> {label}: gt={gt_path} pred={pred_path}")
@@ -179,14 +197,17 @@ def run(gt_path: str, pred_path: str, label: str):
     metrics = [evaluate_sentence(G[i], P[i]) for i in common_ids]
     summarize(metrics, label)
 
-
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--pa-gt', default='accuracy/pa03.xlsx')
-    ap.add_argument('--pa-pred', default='p2s/output_test.xlsx')
-    ap.add_argument('--sa-gt', default='accuracy/sa01.xlsx')
-    ap.add_argument('--sa-pred', default='s2p/output_test.xlsx')
-    ap.add_argument('--base', default=None, help='옵션: 공통 기본 경로. 지정 시 상대 경로에 prefix로 사용')
+    ap.add_argument("--pa-gt", default="accuracy/pa03.xlsx")
+    ap.add_argument("--pa-pred", default="p2s/output_test.xlsx")
+    ap.add_argument("--sa-gt", default="accuracy/sa01.xlsx")
+    ap.add_argument("--sa-pred", default="s2p/output_test.xlsx")
+    ap.add_argument(
+        "--base",
+        default=None,
+        help="옵션: 공통 기본 경로. 지정 시 상대 경로에 prefix로 사용",
+    )
     args = ap.parse_args()
 
     def resolve(p: str) -> str:
@@ -202,7 +223,7 @@ def main():
         if os.path.exists(p):
             return p
         # Docker 기본 경로도 시도
-        docker_base = '/workspace'
+        docker_base = "/workspace"
         cand2 = os.path.join(docker_base, p)
         if os.path.exists(cand2):
             return cand2
@@ -210,8 +231,8 @@ def main():
         return p
 
     paths = {
-        'PA': (resolve(args.pa_gt), resolve(args.pa_pred)),
-        'SA': (resolve(args.sa_gt), resolve(args.sa_pred)),
+        "PA": (resolve(args.pa_gt), resolve(args.pa_pred)),
+        "SA": (resolve(args.sa_gt), resolve(args.sa_pred)),
     }
     for label, (gt, pred) in paths.items():
         if not (os.path.exists(gt) and os.path.exists(pred)):
@@ -219,6 +240,5 @@ def main():
             continue
         run(gt, pred, label)
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -6,20 +6,17 @@ from collections import Counter
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-
 def _to_float(v: str) -> float:
     try:
         return float(v)
     except Exception:
         return float("nan")
 
-
 def _to_int(v: str) -> int:
     try:
         return int(float(v))
     except Exception:
         return 0
-
 
 def _bucket_pos(pos: str) -> str:
     """pos is first_diff_pos_norm (character index). bucket coarsely."""
@@ -36,21 +33,26 @@ def _bucket_pos(pos: str) -> str:
         return "201-400"
     return ">400"
 
-
 def _safe_mean(xs: List[float]) -> float:
     xs = [x for x in xs if not math.isnan(x)]
     return statistics.mean(xs) if xs else float("nan")
-
 
 def _safe_median(xs: List[float]) -> float:
     xs = [x for x in xs if not math.isnan(x)]
     return statistics.median(xs) if xs else float("nan")
 
-
 def main() -> None:
-    p = argparse.ArgumentParser(description="Summarize delta patterns from compare_boundary_mismatch_*.csv")
-    p.add_argument("--input", required=True, help="compare CSV (output of compare_boundary_mismatch_reports.py)")
-    p.add_argument("--out-prefix", required=True, help="output prefix path (no extension)")
+    p = argparse.ArgumentParser(
+        description="Summarize delta patterns from compare_boundary_mismatch_*.csv"
+    )
+    p.add_argument(
+        "--input",
+        required=True,
+        help="compare CSV (output of compare_boundary_mismatch_reports.py)",
+    )
+    p.add_argument(
+        "--out-prefix", required=True, help="output prefix path (no extension)"
+    )
     p.add_argument("--topk", type=int, default=20, help="topk examples to include")
     args = p.parse_args()
 
@@ -107,13 +109,18 @@ def main() -> None:
             w.writeheader()
             w.writerows(subset)
 
-    write_csv(worsened_path, sorted(worsened, key=lambda r: _to_float(r["delta_f1"])) )
-    write_csv(improved_path, sorted(improved, key=lambda r: _to_float(r["delta_f1"]), reverse=True))
+    write_csv(worsened_path, sorted(worsened, key=lambda r: _to_float(r["delta_f1"])))
+    write_csv(
+        improved_path,
+        sorted(improved, key=lambda r: _to_float(r["delta_f1"]), reverse=True),
+    )
 
     # topk examples
     topk = max(0, int(args.topk))
     worsened_top = sorted(worsened, key=lambda r: _to_float(r["delta_f1"]))[:topk]
-    improved_top = sorted(improved, key=lambda r: _to_float(r["delta_f1"]), reverse=True)[:topk]
+    improved_top = sorted(
+        improved, key=lambda r: _to_float(r["delta_f1"]), reverse=True
+    )[:topk]
 
     lines = []
     lines.append("Boundary delta pattern summary")
@@ -127,9 +134,15 @@ def main() -> None:
 
     if worsened:
         lines.append("Worsened: delta stats")
-        lines.append(f"  delta_f1 mean={_safe_mean(df1_list):+.4f} median={_safe_median(df1_list):+.4f} min={min(df1_list):+.4f}")
-        lines.append(f"  delta_fp mean={_safe_mean(dfp_list):+.2f} median={_safe_median(dfp_list):+.2f}")
-        lines.append(f"  delta_fn mean={_safe_mean(dfn_list):+.2f} median={_safe_median(dfn_list):+.2f}")
+        lines.append(
+            f"  delta_f1 mean={_safe_mean(df1_list):+.4f} median={_safe_median(df1_list):+.4f} min={min(df1_list):+.4f}"
+        )
+        lines.append(
+            f"  delta_fp mean={_safe_mean(dfp_list):+.2f} median={_safe_median(dfp_list):+.2f}"
+        )
+        lines.append(
+            f"  delta_fn mean={_safe_mean(dfn_list):+.2f} median={_safe_median(dfn_list):+.2f}"
+        )
         lines.append("")
 
         lines.append("Worsened: first_diff_pos_norm buckets (using B side)")
@@ -174,7 +187,6 @@ def main() -> None:
     print(f"summary: {summary_path}")
     print(f"worsened_csv: {worsened_path}")
     print(f"improved_csv: {improved_path}")
-
 
 if __name__ == "__main__":
     main()

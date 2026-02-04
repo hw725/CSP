@@ -1,0 +1,31 @@
+{
+  "analysis_date": "2026-02-04T04:30:58.913092",
+  "data_source": "hyeonto/reports/phrase_k3_normalized/phrase_clusters.csv",
+  "n_records": 643357,
+  "recommended_scenarios": [
+    "data_driven",
+    "strong"
+  ],
+  "data_driven_weights": {
+    "canon": 3.0856,
+    "other": 1.0
+  },
+  "data_driven_counts": {
+    "canon": 157468,
+    "other": 485889
+  },
+  "scenarios": [
+    {
+      "name": "canon3",
+      "avg_weighted_canonicity": 48.4147955619949,
+      "max_weighted_canonicity": 63.386941332369595,
+      "avg_genre_entropy": 5.354783377875936
+    }
+  ],
+  "conclusion": {
+    "cluster_stability": "n/a",
+    "canonicity_delta_uniform_to_strong": null,
+    "entropy_delta_uniform_to_strong": null
+  },
+  "tag": "phrase"
+}

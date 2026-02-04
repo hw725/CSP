@@ -28,7 +28,7 @@ Write-Host ""
 
 if ($Docker) {
     Write-Host "[Docker] 컨테이너 내에서 점검 실행..." -ForegroundColor Yellow
-    
+
     # Docker 컨테이너에서 pip-audit 설치 및 실행
     $auditCmd = "pip install --quiet pip-audit && pip-audit"
     if ($Fix) {
@@ -37,12 +37,12 @@ if ($Docker) {
     if ($Verbose) {
         $auditCmd += " --desc"
     }
-    
+
     docker compose run --rm csp bash -c $auditCmd
     $exitCode = $LASTEXITCODE
 } else {
     Write-Host "[로컬] .venv 환경에서 점검 실행..." -ForegroundColor Yellow
-    
+
     # 가상환경 활성화 확인
     $venvPath = Join-Path $ProjectRoot ".venv\Scripts\Activate.ps1"
     if (Test-Path $venvPath) {
@@ -50,25 +50,25 @@ if ($Docker) {
     } else {
         Write-Warning ".venv가 없습니다. 전역 Python 사용."
     }
-    
+
     # pip-audit 설치 확인
     $pipAudit = pip show pip-audit 2>$null
     if (-not $pipAudit) {
         Write-Host "pip-audit 설치 중..." -ForegroundColor Yellow
         pip install pip-audit --quiet
     }
-    
+
     # 점검 실행
     $requirementsPath = Join-Path $ProjectRoot "requirements.txt"
     $auditArgs = @("-r", $requirementsPath)
-    
+
     if ($Fix) {
         $auditArgs += "--fix"
     }
     if ($Verbose) {
         $auditArgs += "--desc"
     }
-    
+
     pip-audit @auditArgs
     $exitCode = $LASTEXITCODE
 }

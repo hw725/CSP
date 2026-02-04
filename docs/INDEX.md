@@ -49,12 +49,15 @@
 
 ### 📊 결과 분석가
 
-1. **[README.md](README.md)** - 기본 이해
-2. **[WORKFLOW.md](WORKFLOW.md)** - 평가 시스템 섹션
+1. **[analytics/monitoring_dashboard.html](../analytics/monitoring_dashboard.html)** - 모니터링 대시보드
+   - PA/SA 정확도 요약
+   - 서종별 품질 등급
+2. **[hyeonto/KEY_FINDINGS.md](../hyeonto/KEY_FINDINGS.md)** - 최신 핵심 발견
+3. **[hyeonto/VISUALIZATION_GUIDE.md](../hyeonto/VISUALIZATION_GUIDE.md)** - 시각화 해석 가이드
+4. **[hyeonto/BIAS_VALIDATION.md](../hyeonto/BIAS_VALIDATION.md)** - 편향 검증
+5. **[WORKFLOW.md](WORKFLOW.md)** - 평가 시스템 섹션
    - 정확도 지표
    - 결과 해석
-3. **[DATA_PREPARATION.md](DATA_PREPARATION.md)** - 데이터 출처 이해
-4. **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - 평가 문제
 
 ---
 

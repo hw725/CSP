@@ -18,20 +18,20 @@ def list_books(results_dir: Optional[Path] = None) -> List[str]:
     results_dir = results_dir or DEFAULT_RESULTS_DIR
     if not results_dir.exists():
         return []
-    # *_pa_output.xlsx 또는 *_sa_output.xlsx 패턴에서 책 ID 추출
+    # *_p2s_output.xlsx 또는 *_s2p_output.xlsx 패턴에서 책 ID 추출
     book_ids = set()
-    for f in results_dir.glob("*_pa_output.xlsx"):
-        book_ids.add(f.name.replace("_pa_output.xlsx", ""))
-    for f in results_dir.glob("*_sa_output.xlsx"):
-        book_ids.add(f.name.replace("_sa_output.xlsx", ""))
+    for f in results_dir.glob("*_p2s_output.xlsx"):
+        book_ids.add(f.name.replace("_p2s_output.xlsx", ""))
+    for f in results_dir.glob("*_s2p_output.xlsx"):
+        book_ids.add(f.name.replace("_s2p_output.xlsx", ""))
     return sorted(book_ids)
 
-def load_pa(book_id: str, results_dir: Optional[Path] = None) -> pd.DataFrame:
-    """PA 출력 XLSX 로드"""
+def load_p2s(book_id: str, results_dir: Optional[Path] = None) -> pd.DataFrame:
+    """P2S 출력 XLSX 로드"""
     results_dir = results_dir or DEFAULT_RESULTS_DIR
-    file = results_dir / f"{book_id}_pa_output.xlsx"
+    file = results_dir / f"{book_id}_p2s_output.xlsx"
     if not file.exists():
-        raise FileNotFoundError(f"PA 결과 파일이 없습니다: {file}")
+        raise FileNotFoundError(f"P2S 결과 파일이 없습니다: {file}")
     df = pd.read_excel(file)
     # 표준 컬럼 보정
     # 기대 컬럼: 문단식별자(optional), 원문, 번역문, similarity(optional), 기타 메타
@@ -43,46 +43,50 @@ def load_pa(book_id: str, results_dir: Optional[Path] = None) -> pd.DataFrame:
         df["similarity"] = 0.0
     return df
 
-def load_sa(book_id: str, results_dir: Optional[Path] = None) -> pd.DataFrame:
-    """SA 출력 XLSX 로드"""
+def load_s2p(book_id: str, results_dir: Optional[Path] = None) -> pd.DataFrame:
+    """S2P 출력 XLSX 로드"""
     results_dir = results_dir or DEFAULT_RESULTS_DIR
-    file = results_dir / f"{book_id}_sa_output.xlsx"
+    file = results_dir / f"{book_id}_s2p_output.xlsx"
     if not file.exists():
-        raise FileNotFoundError(f"SA 결과 파일이 없습니다: {file}")
+        raise FileNotFoundError(f"S2P 결과 파일이 없습니다: {file}")
     df = pd.read_excel(file)
     for col in ["원문", "번역문"]:
         if col not in df.columns:
             df[col] = ""
     return df
 
-def load_pa_sa(book_id: str, results_dir: Optional[Path] = None) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """동시에 PA/SA 결과를 로드"""
-    return load_pa(book_id, results_dir), load_sa(book_id, results_dir)
+def load_p2s_s2p(
+    book_id: str, results_dir: Optional[Path] = None
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """동시에 P2S/S2P 결과를 로드"""
+    return load_p2s(book_id, results_dir), load_s2p(book_id, results_dir)
 
-def concat_books_pa_sa(book_ids: Optional[List[str]] = None, results_dir: Optional[Path] = None) -> Dict[str, pd.DataFrame]:
+def concat_books_p2s_s2p(
+    book_ids: Optional[List[str]] = None, results_dir: Optional[Path] = None
+) -> Dict[str, pd.DataFrame]:
     """
-    여러 책의 PA/SA 결과를 합쳐서 반환
-    Returns: {"pa": DataFrame, "sa": DataFrame}
+    여러 책의 P2S/S2P 결과를 합쳐서 반환
+    Returns: {"p2s": DataFrame, "s2p": DataFrame}
     """
     results_dir = results_dir or DEFAULT_RESULTS_DIR
     if book_ids is None:
         book_ids = list_books(results_dir)
-    pa_frames = []
-    sa_frames = []
+    p2s_frames = []
+    s2p_frames = []
     for bid in book_ids:
         try:
-            pa_df = load_pa(bid, results_dir)
-            pa_df["book_id"] = bid
-            pa_frames.append(pa_df)
+            p2s_df = load_p2s(bid, results_dir)
+            p2s_df["book_id"] = bid
+            p2s_frames.append(p2s_df)
         except FileNotFoundError:
             pass
         try:
-            sa_df = load_sa(bid, results_dir)
-            sa_df["book_id"] = bid
-            sa_frames.append(sa_df)
+            s2p_df = load_s2p(bid, results_dir)
+            s2p_df["book_id"] = bid
+            s2p_frames.append(s2p_df)
         except FileNotFoundError:
             pass
     return {
-        "pa": pd.concat(pa_frames, ignore_index=True) if pa_frames else pd.DataFrame(),
-        "sa": pd.concat(sa_frames, ignore_index=True) if sa_frames else pd.DataFrame(),
+        "p2s": pd.concat(p2s_frames, ignore_index=True) if p2s_frames else pd.DataFrame(),
+        "s2p": pd.concat(s2p_frames, ignore_index=True) if s2p_frames else pd.DataFrame(),
     }

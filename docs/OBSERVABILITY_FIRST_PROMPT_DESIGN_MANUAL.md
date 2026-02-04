@@ -60,7 +60,7 @@
 
 5. **Diff-Friendly Output**
    - 동일 입력에 대해 seed만 바뀌면 deterministic하게 재현 가능
-   - 출력 파일명에 실험 설정 포함 (예: `pa_trace_seed3_boundary_on_whitespace_off.jsonl`)
+   - 출력 파일명에 실험 설정 포함 (예: `p2s_trace_seed3_boundary_on_whitespace_off.jsonl`)
 
 ### ⚠️ 금지사항 (피해야 할 안티패턴)
 - ❌ `print(...)` 위주의 디버깅 (구조화되지 않아 집계 불가능)
@@ -155,7 +155,7 @@
 
 ### Tip 1: "측정 불가능한 요구사항은 무의미"
 ❌ 나쁜 예: "경계 예측 모델을 써서 정확도를 높여줘"
-✅ 좋은 예: 
+✅ 좋은 예:
 ```
 경계 예측 모델(boundary model)을 추가하되:
 1. 모델 로딩 시 trace에 {model_path, load_success, params} 기록
@@ -170,7 +170,7 @@
 ✅ 좋은 예:
 ```python
 if not candidates:
-    trace(stage="fallback_triggered", reason="no_sufficient_candidates", 
+    trace(stage="fallback_triggered", reason="no_sufficient_candidates",
           attempted_methods=["boundary", "supar"], threshold_used=0.5)
     fallback()
 ```
@@ -226,7 +226,7 @@ class TraceWriter:
         self.output_path = Path(output_path)
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
         self.file = open(self.output_path, 'w', encoding='utf-8')
-    
+
     def write(self, stage: str, data: dict):
         record = {
             "stage": stage,
@@ -235,7 +235,7 @@ class TraceWriter:
         }
         self.file.write(json.dumps(record, ensure_ascii=False) + '\n')
         self.file.flush()
-    
+
     def close(self):
         self.file.close()
 ```
@@ -278,7 +278,7 @@ def trace_stage(stage_name: str, tracer: TraceWriter):
 def select_best_candidate(candidates, desired_len, tracer):
     considered = []
     skipped = []
-    
+
     for cand in candidates:
         if abs(len(cand.result) - desired_len) > desired_len * 0.3:
             skipped.append({
@@ -290,9 +290,9 @@ def select_best_candidate(candidates, desired_len, tracer):
             })
         else:
             considered.append(cand)
-    
+
     best = max(considered, key=lambda c: c.score) if considered else None
-    
+
     tracer.write("candidate_selection", {
         "candidates_total": len(candidates),
         "candidates_considered": len(considered),
@@ -301,7 +301,7 @@ def select_best_candidate(candidates, desired_len, tracer):
         "best_tag": best.tag if best else "none",
         "best_score": best.score if best else 0.0
     })
-    
+
     return best
 ```
 
@@ -357,11 +357,11 @@ def aggregate_results(base_dir):
     for exp_dir in Path(base_dir).iterdir():
         if not exp_dir.is_dir():
             continue
-        
+
         # exp_dir 이름에서 설정 추출 (예: baseline_seed1)
         config = exp_dir.name.split('_seed')[0]
         seed = int(exp_dir.name.split('_seed')[1])
-        
+
         # 결과 CSV 읽기
         result_csv = exp_dir / "pa_results.csv"
         if result_csv.exists():
@@ -372,11 +372,11 @@ def aggregate_results(base_dir):
                 "seed": seed,
                 "accuracy": accuracy
             })
-    
+
     df_results = pd.DataFrame(results)
     summary = df_results.groupby('config')['accuracy'].agg(['mean', 'std', 'count'])
     summary['ci95'] = 1.96 * summary['std'] / (summary['count'] ** 0.5)
-    
+
     print(summary)
     summary.to_csv(Path(base_dir) / "ablation_summary.csv")
 
@@ -409,10 +409,10 @@ if __name__ == "__main__":
 
 ### AI 에이전트에게 전달할 핵심 프롬프트
 ```
-"이 시스템은 모든 주요 단계를 JSONL trace로 기록하고, 
-후보 선택/폴백 시 사유를 명시하며, 
-seed 10회 이상의 ablation을 자동화하고, 
-통계 리포트를 1 커맨드로 생성할 수 있어야 합니다. 
+"이 시스템은 모든 주요 단계를 JSONL trace로 기록하고,
+후보 선택/폴백 시 사유를 명시하며,
+seed 10회 이상의 ablation을 자동화하고,
+통계 리포트를 1 커맨드로 생성할 수 있어야 합니다.
 '작동할 것으로 예상됩니다'가 아니라 '이 trace가 증거입니다'로 답변해주세요."
 ```
 

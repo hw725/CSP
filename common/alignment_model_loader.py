@@ -8,9 +8,9 @@ from typing import List, Dict
 import torch
 from torch import nn
 
-
 class CharEncoderForAlignment(nn.Module):
     """정렬용 문자 인코더"""
+
     def __init__(self, vocab_size: int, emb_dim: int = 64, hidden: int = 128):
         super().__init__()
         self.emb = nn.Embedding(vocab_size, emb_dim, padding_idx=0)
@@ -25,9 +25,9 @@ class CharEncoderForAlignment(nn.Module):
         z = nn.functional.normalize(z, dim=-1)
         return z
 
-
 class DualEncoder(nn.Module):
     """원문/번역문 이중 인코더"""
+
     def __init__(self, vocab_src, vocab_tgt):
         super().__init__()
         self.enc_src = CharEncoderForAlignment(vocab_src)
@@ -38,49 +38,60 @@ class DualEncoder(nn.Module):
         v_tgt = self.enc_tgt(tgt)
         return v_src, v_tgt
 
-
 class AlignmentMatcher:
     """세그먼트 정렬 매칭 엔진"""
-    
+
     def __init__(self, model_path: Path, device: str = "cuda"):
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
         self.model_path = Path(model_path)
-        
+
         if not self.model_path.exists():
             raise FileNotFoundError(f"❌ 모델 파일 없음: {self.model_path}")
-        
+
         # 체크포인트 로드
-        checkpoint = torch.load(self.model_path, map_location=self.device, weights_only=False)
+        checkpoint = torch.load(
+            self.model_path, map_location=self.device, weights_only=False
+        )
         self.vocab_src: Dict[str, int] = checkpoint.get("vocab_src", {})
         self.vocab_tgt: Dict[str, int] = checkpoint.get("vocab_tgt", {})
-        
+
         # 모델 로드 - 형식에 따라 처리
-        if 'state_dict' in checkpoint:
-            state_dict = checkpoint['state_dict']
-            actual_vocab_src = state_dict['enc_src.emb.weight'].shape[0]
-            actual_vocab_tgt = state_dict['enc_tgt.emb.weight'].shape[0]
-        elif 'model_src' in checkpoint:
+        if "state_dict" in checkpoint:
+            state_dict = checkpoint["state_dict"]
+            actual_vocab_src = state_dict["enc_src.emb.weight"].shape[0]
+            actual_vocab_tgt = state_dict["enc_tgt.emb.weight"].shape[0]
+        elif "model_src" in checkpoint:
             # 새 형식: model_src, model_tgt에서 크기 추출
-            actual_vocab_src = len(self.vocab_src) + 1 if self.vocab_src else checkpoint.get('model_src', torch.zeros(1)).shape[0]
-            actual_vocab_tgt = len(self.vocab_tgt) + 1 if self.vocab_tgt else checkpoint.get('model_tgt', torch.zeros(1)).shape[0]
+            actual_vocab_src = (
+                len(self.vocab_src) + 1
+                if self.vocab_src
+                else checkpoint.get("model_src", torch.zeros(1)).shape[0]
+            )
+            actual_vocab_tgt = (
+                len(self.vocab_tgt) + 1
+                if self.vocab_tgt
+                else checkpoint.get("model_tgt", torch.zeros(1)).shape[0]
+            )
             state_dict = checkpoint  # state_dict 없으면 checkpoint 자체 사용
         else:
             # 폴백: 키 기반으로 추론
             state_dict = checkpoint
             actual_vocab_src = len(self.vocab_src) + 1 if self.vocab_src else 256
             actual_vocab_tgt = len(self.vocab_tgt) + 1 if self.vocab_tgt else 256
-        
-        self.model = DualEncoder(vocab_src=actual_vocab_src, vocab_tgt=actual_vocab_tgt).to(self.device)
-        
+
+        self.model = DualEncoder(
+            vocab_src=actual_vocab_src, vocab_tgt=actual_vocab_tgt
+        ).to(self.device)
+
         # 상태 딕셔너리 로드 시도
         try:
-            if isinstance(state_dict, dict) and 'enc_src' in str(state_dict.keys()):
+            if isinstance(state_dict, dict) and "enc_src" in str(state_dict.keys()):
                 self.model.load_state_dict(state_dict)
         except Exception as e:
             print(f"⚠️ 상태 딕셔너리 로드 불가, 모델 구조만 사용: {e}")
-        
+
         self.model.eval()
-        
+
         print(f"✅ Alignment 모델 로드: {self.model_path}")
         print(f"   vocab_src={len(self.vocab_src)}, vocab_tgt={len(self.vocab_tgt)}")
 
@@ -98,24 +109,26 @@ class AlignmentMatcher:
         """원문과 번역문 사이의 유사도 계산"""
         if not src_text or not tgt_text:
             return 0.0
-        
+
         src_ids = self.encode_text(src_text, is_src=True)
         tgt_ids = self.encode_text(tgt_text, is_src=False)
-        
+
         with torch.no_grad():
             v_src, v_tgt = self.model(src_ids, tgt_ids)
             cos_sim = (v_src * v_tgt).sum(dim=-1).item()
-        
+
         return cos_sim
 
-    def match_segments(self, src_segments: List[str], tgt_segments: List[str]) -> List[str]:
+    def match_segments(
+        self, src_segments: List[str], tgt_segments: List[str]
+    ) -> List[str]:
         """
         원문 세그먼트를 번역문 세그먼트와 greedy matching
-        
+
         Args:
             src_segments: 원문 세그먼트 리스트
             tgt_segments: 번역문 세그먼트 리스트 (정렬 기준)
-        
+
         Returns:
             매칭된 원문 세그먼트 리스트
         """
@@ -133,7 +146,9 @@ class AlignmentMatcher:
                 # 각 세그먼트 내부에서만 분할을 늘려 tgt 개수까지 맞춘다.
                 # (전역 joined_src 균등분할은 후보 경계를 통째로 무시해 threshold 민감도를 죽일 수 있음)
 
-                base_segments: List[str] = [s for s in src_segments if s is not None and s != ""]
+                base_segments: List[str] = [
+                    s for s in src_segments if s is not None and s != ""
+                ]
                 if not base_segments:
                     base_segments = [joined_src]
 
@@ -181,7 +196,7 @@ class AlignmentMatcher:
                     expanded = [joined_src]
 
                 src_segments = expanded
-        
+
         # ✅ 반드시 len(tgt_segments)개를 반환해야 함
         # (PA/SA 모두 zip으로 결합하기 때문에 개수가 어긋나면 의미가 밀리고 마지막에 몰림)
         matched_src: List[str] = []
@@ -198,7 +213,9 @@ class AlignmentMatcher:
 
             # 남은 tgt 개수만큼은 src를 남겨야 빈 원문을 피할 수 있다.
             # (src 세그먼트는 1개 이상 남겨두는 보수적 제한)
-            latest_end_allowed = max(src_idx + 1, len(src_segments) - (remaining_tgt - 1))
+            latest_end_allowed = max(
+                src_idx + 1, len(src_segments) - (remaining_tgt - 1)
+            )
             max_end = min(src_idx + 5, latest_end_allowed + 1)
             for end_idx in range(src_idx + 1, max_end):
                 src_text = "".join(src_segments[src_idx:end_idx])

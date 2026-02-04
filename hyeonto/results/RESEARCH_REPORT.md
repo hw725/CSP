@@ -11,7 +11,7 @@ author: "로컬 분석 실행"
 
 ### 실행 환경
 - **실행 방식**: 로컬 Python (3.10.11)
-- **데이터 소스**: 
+- **데이터 소스**:
   - `hyeonto/datasets/phrase.xlsx` (643,357행)
   - `hyeonto/datasets/sentence.xlsx` (183,322행)
   - `hyeonto/datasets/paragraph.xlsx` (63,522행)
@@ -94,12 +94,11 @@ results/
 └── pipeline_log.txt                   # 실행 로그
 ```
 
-### Reports/Phase4 디렉토리
+### Results 디렉토리 (분류 관련)
 ```
-reports/phase4/
+results/
 ├── CLASSIFIED_MARKERS.md              # 마커 분류 상세 보고서
-├── classified_markers.json            # JSON 형식 분류 결과
-└── compound_tags.json                 # 복합 마커 상세
+└── classified_markers.json            # JSON 형식 분류 결과
 ```
 
 ### Datasets 디렉토리
@@ -158,7 +157,7 @@ data/
 
 2. **번역문 익명화**
    - 모든 분석 완료 후 실행
-   - 실행: `python scripts/anonymize_dataset.py`
+   - 익명화 처리 완료 (SHA-256 해시 적용)
 
 3. **시각화 생성** (선택)
    - 임베딩 오버레이 (UMAP)
@@ -188,6 +187,6 @@ data/
 
 ---
 
-**생성 시간**: 2026-02-03 18:50 UTC+9  
-**버전**: Hyeonto v1.0 (로컬 재현)  
+**생성 시간**: 2026-02-03 18:50 UTC+9
+**버전**: Hyeonto v1.0 (로컬 재현)
 **상태**: ✅ Phase 4-5 완료 | ⏳ LLM 분석 대기 중

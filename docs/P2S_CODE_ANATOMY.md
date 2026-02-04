@@ -1,6 +1,6 @@
 # PA (Paragraph Aligner) 코드 해부
 
-**버전**: 2026-01-15  
+**버전**: 2026-01-15
 **목적**: PA 파이프라인의 함수 로직과 알고리즘을 낱낱이 분석
 
 ---
@@ -12,20 +12,20 @@ graph TD
     A["main.py::process_file()"] --> B["processor.py::_process_paragraph_worker()"]
     B --> C["sentence_splitter.py::smart_sentence_split()"]
     B --> D["processor.py::_refine_alignments_with_models()"]
-    
+
     D --> E["new_parsers.py::get_supar_offsets_cached()"]
     D --> F["bge.py::encode_batch()"]
     D --> G["boundary_aware_alignment_loader.py::compute_similarity()"]
     D --> H["processor.py::_global_dp_refine()"]
-    
+
     E --> E1["ensure_kanbun_pipeline()"]
     E --> E2["nlp() - SuPar 실행"]
     E --> E3["han_to_orig_map 역매핑"]
-    
+
     H --> H1["_dp_forward_numba() - Numba JIT"]
     H --> H2["_boundary_bonus_at()"]
     H --> H3["역추적 및 세그먼트 생성"]
-    
+
     style A fill:#f9f,stroke:#333
     style H1 fill:#bbf,stroke:#333
     style E fill:#bfb,stroke:#333
@@ -41,14 +41,14 @@ flowchart LR
         A1[원문 문단] --> B1
         A2[번역문 문단] --> B2
     end
-    
+
     subgraph 분할
         B1[SuPar 경계 추출] --> C1[한자 추출]
         C1 --> C2[SuPar 실행]
         C2 --> C3[오프셋 역매핑]
         B2[Stanza 문장 분할] --> D1[규칙 기반 병합]
     end
-    
+
     subgraph 임베딩
         C3 --> E1[원문 후보 세그먼트]
         D1 --> E2[번역문 문장 N개]
@@ -56,14 +56,14 @@ flowchart LR
         E2 --> F1
         F1 --> F2["유사도 행렬 (N×M×M)"]
     end
-    
+
     subgraph DP
         F2 --> G1["경계 보너스 계산"]
         G1 --> G2["Numba DP Forward"]
         G2 --> G3["역추적"]
         G3 --> G4["최적 경계 선택"]
     end
-    
+
     subgraph 출력
         G4 --> H1["무결성 검증"]
         H1 --> H2["정렬 쌍 반환"]
@@ -99,7 +99,7 @@ SuPar는 단순히 마침표를 찾는 것이 아니라, **의존 구문 분석(
 - **Han-Extraction 전략**: 한글 현토가 섞인 경우 `\p{Han}`만 추출하여 SuPar에 전달하고, 반환된 오프셋을 원본 텍스트로 역매핑(Inverse Mapping)합니다.
 
 ### 2.2 Stanza (Target Parser)
-번역문(한국어)은 Stanza를 통해 문장 경계를 확정합니다. 
+번역문(한국어)은 Stanza를 통해 문장 경계를 확정합니다.
 - **Rule-based 후처리**: Stanza가 분리한 문장 중 "말씀하셨다."와 같이 앞 문장에 붙어야 하는 경우를 정규식으로 감지하여 강제 병합합니다.
 
 ---
@@ -118,18 +118,18 @@ BGE-M3는 세 가지 벡터를 결합하여 **1636차원** 이상의 정보를 �
 ### 3.2 유사도 가중치 (Similarity Weights)
 실제 코드에서는 다음과 같은 비율(표준값)로 합산됩니다:
 ```python
-final_score = (dense_weight * dense_sim) + 
-              (sparse_weight * sparse_sim) + 
+final_score = (dense_weight * dense_sim) +
+              (sparse_weight * sparse_sim) +
               (colbert_weight * colbert_sim)
 ```
 *현재 그리드 서치를 통해 이 가중치들의 최적 조합을 찾고 있습니다.*
 
 ---
- 
+
  ## 4. 경계 모델 및 보너스 (Boundary Model & Bonus)
- 
+
  **파일**: `p2s/processor.py` (내부 함수 `_boundary_bonus_at`), `common/boundary_model_loader.py`
- 
+
 -### 4.1 Boundary Model (Logit)
 +### 4.1 경계 모델 코드 해부 (Model Anatomy)
 +
@@ -147,7 +147,7 @@ final_score = (dense_weight * dense_sim) +
  신경망이 각 글자 위치 `i`에 대해 경계일 확률을 `logit[i]`로 내뱉습니다.
  - **가공**: `0.020 * max(0.0, tanh(logit/3.0))`
  - **의미**: 강한 긍정 로짓에 대해서만 지수적으로 보너스를 부여하며, 음수 로짓(경계 아님)은 패널티로 쓰지 않아 모델 오판에 의한 DP 왜곡을 방지합니다.
- 
+
 +#### 4.1.3 훈련 전략 (Training Strategy)
 +- **BCEWithLogitsLoss**: 각 위치 별 이진 분류 수행
 +- **Class Weighting**: 경계(Positive)가 매우 희소(Sparse)하므로, 경계에 약 **10~20배의 가중치**를 부여하여 학습 시 경계를 놓치지 않도록 강제합니다.

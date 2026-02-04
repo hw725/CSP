@@ -1,5 +1,88 @@
 # 📚 Scripts 폴더 분류 가이드
 
+**마지막 업데이트: 2026-02-04**
+
+> 이 문서는 `scripts/` 폴더의 현재 스크립트만을 기준으로 분류합니다.
+
+---
+
+## 🎯 카테고리별 분류
+
+### 1️⃣ **모델 학습**
+```
+- train_p2s_boundary.py
+- train_p2s_crossattn_boundary.py
+- train_s2p_alignment_dual_encoder.py
+- train_s2p_crossattn_boundary.py
+- train_sentence_alignment.py
+```
+
+### 2️⃣ **평가 및 최적화**
+```
+- quick_s2p_eval.py
+- sweep_p2s_boundary_threshold.py
+- tune_p2s_dp.py
+- optuna_s2p_dp.py
+- aggregate_p2s_drift_summary.py
+- summarize_boundary_delta_patterns.py
+```
+
+### 3️⃣ **분석 및 진단**
+```
+- analyze_p2s_errors.py
+- analyze_failure_patterns.py
+- analyze_s2p_mapping.py
+- analyze_xlsx_structure.py
+- detect_outliers_boundary.py
+- diff_p2s_outputs.py
+```
+
+### 4️⃣ **유틸리티/데이터 처리**
+```
+- build_alignment_dataset.py
+- merge_parallel_xlsx.py
+- split_excel.py
+```
+
+### 5️⃣ **보안/운영**
+```
+- safety_check.ps1
+```
+
+### 6️⃣ **문서**
+```
+- CODE_CLEANUP_ANALYSIS.md
+- CLEANUP_FINAL_REPORT.md
+```
+
+---
+
+## 📌 레거시 명칭 정리
+
+일부 파일/로그/모델에 PA/SA 용어가 남아 있습니다.
+- **PA → P2S**, **SA → S2P**
+- 새 문서/파일명은 P2S/S2P 명칭을 우선합니다.
+
+---
+
+## 📋 다른 폴더의 관련 스크립트
+
+### `accuracy/`
+```
+- p2s_evaluator.py
+- s2p_evaluator.py
+- pair_evaluator.py
+- compute_thresholds.py
+- thresholds_config.py
+```
+
+### `hyeonto/`
+연구/분석/시각화 파이프라인 (클러스터링, 통계 검증 등)
+
+### `analytics/`
+모니터링/코퍼스 분석/대시보드
+# 📚 Scripts 폴더 분류 가이드
+
 **마지막 업데이트: 2026-02-03**
 
 > 이 문서는 `scripts/` 폴더의 54개 Python 스크립트를 목적별로 분류합니다.
@@ -168,10 +251,10 @@
 - thresholds_config.py      # 임계값 설정
 ```
 
-#### `hyeonto/` 폴더
+#### `hyeonto/weight_sensitivity/` 폴더
 ```
-- run_retrospective_validation.py  # 회상상 가설 검증
 - run_validation_analysis.py       # 검증 분석
+- recompute_weighted_metrics.py    # Canon3 가중 메트릭 재계산
 ```
 
 #### `analytics/` 폴더

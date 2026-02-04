@@ -34,6 +34,44 @@ python s2p/main.py <input.csv> <output.xlsx> [--batch-size 32]
 
 ---
 
+## 📊 모니터링 & 분석
+
+### 마크다운 대시보드 (로컬 서버)
+
+**자동 시작 (권장):**
+```bash
+# Windows (CMD) - 최상위 디렉토리에서
+start_md_server.bat
+
+# Windows (PowerShell) - hyeonto 디렉토리에서
+.\hyeonto\start_md_server.ps1
+
+# 또는 빠른 열기
+open_dashboard.bat
+```
+
+**또는 수동 실행:**
+```bash
+cd hyeonto
+python md_server.py --port 8080
+# 브라우저에서 http://127.0.0.1:8080/dashboard.html 열기
+```
+
+### 대시보드 기능
+- **K=3 클러스터 분석**: 현토 마커 & 서종 분포 분석
+- **임베딩 시각화**: 2D/3D UMAP 오버레이 (흑백 인포그래픽)
+- **Sankey 다이어그램**: P2S ↔ S2P 흐름 분석 (흑백)
+- **검증 분석**: 공기어 & 이상치 탐지
+- **라벨 변화**: 1:1 vs 3:1 가중치 비교
+- **마크다운 뷰어**: 모든 분석 리포트 렌더링
+
+### 분석 리포트
+- 모니터링 대시보드: [analytics/monitoring_dashboard.html](analytics/monitoring_dashboard.html)
+- 최신 분석 요약: [hyeonto/KEY_FINDINGS.md](hyeonto/KEY_FINDINGS.md)
+- 시각화 해석 가이드: [hyeonto/VISUALIZATION_GUIDE.md](hyeonto/VISUALIZATION_GUIDE.md)
+
+---
+
 ## 📊 처리 예시
 
 ### P2S (문단 → 문장 분할)
@@ -173,5 +211,5 @@ docker-compose exec csp bash
 
 ---
 
-**최종 업데이트**: 2026년 01월 24일 - 개발 환경 문서화 및 보안 점검 스크립트 추가
+**최종 업데이트**: 2026년 02월 04일 - 모니터링 대시보드 및 K=3 분석 문서 정합화
 

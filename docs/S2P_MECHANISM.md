@@ -34,7 +34,7 @@ SA는 원문과 번역문을 동시에 입력받아 서로 어느 부분이 대�
 SA는 4단계로 구성되며, 특히 **Boundary Model**의 역할이 지배적입니다.
 
 ```
-[입력 문장 쌍] 
+[입력 문장 쌍]
     ↓
 [1단계] 문자 단위 임베딩 (Char-level Embedding)
     ↓
@@ -59,19 +59,19 @@ SA 경계 모델은 순수 문자 단위(Character-level)의 딥러닝 모델로
 graph TD
     Src["원문 (한문 문자열)"] --> S_Emb["Char Embedding (128D)"]
     Tgt["번역문 (한국어 문자열)"] --> T_Emb["Char Embedding (128D)"]
-    
+
     S_Emb --> S_LSTM["Source BiLSTM (256D)"]
     T_Emb --> T_LSTM["Target BiLSTM (256D)"]
-    
+
     T_LSTM --> CA["Cross-Attention Layer"]
     S_LSTM --> CA
-    
+
     CA --> Concat["[Target Context ; Attended Source] (512D)"]
     T_LSTM --> Concat
-    
+
     Concat --> MLP["MLP Head (Hidden 256D)"]
     MLP --> Out["경계 확률 (0~1)"]
-    
+
     style Src fill:#f9f,stroke:#333
     style Tgt fill:#f9f,stroke:#333
     style CA fill:#bbf,stroke:#333,stroke-dasharray: 5 5

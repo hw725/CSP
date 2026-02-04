@@ -15,13 +15,11 @@ SA (Semantic Alignment) 패키지
 from .s2p_aligner import (
     # 핵심 분할 함수들
     split_src_meaning_units,
-    split_tgt_meaning_units, 
-    
+    split_tgt_meaning_units,
     # 처리 함수들
     process_single_row,
     align_translation_to_source,
     process_sa_alignment,
-    
     # 유틸리티
     _distribute_words_evenly,
 )
@@ -33,16 +31,15 @@ split_tgt_by_src_units_semantic = split_tgt_meaning_units
 
 __all__ = [
     # 핵심 함수들
-    'split_src_meaning_units',
-    'split_tgt_meaning_units',
-    'process_single_row', 
-    'align_translation_to_source',
-    'process_sa_alignment',
-    
+    "split_src_meaning_units",
+    "split_tgt_meaning_units",
+    "process_single_row",
+    "align_translation_to_source",
+    "process_sa_alignment",
     # 호환성 별명들
-    'split_tgt_meaning_units_sequential',
-    'split_tgt_by_src_units',
-    'split_tgt_by_src_units_semantic',
+    "split_tgt_meaning_units_sequential",
+    "split_tgt_by_src_units",
+    "split_tgt_by_src_units_semantic",
 ]
 
 __version__ = "2.0.0"
