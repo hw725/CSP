@@ -62,43 +62,50 @@ python -c "from FlagEmbedding import BGEM3FlagModel; m = BGEM3FlagModel('BAAI/bg
 mkdir -p test_results
 ```
 
-### 2단계: 추론 + 평가
+### 2단계: 추론 + 평가 (nohup으로 백그라운드 실행)
+
+터미널 연결이 끊겨도 프로세스가 유지되도록 `nohup`으로 실행한다.
 
 ```bash
-# === P2S 경계모델 ON ===
-python p2s/main.py datasets/splits/paragraph_test.xlsx \
-  test_results/p2s_on.xlsx \
-  --checkpoint-path test_results/p2s_on_ckpt.csv
+nohup bash -c '
+python p2s/main.py datasets/splits/paragraph_test.xlsx test_results/p2s_on.xlsx --checkpoint-path test_results/p2s_on_ckpt.csv
+python accuracy/p2s_evaluator.py test_results/p2s_on.xlsx datasets/splits/sentence_test.xlsx -v > test_results/p2s_on_eval.txt 2>&1
 
-python accuracy/p2s_evaluator.py \
-  test_results/p2s_on.xlsx datasets/splits/sentence_test.xlsx -v
+python p2s/main.py datasets/splits/paragraph_test.xlsx test_results/p2s_off.xlsx --no-boundary-model --checkpoint-path test_results/p2s_off_ckpt.csv
+python accuracy/p2s_evaluator.py test_results/p2s_off.xlsx datasets/splits/sentence_test.xlsx -v > test_results/p2s_off_eval.txt 2>&1
 
-# === P2S 경계모델 OFF ===
-python p2s/main.py datasets/splits/paragraph_test.xlsx \
-  test_results/p2s_off.xlsx \
-  --no-boundary-model --checkpoint-path test_results/p2s_off_ckpt.csv
+python s2p/main.py datasets/splits/sentence_test.xlsx test_results/s2p_on.xlsx
+python accuracy/s2p_evaluator.py datasets/splits/phrase_test.xlsx test_results/s2p_on.xlsx -v > test_results/s2p_on_eval.txt 2>&1
 
-python accuracy/p2s_evaluator.py \
-  test_results/p2s_off.xlsx datasets/splits/sentence_test.xlsx -v
+python s2p/main.py datasets/splits/sentence_test.xlsx test_results/s2p_off.xlsx --no-boundary-model
+python accuracy/s2p_evaluator.py datasets/splits/phrase_test.xlsx test_results/s2p_off.xlsx -v > test_results/s2p_off_eval.txt 2>&1
 
-# === S2P 경계모델 ON ===
-python s2p/main.py datasets/splits/sentence_test.xlsx \
-  test_results/s2p_on.xlsx
+echo "=== ALL DONE ==="
+' > test_results/all_runs.log 2>&1 &
+```
 
-python accuracy/s2p_evaluator.py \
-  datasets/splits/phrase_test.xlsx test_results/s2p_on.xlsx -v
+진행 확인:
+```bash
+tail -20 test_results/all_runs.log
+```
 
-# === S2P 경계모델 OFF ===
-python s2p/main.py datasets/splits/sentence_test.xlsx \
-  test_results/s2p_off.xlsx --no-boundary-model
-
-python accuracy/s2p_evaluator.py \
-  datasets/splits/phrase_test.xlsx test_results/s2p_off.xlsx -v
+완료 확인:
+```bash
+grep "ALL DONE" test_results/all_runs.log
 ```
 
 ### 3단계: 결과 회수 및 종료
 
+평가 결과 확인:
+```bash
+cat test_results/p2s_on_eval.txt
+cat test_results/p2s_off_eval.txt
+cat test_results/s2p_on_eval.txt
+cat test_results/s2p_off_eval.txt
+```
+
 결과 파일 다운로드 후 **반드시 Stop 버튼으로 Pod 중지** (과금 방지).
+테스트 완전히 끝나면 Pod를 **Terminate**(삭제)해야 Volume Disk 과금도 멈춘다.
 
 ---
 
