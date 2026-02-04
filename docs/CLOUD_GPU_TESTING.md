@@ -45,15 +45,19 @@ pip install -r requirements.txt
 # - 4.48.0은 suparkanbun + FlagEmbedding 모두 호환
 pip install transformers==4.48.0 FlagEmbedding>=1.2.0 --force-reinstall
 
+# FlagEmbedding 최신 API 강제 적용 (구버전 시뮬레이션 모드 방지)
+pip install FlagEmbedding>=1.2.0 --force-reinstall --no-deps
+
 # Stanza/SuPar 설치 (requirements.txt에서 누락될 수 있음)
 pip install stanza suparkanbun esupar
 
 # Stanza 리소스 다운로드
 python -c "import stanza; stanza.download('ko'); stanza.download('zh')"
 
-# 검증 (둘 다 OK 출력되어야 함)
+# 검증 (3개 모두 OK 출력되어야 함)
 python -c "from FlagEmbedding import BGEM3FlagModel; print('OK')"
 python -c "from transformers import BertForTokenClassification; print('OK')"
+python -c "from FlagEmbedding import BGEM3FlagModel; m = BGEM3FlagModel('BAAI/bge-m3'); r = m.encode(['test'], return_dense=True, return_sparse=True, return_colbert_vecs=True); print('OK - 최신 API')"
 
 mkdir -p test_results
 ```
