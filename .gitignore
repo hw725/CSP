@@ -200,7 +200,6 @@ embeddings_cache_similarity/
 dataset/
 dataset_split/
 datasets/xlsx/
-datasets/splits/
 
 # Generated results / reports
 test_results/
@@ -215,13 +214,17 @@ logs/
 cumulative_analysis.db
 
 # Local/generated datasets (do not commit)
-datasets/
+datasets/*
+!datasets/splits/
+datasets/splits/*
+!datasets/splits/*_test.xlsx
 
 # History files (VS Code local history extension)
 .history/
 
-# Excel 파일(샘플/중간/결과 모두 무시)
+# Excel 파일 (나머지는 무시, 테스트 데이터는 위에서 예외 처리)
 *.xlsx
+!datasets/splits/*_test.xlsx
 
 # config.json은 원격만 사용, 로컬은 git에서 무시
 config.json
@@ -231,7 +234,8 @@ xlsx_pipeline_results/
 xlsx/
 sources/
 목차정보/
-models/
+models/*
+!models/*.pt
 
 # 압축 파일
 *.zip
@@ -340,6 +344,7 @@ pyi/
 *.npy
 *.npz
 *.pt
+!models/*.pt
 *.bz2
 *.lzma
 
