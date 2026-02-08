@@ -1,4 +1,4 @@
-"""PA (Paragraph Aligner) 메인 실행기"""
+"""P2S (Paragraph-to-Sentence) 메인 실행기"""
 
 import sys
 from pathlib import Path
@@ -420,7 +420,7 @@ def main():
         os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
         warnings.filterwarnings("ignore")
 
-    print("🚀 PA (Paragraph Aligner) 시작")
+    print("🚀 P2S (Paragraph-to-Sentence) 시작")
     print(
         f"⚙️ 설정: 임베더={args.embedder}, 병렬 워커={args.max_workers}, 배치 크기={args.batch_size}"
     )
@@ -512,13 +512,13 @@ def main():
         processing_time = end_time - start_time
 
         if result_df is not None:
-            print(f"\n🎉 PA 처리 완료!")
+            print(f"\n🎉 P2S 처리 완료!")
             print(f"⏱️  총 처리 시간: {processing_time:.2f}초")
             print(f"📁 출력 파일: {args.output_file}")
             print(f"📊 생성된 문장 쌍: {len(result_df)}개")
             return True
         else:
-            print(f"\n❌ PA 처리 실패!")
+            print(f"\n❌ P2S 처리 실패!")
             return False
 
     except Exception as e:

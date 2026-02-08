@@ -1,4 +1,4 @@
-"""PA 문장 분할기 - SuPar-Kanbun & Stanza 기반 (spaCy 대체)"""
+"""P2S 문장 분할기 - SuPar-Kanbun & Stanza 기반 (spaCy 대체)"""
 
 from typing import Any, Dict, List, Tuple
 
@@ -905,7 +905,7 @@ def split_with_new_parsers(
         return result
 
 def merge_quotation_markers_in_list(sentences: List[str]) -> List[str]:
-    """인용 표지를 이전 인용문과 병합 (PA 전용 헬퍼) - 중첩 인용 지원
+    """인용 표지를 이전 인용문과 병합 (P2S 전용 헬퍼) - 중첩 인용 지원
 
     인용 표지 구조: [인용조사] + [동사어간] + [어미]
     예: "고 하였다", "라고 말한다", "하고 명하셨다", "며 여쭙는다" 등
@@ -1481,7 +1481,7 @@ def split_source_by_whitespace_and_align(
                 result.append("")
         return restore_brackets_in_chunks(result, bracket_insertions)
 
-    # 1-1. PA 원문에 의미 기반 경계 감지 적용 (어절 경계만 지키면서 문장 단위로)
+    # 1-1. P2S 원문에 의미 기반 경계 감지 적용 (어절 경계만 지키면서 문장 단위로)
     # ⚠️ 번역문 문장들이 주어진 경우(target_sentences), 목표는 "정확히 target_count개"이므로
     # 개수가 가변적인 의미 경계 탐지 결과를 그대로 반환하면 빈 세그먼트 패딩이 발생할 수 있다.
     # 따라서 target_sentences가 없을 때만 보조적으로 사용한다.
@@ -1538,10 +1538,10 @@ def split_source_by_whitespace_and_align(
                 # 이 경로는 target_sentences가 없을 때만 사용하지만,
                 # 그래도 빈/부분 결과를 그대로 반환하지 않도록 최소한의 가드
                 if len(result) > 0:
-                    print(f"✅ PA 원문 의미 기반 분할: {len(result)}개 어절 그룹")
+                    print(f"✅ P2S 원문 의미 기반 분할: {len(result)}개 어절 그룹")
                     return restore_brackets_in_chunks(result, bracket_insertions)
         except Exception as e:
-            print(f"⚠️ PA 원문 의미 기반 분할 실패: {e}")
+            print(f"⚠️ P2S 원문 의미 기반 분할 실패: {e}")
 
     # 2. 임베딩 기반 의미적 분할 (어절 경계에서만!)
     if target_sentences and len(target_sentences) > 0:
@@ -1713,8 +1713,8 @@ def split_source_by_whitespace_and_align(
                     from common.embedders.bge import get_embedding_manager
 
                     embedder = get_embedding_manager()
-                    # PA에서도 SA와 동일한 안정적 멀티벡터 설정을 공유하므로, 용도를 명확히 표기
-                    print("✅ BGE-M3 Multi-Vector 임베딩 사용 (PA 분할용, 작은 배치)")
+                    # P2S에서도 SA와 동일한 안정적 멀티벡터 설정을 공유하므로, 용도를 명확히 표기
+                    print("✅ BGE-M3 Multi-Vector 임베딩 사용 (P2S 분할용, 작은 배치)")
 
                     # RTX 3070 (8GB) 기준 안전한 배치 크기 + Multi-vector
                     target_embeddings = embedder.compute_embeddings_with_cache(

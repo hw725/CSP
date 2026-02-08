@@ -33,10 +33,15 @@ MODELS_ROOT = WORKSPACE_ROOT / "models"
 
 
 def normalize_text(text: str) -> str:
-    """공백/개행 제거하여 정규화 (경계 매칭용)"""
+    """공백/개행 + 편집 마커([, -, ]) 제거하여 정규화 (경계 매칭용)"""
     if pd.isna(text):
         return ""
-    return str(text).replace(" ", "").replace("\n", "").replace("\t", "").replace("\r", "").strip()
+    return (
+        str(text)
+        .replace(" ", "").replace("\n", "").replace("\t", "").replace("\r", "")
+        .replace("[", "").replace("-", "").replace("]", "")
+        .strip()
+    )
 
 
 def load_boundary_samples(

@@ -1,4 +1,4 @@
-"""PA 전용 정렬기 - SA의 Vice Versa 방식 (완벽한 무결성 보장)"""
+"""P2S 전용 정렬기 - SA의 Vice Versa 방식 (완벽한 무결성 보장)"""
 
 import sys
 import os
@@ -54,7 +54,7 @@ except ImportError:
 _han_regex = re.compile(r"\p{Han}")
 
 def _augment_translation_with_hanja_parentheses(text: str) -> str:
-    """번역문 괄호 속 한자를 노출해 의미 매칭에 활용 (PA 전용)
+    """번역문 괄호 속 한자를 노출해 의미 매칭에 활용 (P2S 전용)
     - 원문 텍스트를 변형하지 않고, 괄호 안의 한자만 앞쪽에 노출하여 임베딩에 도움을 준다.
     - 예: '태사공(太史公)은' → '太史公 태사공(太史公)은'
     """
@@ -2139,7 +2139,7 @@ def process_paragraph_alignment(
     max_workers: int = 16,
     batch_size: int = 256,
 ):
-    """PA 처리: 완벽한 무결성 보장
+    """P2S 처리: 완벽한 무결성 보장
 
     🆕 개선: 원문도 의미 문장으로 사전 분할
     - 원문과 번역문을 모두 의미 경계 기반으로 분할
@@ -2147,7 +2147,7 @@ def process_paragraph_alignment(
     - 원문의 의미 경계를 존중하면서 품질 향상
     """
 
-    print(f"🔄 PA 처리 시작 (원문-번역문 의미 문장 대응 정렬)")
+    print(f"🔄 P2S 처리 시작 (원문-번역문 의미 문장 대응 정렬)")
 
     para_id = f"paragraph_{id(src_paragraph)}_{id(tgt_paragraph)}"
 
@@ -2259,7 +2259,7 @@ def process_paragraph_file(
     **kwargs,
 ):
     """파일 단위 처리 - 완벽한 무결성 보장"""
-    print(f"📂 PA 파일 처리 시작 (완벽한 무결성 보장): {input_file}")
+    print(f"📂 P2S 파일 처리 시작 (완벽한 무결성 보장): {input_file}")
     if use_spacy_tokenizer:
         print(f"🔗 기존 방식 + Vice Versa 토크나이저 + spaCy 토크나이저 융합")
     else:

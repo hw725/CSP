@@ -1,4 +1,4 @@
-"""PA 메인 프로세서 - import 문제 해결"""
+"""P2S 메인 프로세서 - import 문제 해결"""
 
 import sys
 import os
@@ -2937,12 +2937,12 @@ def process_paragraph_file(
         print(f"📋 현재 컬럼: {list(df.columns)}")
         return None
 
-    # 입력 스키마 가드: PA는 '문단 단위' 입력(PD)을 전제로 한다.
+    # 입력 스키마 가드: P2S는 '문단 단위' 입력(PD)을 전제로 한다.
     # 문장 단위(정답/산출물) CSV를 입력으로 넣으면 평가/튜닝이 왜곡되므로 즉시 중단한다.
     if "문장식별자" in df.columns:
         raise RuntimeError(
-            "PA 입력 파일이 문장 단위로 보입니다(컬럼 '문장식별자' 존재). "
-            "PA(문단→문장) 파이프라인 입력은 PD 형식(문단 단위: 문단식별자/원문/번역문/book_name)이어야 합니다. "
+            "P2S 입력 파일이 문장 단위로 보입니다(컬럼 '문장식별자' 존재). "
+            "P2S(문단→문장) 파이프라인 입력은 PD 형식(문단 단위: 문단식별자/원문/번역문/book_name)이어야 합니다. "
             "예: datasets/sentenceragraph/test_100.csv 를 input으로 사용하고, 평가는 datasets/p2s/test_100_from_pd.csv 를 gold로 사용하세요."
         )
 
@@ -3048,7 +3048,7 @@ def process_paragraph_file(
     try:
         start_unified_progress(
             total=len(df),
-            description="📊 PA 분할" + (" (경계 보강)" if boundary_model else ""),
+            description="📊 P2S 분할" + (" (경계 보강)" if boundary_model else ""),
             unit="문단",
             bar_format="{desc}: {percentage:3.0f}%|{bar:50}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
             mininterval=0.5,
@@ -3669,7 +3669,7 @@ def process_paragraph_file(
             tracer.close()
         if use_progress_bar:
             try:
-                finish_unified_progress("PA 완료 (결과 없음)")
+                finish_unified_progress("P2S 완료 (결과 없음)")
             except:
                 pass
         print("❌ 처리된 결과가 없습니다.")
@@ -3692,7 +3692,7 @@ def process_paragraph_file(
     # 🔧 SA와 동일한 진행률 완료
     if use_progress_bar:
         try:
-            finish_unified_progress(f"PA 완료: {len(all_results):,}개 문장 쌍 생성")
+            finish_unified_progress(f"P2S 완료: {len(all_results):,}개 문장 쌍 생성")
         except:
             pass
 
