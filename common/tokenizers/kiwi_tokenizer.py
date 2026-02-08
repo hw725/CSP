@@ -7,7 +7,19 @@ import logging
 from typing import List, Optional, Dict, Any, Tuple
 import re
 
+try:
+    from common.disk_cache import DiskCache
+except ImportError:
+    try:
+        from disk_cache import DiskCache
+    except ImportError:
+        DiskCache = None
+
 logger = logging.getLogger(__name__)
+
+# analyze() 결과 캐시 (morphs, pos, extract_particles 모두 이 결과에서 파생)
+_kiwi_analyze_cache = DiskCache("tokenizer_kiwi_analyze", save_every=200) if DiskCache else None
+_kiwi_sentences_cache = DiskCache("tokenizer_kiwi_sentences", save_every=200) if DiskCache else None
 
 class KiwipieTokenizer:
     """Kiwipiepy 토크나이저 래퍼 클래스"""
@@ -45,30 +57,33 @@ class KiwipieTokenizer:
             logger.error(f"Kiwipiepy 초기화 실패: {e}")
             raise
 
+    def _analyze_cached(self, text: str):
+        """analyze() 결과를 캐싱하여 반환. morphs/pos/extract_particles에서 공유."""
+        if _kiwi_analyze_cache is not None:
+            cached = _kiwi_analyze_cache.get(text)
+            if cached is not None:
+                return cached
+        self._initialize()
+        result = self.kiwi.analyze(text)
+        # (token, pos) 튜플 리스트로 정규화하여 저장
+        tokens = [(token, pos_tag) for token, pos_tag, _, _ in result[0][0]]
+        if _kiwi_analyze_cache is not None:
+            _kiwi_analyze_cache.put(text, tokens)
+        return tokens
+
     def morphs(self, text: str) -> List[str]:
         """형태소 분석 (단어 단위)"""
-        self._initialize()
-
         try:
-            result = self.kiwi.analyze(text)
-            morphs = []
-            for token, pos, _, _ in result[0][0]:
-                morphs.append(token)
-            return morphs
+            tokens = self._analyze_cached(text)
+            return [token for token, _ in tokens]
         except Exception as e:
             logger.error(f"Kiwipiepy 형태소 분석 실패: {e}")
-            return text.split()  # 폴백: 공백 분할
+            return text.split()
 
     def pos(self, text: str) -> List[Tuple[str, str]]:
         """품사 태깅"""
-        self._initialize()
-
         try:
-            result = self.kiwi.analyze(text)
-            pos_tags = []
-            for token, pos, _, _ in result[0][0]:
-                pos_tags.append((token, pos))
-            return pos_tags
+            return self._analyze_cached(text)
         except Exception as e:
             logger.error(f"Kiwipiepy 품사 태깅 실패: {e}")
             return [(word, "UNK") for word in text.split()]
@@ -82,47 +97,37 @@ class KiwipieTokenizer:
 
     def split_sentences(self, text: str) -> List[str]:
         """문장 분할"""
+        if _kiwi_sentences_cache is not None:
+            cached = _kiwi_sentences_cache.get(text)
+            if cached is not None:
+                return cached
         self._initialize()
-
         try:
             sentences = self.kiwi.split_into_sents(text)
-            return [s.text for s in sentences]
+            result = [s.text for s in sentences]
+            if _kiwi_sentences_cache is not None:
+                _kiwi_sentences_cache.put(text, result)
+            return result
         except Exception as e:
             logger.error(f"Kiwipiepy 문장 분할 실패: {e}")
-            # 폴백: 간단한 문장 분할
             return re.split(r"[.!?]\s+", text)
 
     def extract_particles(self, text: str) -> List[Tuple[str, str, int]]:
-        """조사 및 어미 추출"""
-        self._initialize()
-
+        """조사 및 어미 추출 (_analyze_cached 결과에서 파생)"""
         particles = []
         try:
-            result = self.kiwi.analyze(text)
+            tokens = self._analyze_cached(text)
             position = 0
-
-            for token, pos, _, _ in result[0][0]:
-                # 조사와 어미 추출
-                if pos in [
-                    "JKS",
-                    "JKC",
-                    "JKG",
-                    "JKO",
-                    "JKB",
-                    "JKV",
-                    "JKQ",
-                    "JX",
-                    "JC",
-                ]:  # 조사
+            for token, pos_tag in tokens:
+                if pos_tag in [
+                    "JKS", "JKC", "JKG", "JKO", "JKB", "JKV", "JKQ", "JX", "JC",
+                ]:
                     particles.append((token, "조사", position))
-                elif pos in ["EP", "EF", "EC", "ETN", "ETM"]:  # 어미
+                elif pos_tag in ["EP", "EF", "EC", "ETN", "ETM"]:
                     particles.append((token, "어미", position))
-
                 position += len(token)
-
         except Exception as e:
             logger.error(f"Kiwipiepy 조사/어미 추출 실패: {e}")
-
         return particles
 
 # 전역 인스턴스들

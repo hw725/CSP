@@ -360,6 +360,12 @@ hyeonto/report_1-1/**/sentence_uniform_syntax.csv
 hyeonto/report_3-1/**/phrase_uniform_syntax.csv
 hyeonto/report_3-1/**/sentence_uniform_syntax.csv
 
+# Claude Code temporary directories
+tmpclaude-*
+
+# Precomputed embeddings (large, regenerate locally)
+datasets/precomputed/
+
 # Recovered junk folders (root-level, 복구 잔해 방지)
 /csv/
 /md/

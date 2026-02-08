@@ -352,8 +352,20 @@ def ensure_stanza_pipeline(lang: str = "ko"):
                 f"Stanza 파이프라인 초기화 실패(다운로드/재시도 포함): {e2}"
             )
 
+try:
+    from common.disk_cache import DiskCache
+except ImportError:
+    from disk_cache import DiskCache
+
+_supar_split_cache = DiskCache("parser_supar_split", save_every=50)
+_stanza_split_cache = DiskCache("parser_stanza_split", save_every=50)
+_supar_boundary_cache = DiskCache("parser_supar_boundary", save_every=50)
+
 def split_source_with_supar(text: str) -> List[str]:
     """suparkanbun 파이프라인을 사용한 한문 문장 분할(실패 시 휴리스틱 폴백)."""
+    cached = _supar_split_cache.get(text)
+    if cached is not None:
+        return cached
     try:
         nlp = ensure_kanbun_pipeline()
         if hasattr(nlp, "Danku") and getattr(nlp, "Danku"):
@@ -372,23 +384,35 @@ def split_source_with_supar(text: str) -> List[str]:
                         if isinstance(t, str) and t.strip():
                             sentences.append(t.strip())
             if sentences:
+                _supar_split_cache.put(text, sentences)
                 return sentences
-        return smart_sentence_split(text, is_source=True)
+        result = smart_sentence_split(text, is_source=True)
+        _supar_split_cache.put(text, result)
+        return result
     except Exception as e:
         logger.warning(f"⚠️ suparkanbun 분할 실패(휴리스틱 폴백): {e}")
-        return smart_sentence_split(text, is_source=True)
+        result = smart_sentence_split(text, is_source=True)
+        _supar_split_cache.put(text, result)
+        return result
 
 def split_target_with_stanza(text: str) -> List[str]:
     """Stanza 기반 한국어 문장 분할(실패 시 휴리스틱 폴백) + 인용 표지 병합."""
+    cached = _stanza_split_cache.get(text)
+    if cached is not None:
+        return cached
     try:
         nlp = ensure_stanza_pipeline(lang="ko")
         doc = nlp(text)
         sentences = [sent.text for sent in doc.sentences]
         sentences = [s.strip() for s in sentences if s.strip()]
-        return merge_quotation_markers(sentences)
+        result = merge_quotation_markers(sentences)
+        _stanza_split_cache.put(text, result)
+        return result
     except Exception as e:
         logger.warning(f"⚠️ Stanza 문장 분할 실패(휴리스틱 폴백): {e}")
-        return smart_sentence_split(text, is_source=False)
+        result = smart_sentence_split(text, is_source=False)
+        _stanza_split_cache.put(text, result)
+        return result
 
 logger.info(
     "✅ new_parsers import OK "
@@ -599,8 +623,13 @@ def get_chinese_unit_boundary_indices_supar(
             return set()
         if not SUPAR_AVAILABLE or supar_parser is None:
             return get_chinese_unit_boundary_indices(source_units)
-        # 간단 접근: 이전 단위가 문장 구두점으로 끝나거나, SuPar 문장 경계가 단위 사이에 있을 때 경계로 표기
+        # 캐시 조회
         text = source_text or "".join(source_units)
+        cache_key = text + "|" + "|".join(source_units)
+        cached = _supar_boundary_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        # 간단 접근: 이전 단위가 문장 구두점으로 끝나거나, SuPar 문장 경계가 단위 사이에 있을 때 경계로 표기
         parsed = supar_parser.predict(text, prob=False, verbose=False)
         # parsed로부터 문장 텍스트 목록 복원 시도(실패 가능성 고려)
         sentences = []
@@ -643,6 +672,7 @@ def get_chinese_unit_boundary_indices_supar(
                 or (off + 1) in supar_offsets
             ):
                 boundaries.add(j)
+        _supar_boundary_cache.put(cache_key, boundaries)
         return boundaries
     except Exception:
         return get_chinese_unit_boundary_indices(source_units)

@@ -13,10 +13,10 @@ logger = logging.getLogger(__name__)
 class RobertaKoreanHanjaTokenizer:
     """RoBERTa Korean-Hanja 토크나이저 래퍼 클래스"""
 
-    def __init__(self, model_name: str = "klue/roberta-large", device: str = "auto"):
+    def __init__(self, model_name: str = "hwp0725/roberta-korean-hanja-stdict-mlm", device: str = "auto"):
         """
         Args:
-            model_name: 사용할 모델명 (기본값은 KLUE RoBERTa Large)
+            model_name: 사용할 모델명 (기본값은 roberta-korean-hanja-stdict-mlm)
             device: 사용할 디바이스 ('auto', 'cuda', 'cpu')
         """
         self.model_name = model_name
@@ -40,10 +40,17 @@ class RobertaKoreanHanjaTokenizer:
             return
 
         try:
-            from transformers import AutoTokenizer, AutoModel
+            from transformers import AutoTokenizer, AutoModel, PreTrainedTokenizerFast
 
             # 토크나이저와 모델 로드
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            # hwp0725/roberta-korean-hanja-stdict-mlm의 tokenizer_config.json에
+            # tokenizer_class 오류가 있어 AutoTokenizer가 실패할 수 있으므로
+            # PreTrainedTokenizerFast → AutoTokenizer 순서로 시도
+            try:
+                self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            except (ValueError, OSError):
+                logger.info(f"AutoTokenizer 실패, PreTrainedTokenizerFast로 재시도: {self.model_name}")
+                self.tokenizer = PreTrainedTokenizerFast.from_pretrained(self.model_name)
             self.model = AutoModel.from_pretrained(self.model_name)
 
             # GPU로 이동
@@ -181,7 +188,7 @@ class RobertaKoreanHanjaTokenizer:
 _roberta_hanja_tokenizers = {}
 
 def get_roberta_hanja_tokenizer(
-    model_name: str = "klue/roberta-large", device: str = "auto"
+    model_name: str = "hwp0725/roberta-korean-hanja-stdict-mlm", device: str = "auto"
 ) -> RobertaKoreanHanjaTokenizer:
     """RoBERTa Korean-Hanja 토크나이저 싱글톤 인스턴스 반환"""
     global _roberta_hanja_tokenizers
@@ -195,14 +202,14 @@ def get_roberta_hanja_tokenizer(
     return _roberta_hanja_tokenizers[key]
 
 def roberta_extract_hanja(
-    text: str, model_name: str = "klue/roberta-large"
+    text: str, model_name: str = "hwp0725/roberta-korean-hanja-stdict-mlm"
 ) -> List[Dict[str, Any]]:
     """RoBERTa로 한자 부분 추출 및 토큰화 편의 함수"""
     tokenizer = get_roberta_hanja_tokenizer(model_name=model_name)
     return tokenizer.extract_hanja_parts(text)
 
 def roberta_tokenize_hanja(
-    hanja_text: str, model_name: str = "klue/roberta-large"
+    hanja_text: str, model_name: str = "hwp0725/roberta-korean-hanja-stdict-mlm"
 ) -> List[str]:
     """RoBERTa 한자 토큰화 편의 함수"""
     tokenizer = get_roberta_hanja_tokenizer(model_name=model_name)

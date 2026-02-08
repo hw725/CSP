@@ -16,6 +16,17 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+try:
+    from common.disk_cache import DiskCache
+except ImportError:
+    try:
+        from disk_cache import DiskCache
+    except ImportError:
+        DiskCache = None
+
+_particle_extract_cache = DiskCache("particle_extract", save_every=200) if DiskCache else None
+_archaic_pattern_cache = DiskCache("archaic_patterns", save_every=200) if DiskCache else None
+
 # 🆕 전역 싱글톤 인스턴스
 _korean_particle_matcher_instance = None
 _kiwi_tokenizer_instance = None
@@ -230,6 +241,11 @@ class KoreanParticleMatcher:
         Returns:
             List[Tuple[str, str, int]]: (토씨, 카테고리, 위치) 목록
         """
+        if _particle_extract_cache is not None:
+            cached = _particle_extract_cache.get(text)
+            if cached is not None:
+                return cached
+
         particles_found = []
 
         # Kiwipiepy로 한글 분석 (하이브리드 토크나이저의 핵심)
@@ -265,6 +281,8 @@ class KoreanParticleMatcher:
                                 particles_found.append((form, category, char_pos))
 
                     particles_found.sort(key=lambda x: x[2])
+                    if _particle_extract_cache is not None:
+                        _particle_extract_cache.put(text, particles_found)
                     return particles_found
                 else:
                     logger.warning(f"Kiwipiepy 분석 결과가 비어있음: {text}")
@@ -281,6 +299,8 @@ class KoreanParticleMatcher:
 
         # 위치순으로 정렬
         particles_found.sort(key=lambda x: x[2])
+        if _particle_extract_cache is not None:
+            _particle_extract_cache.put(text, particles_found)
         return particles_found
 
     def calculate_particle_similarity(
@@ -344,6 +364,11 @@ class KoreanParticleMatcher:
 
     def detect_archaic_patterns(self, text: str, mode: str = "SA") -> Dict[str, Any]:
         """고어 패턴 감지 (Kiwipiepy 결과 기반)"""
+        cache_key = f"{text}|{mode}"
+        if _archaic_pattern_cache is not None:
+            cached = _archaic_pattern_cache.get(cache_key)
+            if cached is not None:
+                return cached
         particles = self.extract_particles_from_text(text)
 
         strong_count = medium_count = weak_count = 0
@@ -384,7 +409,7 @@ class KoreanParticleMatcher:
         else:
             confidence = "none"
 
-        return {
+        result = {
             "patterns_found": patterns_found,
             "strong_count": strong_count,
             "medium_count": medium_count,
@@ -395,6 +420,9 @@ class KoreanParticleMatcher:
             "confidence": confidence,
             "text_length": text_length,
         }
+        if _archaic_pattern_cache is not None:
+            _archaic_pattern_cache.put(cache_key, result)
+        return result
 
     def get_archaic_bonus(self, text: str, mode: str = "SA") -> float:
         """고어 구조적 보너스 점수 반환"""

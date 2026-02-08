@@ -69,27 +69,36 @@ def evaluate_p2s(
     """
     P2S 평가: 원문 경계 F1 + 번역문 완전일치 시 원문 유사도
     """
-    # 필수 컬럼 확인
-    pred_has_book = "book_name" in pred_df.columns
-
-    # 데이터 정리
+    # 필수 컬럼 확인: book_name 또는 책명 지원
     pred_df = pred_df.copy()
     gold_df = gold_df.copy()
+
+    # 책명 → book_name 통합
+    for df in (pred_df, gold_df):
+        if "책명" in df.columns and "book_name" not in df.columns:
+            df["book_name"] = df["책명"]
+
+    pred_has_book = "book_name" in pred_df.columns
+    gold_has_book = "book_name" in gold_df.columns
+    use_book = pred_has_book and gold_has_book
+
+    # 데이터 정리
     for col in ("원문", "번역문"):
         pred_df[col] = pred_df[col].fillna("")
         gold_df[col] = gold_df[col].fillna("")
-    if "book_name" in gold_df.columns:
-        gold_df["book_name"] = gold_df["book_name"].fillna("")
-    if pred_has_book:
+    if use_book:
         pred_df["book_name"] = pred_df["book_name"].fillna("")
+        gold_df["book_name"] = gold_df["book_name"].fillna("")
 
-    # 그룹화
-    if pred_has_book:
-        pred_groups = pred_df.groupby(["book_name", "문단식별자"], sort=False)
-        gold_groups = gold_df.groupby(["book_name", "문단식별자"], sort=False)
+    # 그룹화 키 결정
+    if use_book:
+        group_cols = ["book_name", "문단식별자"]
     else:
-        pred_groups = pred_df.groupby("문단식별자", sort=False)
-        gold_groups = gold_df.groupby("문단식별자", sort=False)
+        group_cols = ["문단식별자"]
+
+    single_col = len(group_cols) == 1
+    pred_groups = pred_df.groupby(group_cols, sort=False)
+    gold_groups = gold_df.groupby(group_cols, sort=False)
 
     pred_keys = set(pred_groups.groups.keys())
     gold_keys = set(gold_groups.groups.keys())
@@ -109,28 +118,34 @@ def evaluate_p2s(
             "source_similarity_on_tgt_match": 0.0,
         }
 
-    # 평가
-    # 전역 무결성 체크
-    pred_src_global = normalize_text("".join(pred_df["원문"].astype(str)))
-    gold_src_global = normalize_text("".join(gold_df["원문"].astype(str)))
+    # 전역 무결성 체크: 문단식별자 기준 정렬 후 비교 (파일 순서 무관)
+    sorted_keys = sorted(common_keys)
+    pred_src_parts, gold_src_parts = [], []
+    integrity_fail_details = []
+    for key in sorted_keys:
+        gkey = (key,) if single_col else key
+        p_src = normalize_text("".join(pred_groups.get_group(gkey)["원문"].astype(str)))
+        g_src = normalize_text("".join(gold_groups.get_group(gkey)["원문"].astype(str)))
+        pred_src_parts.append(p_src)
+        gold_src_parts.append(g_src)
+        if p_src != g_src:
+            integrity_fail_details.append(
+                f"문단 {key}: Gold 길이={len(g_src)}, Pred 길이={len(p_src)}"
+            )
+
+    pred_src_global = "".join(pred_src_parts)
+    gold_src_global = "".join(gold_src_parts)
     is_global_integrity_ok = pred_src_global == gold_src_global
 
     integrity_details = ""
     if not is_global_integrity_ok:
         integrity_details = (
-            f"Gold 길이: {len(gold_src_global)}, Pred 길이: {len(pred_src_global)}\n"
+            f"Gold 총 길이: {len(gold_src_global)}, Pred 총 길이: {len(pred_src_global)}\n"
         )
-        min_len = min(len(gold_src_global), len(pred_src_global))
-        for i in range(min_len):
-            if gold_src_global[i] != pred_src_global[i]:
-                integrity_details += f"첫 불일치 위치: {i}\n"
-                integrity_details += (
-                    f"Gold (snippet): ...{gold_src_global[max(0, i-10):i+10]}...\n"
-                )
-                integrity_details += (
-                    f"Pred (snippet): ...{pred_src_global[max(0, i-10):i+10]}...\n"
-                )
-                break
+        if integrity_fail_details:
+            integrity_details += f"불일치 문단 수: {len(integrity_fail_details)}\n"
+            for d in integrity_fail_details[:5]:
+                integrity_details += f"  - {d}\n"
 
     # 평가
     tp = fp = fn = 0
@@ -141,8 +156,9 @@ def evaluate_p2s(
     src_sims_on_sent_match = []  # 번역문 일치하는 문장들의 원문 유사도
 
     for key in common_keys:
-        pred_g = pred_groups.get_group(key)
-        gold_g = gold_groups.get_group(key)
+        gkey = (key,) if single_col else key
+        pred_g = pred_groups.get_group(gkey)
+        gold_g = gold_groups.get_group(gkey)
 
         pred_src = [str(x) for x in pred_g["원문"].tolist()]
         pred_tgt = [str(x) for x in pred_g["번역문"].tolist()]

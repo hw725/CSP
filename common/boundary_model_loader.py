@@ -13,11 +13,12 @@ import math
 class CharEncoderForBoundary(nn.Module):
     """Boundary 태깅용 문자 인코더"""
 
-    def __init__(self, vocab_size: int, emb_dim: int = 64, hidden_dim: int = 128):
+    def __init__(self, vocab_size: int, emb_dim: int = 64, hidden_dim: int = 128, dropout: float = 0.0):
         super().__init__()
         self.emb = nn.Embedding(vocab_size, emb_dim, padding_idx=0)
         self.lstm = nn.LSTM(
-            emb_dim, hidden_dim, num_layers=2, bidirectional=True, batch_first=True
+            emb_dim, hidden_dim, num_layers=2, bidirectional=True, batch_first=True,
+            dropout=dropout,
         )
 
     def forward(self, x):
@@ -25,16 +26,40 @@ class CharEncoderForBoundary(nn.Module):
         return h
 
 class MultiHeadBoundary(nn.Module):
-    """멀티태스크 경계 태깅 모델"""
+    """멀티태스크 경계 태깅 모델 (BiLSTM + optional Self-Attention)"""
 
-    def __init__(self, vocab_size: int, tasks: List[str]):
+    def __init__(
+        self, vocab_size: int, tasks: List[str],
+        hidden_dim: int = 128, emb_dim: int = 0, dropout: float = 0.0,
+        n_attn_layers: int = 0, n_attn_heads: int = 4,
+    ):
         super().__init__()
-        self.encoder = CharEncoderForBoundary(vocab_size)
-        hidden_dim = 128
-        self.heads = nn.ModuleDict({t: nn.Linear(hidden_dim * 2, 1) for t in tasks})
+        # emb_dim=0이면 hidden_dim // 2 사용 (기본값: 128→64, 256→128)
+        if emb_dim <= 0:
+            emb_dim = hidden_dim // 2
+        self.encoder = CharEncoderForBoundary(vocab_size, emb_dim=emb_dim, hidden_dim=hidden_dim, dropout=dropout)
+        self.drop = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
+
+        enc_dim = hidden_dim * 2  # bidirectional
+        self.n_attn_layers = n_attn_layers
+
+        if n_attn_layers > 0:
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=enc_dim, nhead=n_attn_heads,
+                dim_feedforward=enc_dim * 2, dropout=dropout,
+                batch_first=True, norm_first=True,
+            )
+            self.attn = nn.TransformerEncoder(encoder_layer, num_layers=n_attn_layers)
+
+        self.heads = nn.ModuleDict({t: nn.Linear(enc_dim, 1) for t in tasks})
 
     def forward(self, x: torch.Tensor, task: str):
         h = self.encoder(x)
+        h = self.drop(h)
+        if self.n_attn_layers > 0:
+            # padding mask: x==0인 위치는 attention에서 무시
+            pad_mask = (x == 0)
+            h = self.attn(h, src_key_padding_mask=pad_mask)
         return self.heads[task](h).squeeze(-1)
 
 class BoundaryModelLoader:
@@ -74,10 +99,31 @@ class BoundaryModelLoader:
         self.max_len: int = checkpoint.get("max_len", 1024)
         tasks: List[str] = checkpoint.get("tasks", ["pa", "sa", "pd"])
 
+        # checkpoint에서 hidden_dim 추론 (head weight shape로)
+        state_dict_peek = checkpoint.get("state_dict", checkpoint)
+        hidden_dim = 128  # default
+        for t in tasks:
+            key = f"heads.{t}.weight"
+            if key in state_dict_peek:
+                hidden_dim = state_dict_peek[key].shape[1] // 2
+                break
+
+        # self-attention 설정 (없으면 0 = 기존 BiLSTM only)
+        n_attn_layers = checkpoint.get("n_attn_layers", 0)
+        n_attn_heads = checkpoint.get("n_attn_heads", 4)
+
+        # emb_dim 추론: state_dict에서 embedding weight shape 또는 기본값
+        emb_dim = 0  # 0이면 hidden_dim // 2
+        emb_key = "encoder.emb.weight"
+        if emb_key in state_dict_peek:
+            emb_dim = state_dict_peek[emb_key].shape[1]
+
         # 모델 초기화
-        self.model = MultiHeadBoundary(vocab_size=len(self.vocab) + 1, tasks=tasks).to(
-            self.device
-        )
+        self.model = MultiHeadBoundary(
+            vocab_size=len(self.vocab) + 1, tasks=tasks, hidden_dim=hidden_dim,
+            emb_dim=emb_dim,
+            n_attn_layers=n_attn_layers, n_attn_heads=n_attn_heads,
+        ).to(self.device)
 
         # state_dict 키 호환성 처리 (훈련 시점에 encoder 없이 저장된 체크포인트 지원)
         state_dict = checkpoint.get("state_dict", checkpoint)

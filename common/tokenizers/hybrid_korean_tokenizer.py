@@ -15,7 +15,7 @@ class HybridKoreanTokenizer:
 
     def __init__(
         self,
-        roberta_model: str = "klue/roberta-large",
+        roberta_model: str = "hwp0725/roberta-korean-hanja-stdict-mlm",
         kiwi_model: str = "base",
         device: str = "auto",
         fallback_to_siku: bool = True,
@@ -284,7 +284,7 @@ class HybridKoreanTokenizer:
 _hybrid_korean_tokenizer = None
 
 def get_hybrid_korean_tokenizer(
-    roberta_model: str = "klue/roberta-large",
+    roberta_model: str = "hwp0725/roberta-korean-hanja-stdict-mlm",
     kiwi_model: str = "base",
     device: str = "auto",
 ) -> HybridKoreanTokenizer:
