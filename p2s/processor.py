@@ -3054,6 +3054,72 @@ def process_paragraph_file(
 
     all_results: List[Dict] = []
     global_sent_idx = 1  # 전체 문장 번호 연속 부여
+    _ckpt_processed_indices: set[int] = set()  # resume 시 이미 처리된 df index
+    _paragraphs_since_ckpt = 0  # checkpoint 저장 카운터
+
+    # ── checkpoint resume 로직 ──
+    if resume and checkpoint_path:
+        try:
+            _ckpt_p = Path(checkpoint_path)
+            if _ckpt_p.exists() and _ckpt_p.stat().st_size > 0:
+                _ckpt_df = pd.read_csv(checkpoint_path, encoding="utf-8")
+                if len(_ckpt_df) > 0:
+                    # checkpoint 데이터를 all_results로 복원
+                    all_results = _ckpt_df.to_dict("records")
+
+                    # 이미 처리된 문단식별자 집합 생성
+                    _ckpt_para_ids = set()
+                    for _r in all_results:
+                        _pid = _r.get("문단식별자")
+                        if _pid is not None:
+                            _ckpt_para_ids.add(str(_pid))
+
+                    # df에서 이미 처리된 행의 index 찾기
+                    for _idx, _row in df.iterrows():
+                        _row_pid = str(_row.get("문단식별자", _idx + 1))
+                        if _row_pid in _ckpt_para_ids:
+                            _ckpt_processed_indices.add(_idx)
+
+                    # global_sent_idx 복원 (기존 최대값 + 1)
+                    _existing_sids = []
+                    for _r in all_results:
+                        _sid = _r.get("문장식별자")
+                        if _sid is not None:
+                            try:
+                                _existing_sids.append(int(_sid))
+                            except (ValueError, TypeError):
+                                pass
+                    if _existing_sids:
+                        global_sent_idx = max(_existing_sids) + 1
+
+                    # 컬럼명 복원 (책명 → book_name 내부 변환)
+                    for _r in all_results:
+                        if "책명" in _r and "book_name" not in _r:
+                            _r["book_name"] = _r.pop("책명")
+
+                    print(
+                        f"🔄 checkpoint에서 복구: {len(_ckpt_processed_indices)}개 문단 "
+                        f"({len(all_results)}개 문장 쌍), "
+                        f"{len(df) - len(_ckpt_processed_indices)}개 남음"
+                    )
+        except Exception as _e:
+            print(f"⚠️ checkpoint 복구 실패 (처음부터 시작): {_e}")
+            all_results = []
+            _ckpt_processed_indices = set()
+            global_sent_idx = 1
+
+    def _save_checkpoint():
+        """현재까지의 all_results를 checkpoint CSV로 저장"""
+        if not checkpoint_path or not all_results:
+            return
+        try:
+            _ckpt_df = pd.DataFrame(all_results)
+            # 컬럼명 정리 (book_name → 책명)
+            if "book_name" in _ckpt_df.columns:
+                _ckpt_df = _ckpt_df.rename(columns={"book_name": "책명"})
+            _ckpt_df.to_csv(checkpoint_path, index=False, encoding="utf-8")
+        except Exception as _e:
+            print(f"⚠️ checkpoint 저장 실패: {_e}")
 
     # (옵션) DP refine 디버그: 특정 (book:pid)만 JSON 덤프
     dp_debug_keys_raw = os.getenv("CSP_P2S_DP_DEBUG_KEYS", "").strip()
@@ -3081,6 +3147,15 @@ def process_paragraph_file(
         return out.strip() or "_"
 
     for idx, row in df.iterrows():
+        # ── checkpoint skip: 이미 처리된 문단 건너뛰기 ──
+        if idx in _ckpt_processed_indices:
+            if use_progress_bar:
+                try:
+                    update_unified_progress(1, 처리됨=len(all_results))
+                except Exception:
+                    pass
+            continue
+
         src_paragraph = str(row.get("원문", ""))
         tgt_paragraph = str(row.get("번역문", ""))
         original_para_id = row.get("문단식별자", idx + 1)  # 문단식별자를 미리 가져옴
@@ -3539,6 +3614,12 @@ def process_paragraph_file(
                 except:
                     pass
 
+            # ── checkpoint 저장 ──
+            _paragraphs_since_ckpt += 1
+            if checkpoint_path and checkpoint_every > 0 and _paragraphs_since_ckpt >= checkpoint_every:
+                _save_checkpoint()
+                _paragraphs_since_ckpt = 0
+
         else:
             # 🛡️ Zero Drop Mandate: 빈 문단이어도 절대 누락시키지 않음
             if verbose:
@@ -3565,6 +3646,16 @@ def process_paragraph_file(
                     update_unified_progress(1, 처리됨=len(all_results))
                 except:
                     pass
+
+            # ── checkpoint 저장 (fallback 경로) ──
+            _paragraphs_since_ckpt += 1
+            if checkpoint_path and checkpoint_every > 0 and _paragraphs_since_ckpt >= checkpoint_every:
+                _save_checkpoint()
+                _paragraphs_since_ckpt = 0
+
+    # ── 루프 완료 후 마지막 checkpoint 저장 (남은 분량) ──
+    if checkpoint_path and _paragraphs_since_ckpt > 0:
+        _save_checkpoint()
 
     if not all_results:
         if tracer is not None:
