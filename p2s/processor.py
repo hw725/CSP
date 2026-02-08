@@ -834,30 +834,37 @@ def process_paragraph_alignment_with_boundary_model(
             # === Pre-compute sim scores for DP (only DP-reachable pairs) ===
             sim_precomputed: Dict[tuple, float] = {}
 
-            # Init: (0, bpos, 0) for first segment
+            # 모든 (key, src_text, tgt_text) 쌍을 수집 후 배치 처리
+            _precomp_requests: List[tuple] = []  # (key, src_seg, tgt_seg)
+
             for bpos in boundary_candidates[0]:
                 seg = text[0:bpos]
                 if seg.strip():
-                    sim_precomputed[(0, bpos, 0)] = sim(seg, targets[0])
+                    _precomp_requests.append(((0, bpos, 0), seg, targets[0]))
 
-            # Transitions: (apos, bpos, i) for i in [1, n_parts-2]
             for i in range(1, n_parts - 1):
                 for bpos in boundary_candidates[i]:
                     for apos in boundary_candidates[i - 1]:
                         if bpos > apos:
                             seg = text[apos:bpos]
                             if seg.strip():
-                                sim_precomputed[(apos, bpos, i)] = sim(seg, targets[i])
+                                _precomp_requests.append(((apos, bpos, i), seg, targets[i]))
 
-            # Finalize: (bpos, len(text), n_parts-1) for last segment
             if n_parts >= 2:
                 last_i = n_parts - 2
                 for bpos in boundary_candidates[last_i]:
                     seg = text[bpos:]
                     if seg.strip():
-                        sim_precomputed[(bpos, len(text), len(targets) - 1)] = sim(
-                            seg, targets[-1]
-                        )
+                        _precomp_requests.append(((bpos, len(text), len(targets) - 1), seg, targets[-1]))
+
+            if _precomp_requests and hasattr(alignment_model, "compute_similarity_batch"):
+                _pairs = [(s, t) for _, s, t in _precomp_requests]
+                _scores = alignment_model.compute_similarity_batch(_pairs)
+                for (key, _, _), score in zip(_precomp_requests, _scores):
+                    sim_precomputed[key] = score
+            else:
+                for key, s_text, t_text in _precomp_requests:
+                    sim_precomputed[key] = sim(s_text, t_text)
 
             def sim_cached(start: int, end: int, target_idx: int) -> float:
                 return sim_precomputed.get((start, end, target_idx), 0.0)
@@ -880,16 +887,21 @@ def process_paragraph_alignment_with_boundary_model(
                     return False
                 return True
 
-            # precompute baseline sum for do-no-harm gate
-            baseline_sum = 0.0
+            # precompute baseline sum for do-no-harm gate (배치)
+            _baseline_pairs = []
             cur_pos = 0
             for i in range(n_parts - 1):
                 nxt = orig_boundaries[i]
                 if _seg_ok(cur_pos, nxt):
-                    baseline_sum += sim(text[cur_pos:nxt], targets[i])
+                    _baseline_pairs.append((text[cur_pos:nxt], targets[i]))
                 cur_pos = nxt
             if _seg_ok(cur_pos, len(text)):
-                baseline_sum += sim(text[cur_pos:], targets[-1])
+                _baseline_pairs.append((text[cur_pos:], targets[-1]))
+
+            if _baseline_pairs and hasattr(alignment_model, "compute_similarity_batch"):
+                baseline_sum = sum(alignment_model.compute_similarity_batch(_baseline_pairs))
+            else:
+                baseline_sum = sum(sim(s, t) for s, t in _baseline_pairs)
 
             for i, cs in enumerate(boundary_candidates):
                 dp.append([NEG] * len(cs))
@@ -1031,27 +1043,8 @@ def process_paragraph_alignment_with_boundary_model(
             use_batch = False
             batch_scores = []
 
-            # Check if sim is a bound method of BoundaryAwareAlignmentMatcher
-            if hasattr(sim, "__self__") and hasattr(
-                sim.__self__, "compute_batch_similarity"
-            ):
-                try:
-                    pairs = []
-                    for s, e, ti in requests:
-                        pairs.append((text[s:e], targets[ti]))
-
-                    # Call batch compute (GPU accelerated)
-                    # batch_size=256 or 512
-                    batch_scores = sim.__self__.compute_batch_similarity(
-                        pairs, batch_size=512
-                    )
-                    use_batch = True
-                except Exception:
-                    import traceback
-
-                    traceback.print_exc()
-                    # Fallback if anything goes wrong
-                    use_batch = False
+            # _global_dp_refine의 sim_table: 개별 호출 유지 (DP 동점 안정성)
+            # 배치 경로 비활성화 — use_batch=False 유지
 
             if use_batch:
                 # Fill table from batch results
@@ -1187,11 +1180,9 @@ def process_paragraph_alignment_with_boundary_model(
                 if not spans:
                     continue
 
-                base_1 = sim(s1, t1)
-                base_2 = sim(s2, t2)
-                base = base_1 + base_2
-                best = base
-                best_pos = boundary
+                # base + 후보 sim을 한 번에 배치 계산하기 위해
+                # 먼저 후보 위치를 수집한 뒤 아래에서 일괄 스코어링
+                _use_batch_refine = hasattr(alignment_model, "compute_similarity_batch")
 
                 # 후보 경계 위치 생성: 좌/우로 최대 local_max_shift_tokens 토큰까지 이동
                 # - 문자열 내용은 절대 변경하지 않고, combined 내 '경계 위치(pos)'만 바꾼다.
@@ -1309,6 +1300,9 @@ def process_paragraph_alignment_with_boundary_model(
                 # 후보들 평가
                 # NOTE: candidates는 set이므로 순회 순서가 구현/상태에 따라 달라질 수 있다.
                 # 점수 동률(또는 매우 근접) 시 결과가 흔들리지 않도록 안정적인 순서 + tie-break를 적용한다.
+
+                # 유효 후보 수집 → 배치 스코어링
+                _valid_positions = []
                 for pos in sorted(candidates, key=lambda p: (abs(p - boundary), p)):
                     if pos <= 0 or pos >= len(combined):
                         continue
@@ -1318,12 +1312,35 @@ def process_paragraph_alignment_with_boundary_model(
                         continue
                     if boundary_is_inside_token(cand1, cand2):
                         continue
+                    _valid_positions.append(pos)
 
-                    # 일반화 점수: 번역문 정합(sim) + 경계 자연스러움(공백/구두점) - 이동거리 패널티
-                    # - 특정 pid/문구 하드코딩 없이, 데이터셋 변화에 강한 신호만 사용
-                    # - 동일 base_score일 때는 원래 boundary에 가까운 후보를 선호
-                    score_1 = sim(cand1, t1)
-                    score_2 = sim(cand2, t2)
+                if _use_batch_refine and _valid_positions:
+                    _batch_pairs = [(s1, t1), (s2, t2)]
+                    for pos in _valid_positions:
+                        _batch_pairs.append((combined[:pos], t1))
+                        _batch_pairs.append((combined[pos:], t2))
+                    _batch_scores = alignment_model.compute_similarity_batch(_batch_pairs)
+                    base_1 = _batch_scores[0]
+                    base_2 = _batch_scores[1]
+                    base = base_1 + base_2
+                    best = base
+                    best_pos = boundary
+                    _cand_scores = _batch_scores[2:]
+                else:
+                    base_1 = sim(s1, t1)
+                    base_2 = sim(s2, t2)
+                    base = base_1 + base_2
+                    best = base
+                    best_pos = boundary
+                    _cand_scores = None
+
+                for _vi, pos in enumerate(_valid_positions):
+                    if _cand_scores is not None:
+                        score_1 = _cand_scores[_vi * 2]
+                        score_2 = _cand_scores[_vi * 2 + 1]
+                    else:
+                        score_1 = sim(combined[:pos], t1)
+                        score_2 = sim(combined[pos:], t2)
                     base_score = score_1 + score_2
 
                     # 경계의 '자연스러움' 보너스(약하게)
@@ -2949,12 +2966,76 @@ def process_paragraph_file(
                             _warmup_parsers.split_source_with_supar(_src)
                         except Exception:
                             pass
-                _warmup_parsers._supar_split_cache.save()
+                _warmup_parsers._supar_split_cache.flush()
                 print(f"✅ SuPar 캐시 워밍 완료")
             else:
                 print(f"✅ SuPar 캐시 히트 ({_cached}/{len(src_texts)})")
         except Exception as e:
             print(f"⚠️ SuPar 캐시 워밍 실패(무시): {e}")
+
+    # ── BGE-M3 임베딩 사전계산 ──
+    # 메인 루프 전에 모든 타겟 문장을 미리 임베딩 → 디스크 캐시에 저장
+    # 이후 split_source_by_whitespace_and_align()에서 캐시 히트로 즉시 반환
+    if embedder_name == "bge":
+        try:
+            from common.embedders.bge import get_embedding_manager
+            _bge_mgr = get_embedding_manager()
+            _bge_mgr._load_model()  # 모델 로딩 (캐시 키 확인에 필요)
+
+            # 1) 모든 타겟 문장 수집
+            _all_tgt_sentences: List[str] = []
+            for _, _row in df.iterrows():
+                _tgt = str(_row.get("번역문", "")).strip()
+                if _tgt:
+                    try:
+                        _sents = split_target_sentences_advanced(_tgt, max_length=max_length)
+                        _all_tgt_sentences.extend(_sents)
+                    except Exception:
+                        _all_tgt_sentences.append(_tgt)
+
+            # 2) 중복 제거 + 이미 캐시된 것 제외
+            _unique_texts = list(dict.fromkeys(_all_tgt_sentences))  # 순서 유지 중복 제거
+            _cache_suffix = "_multi"
+            _uncached = [t for t in _unique_texts if (t + _cache_suffix) not in _bge_mgr._cache]
+
+            if _uncached:
+                print(f"🔄 BGE-M3 임베딩 사전계산 중... ({len(_unique_texts) - len(_uncached)}/{len(_unique_texts)} 캐시됨, {len(_uncached)}개 계산 필요)")
+                try:
+                    from tqdm import tqdm
+                    _use_tqdm = True
+                except ImportError:
+                    _use_tqdm = False
+
+                # A40(48GB)에서는 batch_size=32, RTX 3070(8GB)에서는 batch_size=8
+                _precomp_batch = int(os.environ.get("CSP_BGE_PRECOMP_BATCH", "16"))
+                _total_batches = (len(_uncached) + _precomp_batch - 1) // _precomp_batch
+
+                if _use_tqdm:
+                    _pbar = tqdm(total=len(_uncached), desc="BGE-M3 사전계산", unit="문장",
+                                 bar_format="{desc}: {percentage:3.0f}%|{bar:40}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]")
+                else:
+                    _pbar = None
+
+                for _bi in range(0, len(_uncached), _precomp_batch):
+                    _batch = _uncached[_bi : _bi + _precomp_batch]
+                    _bge_mgr.compute_embeddings_with_cache(
+                        _batch, batch_size=_precomp_batch, use_multi_vector=True, save_to_disk=False
+                    )
+                    if _pbar is not None:
+                        _pbar.update(len(_batch))
+                    elif (_bi // _precomp_batch) % 10 == 0:
+                        print(f"  ... {_bi + len(_batch)}/{len(_uncached)}")
+
+                if _pbar is not None:
+                    _pbar.close()
+
+                # 한 번에 디스크 캐시 저장
+                _bge_mgr._save_disk_cache()
+                print(f"✅ BGE-M3 임베딩 사전계산 완료 ({len(_uncached)}개 새로 계산, 총 {len(_bge_mgr._cache)}개 캐시)")
+            else:
+                print(f"✅ BGE-M3 임베딩 캐시 히트 ({len(_unique_texts)}/{len(_unique_texts)})")
+        except Exception as e:
+            print(f"⚠️ BGE-M3 임베딩 사전계산 실패(무시, 메인 루프에서 개별 계산): {e}")
 
     # 진행률 초기화
     try:

@@ -452,16 +452,23 @@ class BoundaryAwareAlignmentMatcher:
                 src_idx + 1, len(src_segments) - (remaining_tgt - 1)
             )
             max_end = min(src_idx + 5, latest_end_allowed + 1)
+
+            # 후보 수집 후 배치 스코어링
+            candidates = []
             for end_idx in range(src_idx + 1, max_end):
                 window = src_segments[src_idx:end_idx]
                 src_text = "".join(window)
-                extra_bounds = self._segment_boundaries_from_segments(window)
-                score = _score_pair(
-                    src_text, tgt_seg, src_extra_boundaries=extra_bounds
-                )
-                if score > best_score:
-                    best_score = score
-                    best_end = end_idx
+                candidates.append((end_idx, src_text))
+
+            if len(candidates) == 1:
+                best_end = candidates[0][0]
+            elif len(candidates) > 1:
+                pairs = [(src_text, tgt_seg) for _, src_text in candidates]
+                scores = self.compute_similarity_batch(pairs)
+                for (end_idx, _), score in zip(candidates, scores):
+                    if score > best_score:
+                        best_score = score
+                        best_end = end_idx
 
             if best_end <= src_idx:
                 best_end = min(src_idx + 1, len(src_segments))

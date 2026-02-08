@@ -1716,15 +1716,14 @@ def split_source_by_whitespace_and_align(
                     # PA에서도 SA와 동일한 안정적 멀티벡터 설정을 공유하므로, 용도를 명확히 표기
                     print("✅ BGE-M3 Multi-Vector 임베딩 사용 (PA 분할용, 작은 배치)")
 
-                    # SA 방식: 작은 배치 크기 + Multi-vector로 안전하게 처리
+                    # RTX 3070 (8GB) 기준 안전한 배치 크기 + Multi-vector
                     target_embeddings = embedder.compute_embeddings_with_cache(
-                        target_sentences, batch_size=4, use_multi_vector=True
+                        target_sentences, batch_size=8, use_multi_vector=True
                     )
 
                     def bge_embed_source(texts):
-                        # PA에서도 SA처럼 작은 배치 + Multi-vector로 처리
                         return embedder.compute_embeddings_with_cache(
-                            texts, batch_size=4, use_multi_vector=True
+                            texts, batch_size=8, use_multi_vector=True
                         )
 
                     embed_func = bge_embed_source
