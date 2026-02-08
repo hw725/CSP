@@ -145,7 +145,7 @@ class EmbeddingManager:
             self._use_legacy_api = False
 
         try:
-            from FlagEmbedding import FlagModel
+            from FlagEmbedding import BGEM3FlagModel as FlagModel
 
             # 🔧 verbose 모드에서만 출력
             if logger.isEnabledFor(logging.DEBUG):
@@ -177,7 +177,6 @@ class EmbeddingManager:
 
                         self.model = FlagModel(
                             self.model_name,
-                            query_instruction_for_retrieval="Represent this query for retrieving relevant documents: ",
                             use_fp16=True,
                         )
             else:
@@ -193,7 +192,6 @@ class EmbeddingManager:
 
                 self.model = FlagModel(
                     self.model_name,
-                    query_instruction_for_retrieval="Represent this query for retrieving relevant documents: ",
                     use_fp16=True,
                 )
 

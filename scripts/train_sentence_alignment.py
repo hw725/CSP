@@ -1,282 +1,348 @@
 #!/usr/bin/env python3
-"""Train sentence alignment model (원문 문장 ↔ 번역문 문장)
+"""P2S Alignment 모델 학습 (BoundaryAwareDualEncoder)
 
-핵심 원칙:
-- 학습 데이터: sentence_train.xlsx → CSV (원문, 번역문)
-- 원문(src)과 번역문(tgt) 쌍을 동시에 학습
-- Hard Negative: 같은 배치 내 다른 쌍을 negative로 사용
-- 출력: models/sentence_alignment.pt (P2S 파이프라인용)
+원문 문장 <-> 번역문 문장 정렬 모델을 학습한다.
+- Production 모델(boundary_aware_alignment_loader.py)의 BoundaryAwareDualEncoder 아키텍처와 동일
+- 학습 데이터: sentence_train.tsv (원문, 번역문 쌍)
+- Contrastive loss + Boundary classifier loss
+- Validation + Early stopping + CosineAnnealingLR
+
+Usage:
+    python scripts/train_sentence_alignment.py --epochs 20 --batch 128
 """
 
-from __future__ import annotations
-import argparse
-import os
+import sys
 from pathlib import Path
-from typing import List, Optional
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import argparse
+import pandas as pd
+from typing import Dict, List, Tuple
 
 import torch
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
-import pandas as pd
+
+# Production 모델 클래스 재사용
+from common.boundary_aware_alignment_loader import (
+    BoundaryAwareCharEncoder,
+    BoundaryAwareDualEncoder,
+)
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
+DATASETS_ROOT = WORKSPACE_ROOT / "datasets"
 MODELS_ROOT = WORKSPACE_ROOT / "models"
 
-class SentenceAlignmentDataset(Dataset):
-    """원문 문장 ↔ 번역문 문장 정렬 데이터셋 (CSV 기반)"""
 
-    def __init__(
-        self,
-        csv_path: Path,
-        build_vocab: bool = False,
-        vocab_src=None,
-        vocab_tgt=None,
-        max_len: int = 512,
-    ):
-        self.csv_path = csv_path
+def load_sentence_pairs(xlsx_path: Path) -> List[Dict]:
+    """
+    sentence_train.tsv에서 (원문, 번역문, 책명) 쌍을 로드한다.
+
+    Returns:
+        [{"src": "원문텍스트", "tgt": "번역문텍스트", "book": "책명"}, ...]
+    """
+    df = pd.read_csv(xlsx_path, sep='\t')
+
+    for col in ("원문", "번역문"):
+        if col in df.columns:
+            df[col] = df[col].fillna("")
+
+    samples = []
+    for _, row in df.iterrows():
+        src = str(row["원문"]).strip()
+        tgt = str(row["번역문"]).strip()
+        book = str(row.get("책명", ""))
+
+        if src and tgt:
+            samples.append({"src": src, "tgt": tgt, "book": book})
+
+    print(f"  유효 문장 쌍: {len(samples)}개")
+    return samples
+
+
+def build_vocabs(samples: List[Dict]) -> Tuple[Dict[str, int], Dict[str, int]]:
+    """원문/번역문 각각의 vocab 구축"""
+    src_chars = set()
+    tgt_chars = set()
+    for s in samples:
+        src_chars.update(list(s["src"]))
+        tgt_chars.update(list(s["tgt"]))
+
+    vocab_src = {c: i + 1 for i, c in enumerate(sorted(src_chars))}
+    vocab_tgt = {c: i + 1 for i, c in enumerate(sorted(tgt_chars))}
+    return vocab_src, vocab_tgt
+
+
+class AlignmentDataset(Dataset):
+    """원문-번역문 정렬 학습 데이터셋"""
+
+    def __init__(self, samples: List[Dict], vocab_src: Dict, vocab_tgt: Dict, max_len: int = 512):
+        self.samples = samples
+        self.vocab_src = vocab_src
+        self.vocab_tgt = vocab_tgt
         self.max_len = max_len
 
-        # CSV 로드
-        df = pd.read_csv(csv_path, dtype=str)
-        df = df.fillna("")
+    def __len__(self):
+        return len(self.samples)
 
-        # CSV 컬럼: 원문, 번역문
-        self.src_texts = df["원문"].tolist()
-        self.tgt_texts = df["번역문"].tolist()
-
-        # 빈 문자열 제거
-        valid_pairs = [
-            (s, t)
-            for s, t in zip(self.src_texts, self.tgt_texts)
-            if s.strip() and t.strip()
-        ]
-        self.src_texts = [p[0] for p in valid_pairs]
-        self.tgt_texts = [p[1] for p in valid_pairs]
-
-        print(f"📂 Loaded {len(self.src_texts)} sentence pairs from {csv_path}")
-
-        # Vocab 구축 또는 재사용
-        if build_vocab:
-            src_chars = set()
-            tgt_chars = set()
-            for s in self.src_texts:
-                src_chars.update(list(s))
-            for t in self.tgt_texts:
-                tgt_chars.update(list(t))
-            self.vocab_src = {c: i + 1 for i, c in enumerate(sorted(src_chars))}
-            self.vocab_tgt = {c: i + 1 for i, c in enumerate(sorted(tgt_chars))}
-        else:
-            self.vocab_src = vocab_src or {}
-            self.vocab_tgt = vocab_tgt or {}
-
-        # Hard Negative 가중치 (기본 1.0)
-        self.HN = [torch.tensor(1.0, dtype=torch.float32) for _ in self.src_texts]
-
-    def encode_text(self, t: str, vocab) -> torch.Tensor:
-        ids = [vocab.get(ch, 0) for ch in t][: self.max_len]
+    def _encode(self, text: str, vocab: Dict) -> torch.Tensor:
+        ids = [vocab.get(ch, 0) for ch in text][:self.max_len]
         if len(ids) < self.max_len:
             ids += [0] * (self.max_len - len(ids))
         return torch.tensor(ids, dtype=torch.long)
 
-    def __len__(self):
-        return len(self.src_texts)
-
     def __getitem__(self, idx):
-        src_enc = self.encode_text(self.src_texts[idx], self.vocab_src)
-        tgt_enc = self.encode_text(self.tgt_texts[idx], self.vocab_tgt)
-        return src_enc, tgt_enc, self.HN[idx]
+        s = self.samples[idx]
+        src_enc = self._encode(s["src"], self.vocab_src)
+        tgt_enc = self._encode(s["tgt"], self.vocab_tgt)
+        return src_enc, tgt_enc
 
-class CharEncoder(nn.Module):
-    """문자 단위 인코더 (BiLSTM)"""
 
-    def __init__(self, vocab_size: int, emb_dim: int = 64, hidden: int = 128):
-        super().__init__()
-        self.emb = nn.Embedding(vocab_size + 1, emb_dim, padding_idx=0)
-        self.lstm = nn.LSTM(emb_dim, hidden, bidirectional=True, batch_first=True)
-        self.proj = nn.Linear(hidden * 2, 256)
+def contrastive_loss(v_src: torch.Tensor, v_tgt: torch.Tensor, temperature: float = 0.07):
+    """
+    Symmetric contrastive loss (in-batch negatives).
+    v_src, v_tgt: [B, 256], L2-normalized
+    """
+    sim = torch.matmul(v_src, v_tgt.T) / temperature  # [B, B]
+    labels = torch.arange(v_src.size(0), device=v_src.device)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        e = self.emb(x)
-        out, _ = self.lstm(e)
-        # Mean pooling over sequence
-        mask = (x != 0).float().unsqueeze(-1)
-        pooled = (out * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1)
-        return self.proj(pooled)
+    loss_s2t = nn.CrossEntropyLoss()(sim, labels)
+    loss_t2s = nn.CrossEntropyLoss()(sim.T, labels)
+    return (loss_s2t + loss_t2s) / 2
 
-class DualEncoder(nn.Module):
-    """Dual Encoder: 원문/번역문 각각 인코딩 후 유사도 계산"""
 
-    def __init__(self, vocab_src: int, vocab_tgt: int):
-        super().__init__()
-        self.enc_src = CharEncoder(vocab_src)
-        self.enc_tgt = CharEncoder(vocab_tgt)
+def boundary_classifier_loss(
+    model: BoundaryAwareDualEncoder,
+    v_src: torch.Tensor,
+    v_tgt: torch.Tensor,
+):
+    """
+    Boundary classifier loss: positive=aligned pair, negative=shifted pair.
+    v_src, v_tgt: [B, 256]
+    """
+    B = v_src.size(0)
+    if B < 2:
+        return torch.tensor(0.0, device=v_src.device)
 
-    def forward(self, xs: torch.Tensor, xt: torch.Tensor):
-        v_src = self.enc_src(xs)  # [B, 256]
-        v_tgt = self.enc_tgt(xt)  # [B, 256]
-        return v_src, v_tgt
+    # Positive pairs: (src[i], tgt[i]) -> label=1
+    pos_combined = torch.cat([v_src, v_tgt], dim=-1)  # [B, 512]
+    pos_scores = model.boundary_classifier(pos_combined).squeeze(-1)  # [B]
+    pos_labels = torch.ones(B, device=v_src.device)
 
-def train_epoch(model, train_loader, optimizer, device, temperature=0.07):
-    """한 에포크 훈련"""
-    model.train()
-    total_loss = 0.0
+    # Negative pairs: (src[i], tgt[(i+1)%B]) -> label=0
+    tgt_shifted = torch.roll(v_tgt, shifts=1, dims=0)
+    neg_combined = torch.cat([v_src, tgt_shifted], dim=-1)  # [B, 512]
+    neg_scores = model.boundary_classifier(neg_combined).squeeze(-1)  # [B]
+    neg_labels = torch.zeros(B, device=v_src.device)
+
+    # Combined BCE loss
+    all_scores = torch.cat([pos_scores, neg_scores])
+    all_labels = torch.cat([pos_labels, neg_labels])
+    loss = nn.BCELoss()(all_scores, all_labels)
+    return loss
+
+
+def compute_val_metrics(
+    model: BoundaryAwareDualEncoder,
+    val_loader: DataLoader,
+    device: torch.device,
+    temperature: float = 0.07,
+):
+    """Validation 메트릭 계산: contrastive loss + boundary accuracy"""
+    model.eval()
+    total_closs = 0.0
+    total_bloss = 0.0
     n_batches = 0
+    correct = 0
+    total = 0
 
-    for xs, xt in train_loader:
-        xs = xs.to(device)
-        xt = xt.to(device)
+    with torch.no_grad():
+        for src_ids, tgt_ids in val_loader:
+            src_ids = src_ids.to(device)
+            tgt_ids = tgt_ids.to(device)
 
-        v_src, v_tgt = model(xs, xt)
+            zs, zt, _ = model(src_ids, tgt_ids, compute_boundary_match=True)
 
-        # 유사도 행렬 [batch, batch]
-        sim = torch.matmul(v_src, v_tgt.T) / temperature
+            # Contrastive loss
+            closs = contrastive_loss(zs, zt, temperature)
+            total_closs += closs.item()
 
-        # 정답: 대각선
-        labels = torch.arange(xs.size(0), device=device)
+            # Boundary accuracy (positive pairs)
+            B = zs.size(0)
+            if B >= 2:
+                pos_combined = torch.cat([zs, zt], dim=-1)
+                pos_scores = model.boundary_classifier(pos_combined).squeeze(-1)
+                correct += (pos_scores >= 0.5).sum().item()
+                total += B
 
-        # Loss
-        loss_src_to_tgt = nn.CrossEntropyLoss()(sim, labels)
-        loss_tgt_to_src = nn.CrossEntropyLoss()(sim.T, labels)
-        loss = (loss_src_to_tgt + loss_tgt_to_src) / 2
+                tgt_shifted = torch.roll(zt, shifts=1, dims=0)
+                neg_combined = torch.cat([zs, tgt_shifted], dim=-1)
+                neg_scores = model.boundary_classifier(neg_combined).squeeze(-1)
+                correct += (neg_scores < 0.5).sum().item()
+                total += B
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+            n_batches += 1
 
-        total_loss += loss.item()
-        n_batches += 1
+    avg_closs = total_closs / max(1, n_batches)
+    boundary_acc = correct / max(1, total)
+    return avg_closs, boundary_acc
 
-    return total_loss / max(1, n_batches)
 
 def main():
-    parser = argparse.ArgumentParser(description="Train Sentence Alignment Model")
+    parser = argparse.ArgumentParser(description="Train P2S Alignment Model (BoundaryAwareDualEncoder)")
     parser.add_argument(
-        "--train-csv",
-        type=str,
-        default="datasets/sentence/train.csv",
-        help="학습용 CSV 경로",
+        "--train-xlsx", type=str,
+        default="datasets/splits/sentence_train.tsv",
+        help="문장 Excel (train)",
     )
-    parser.add_argument("--epochs", type=int, default=10, help="에포크 수")
-    parser.add_argument("--batch", type=int, default=128, help="배치 크기")
-    parser.add_argument("--lr", type=float, default=1e-3, help="학습률")
-    parser.add_argument("--max-len", type=int, default=512, help="최대 시퀀스 길이")
-    parser.add_argument("--device", type=str, default="cuda", help="디바이스")
     parser.add_argument(
-        "--out", type=str, default="models/sentence_alignment.pt", help="출력 모델 경로"
+        "--val-xlsx", type=str,
+        default="datasets/splits/sentence_val.tsv",
+        help="문장 Excel (val)",
     )
-    parser.add_argument("--trace", type=str, default=None, help="Trace JSONL 경로")
-    # train_p2s_boundary.py에서 전달하는 옵션들 (무시)
-    parser.add_argument("--max-steps", type=int, default=0, help="(unused)")
-    parser.add_argument("--temperature", type=float, default=0.07, help="(unused)")
-    parser.add_argument("--seed", type=int, default=0, help="(unused)")
-    parser.add_argument(
-        "--hard-neg-mode", type=str, default="prefix_token", help="(unused)"
-    )
-    parser.add_argument("--hard-neg-weight", type=float, default=0.5, help="(unused)")
-    parser.add_argument("--hard-neg-margin", type=float, default=0.15, help="(unused)")
-    parser.add_argument("--enable-hard-neg", action="store_true", help="(unused)")
+    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--batch", type=int, default=128)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--max-len", type=int, default=512)
+    parser.add_argument("--temperature", type=float, default=0.07, help="Contrastive loss temperature")
+    parser.add_argument("--boundary-weight", type=float, default=0.3, help="Boundary loss 가중치")
+    parser.add_argument("--patience", type=int, default=5, help="Early stopping patience")
+    parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--out", type=str, default="models/dual_encoder_alignment_p2s.pt")
+    parser.add_argument("--seed", type=int, default=42)
+
     args = parser.parse_args()
 
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
-    print(f"🖥️ Device: {device}")
+    print(f"Device: {device}")
 
-    # 데이터 로드
-    train_csv = WORKSPACE_ROOT / args.train_csv
-    train_ds = SentenceAlignmentDataset(
-        train_csv, build_vocab=True, max_len=args.max_len
-    )
-    train_loader = DataLoader(
-        train_ds, batch_size=args.batch, shuffle=True, num_workers=0
-    )
+    # Train 데이터 로드
+    train_xlsx = WORKSPACE_ROOT / args.train_xlsx
+    assert train_xlsx.exists(), f"파일 없음: {train_xlsx}"
+    print(f"[Train] 문장: {train_xlsx}")
+    train_samples = load_sentence_pairs(train_xlsx)
 
-    print(
-        f"📊 Vocab sizes: src={len(train_ds.vocab_src)}, tgt={len(train_ds.vocab_tgt)}"
-    )
+    if not train_samples:
+        print("유효한 학습 샘플이 없습니다.")
+        return 1
 
-    # 모델 초기화
-    model = DualEncoder(len(train_ds.vocab_src), len(train_ds.vocab_tgt)).to(device)
+    # Val 데이터 로드
+    val_xlsx = WORKSPACE_ROOT / args.val_xlsx
+    assert val_xlsx.exists(), f"파일 없음: {val_xlsx}"
+    print(f"[Val] 문장: {val_xlsx}")
+    val_samples = load_sentence_pairs(val_xlsx)
+
+    # Vocab 구축 (train + val 통합)
+    vocab_src, vocab_tgt = build_vocabs(train_samples + val_samples)
+    print(f"Vocab: src={len(vocab_src)}자, tgt={len(vocab_tgt)}자")
+    print(f"Train: {len(train_samples)}개, Val: {len(val_samples)}개")
+
+    # Dataset & DataLoader
+    train_ds = AlignmentDataset(train_samples, vocab_src, vocab_tgt, max_len=args.max_len)
+    val_ds = AlignmentDataset(val_samples, vocab_src, vocab_tgt, max_len=args.max_len)
+    train_loader = DataLoader(train_ds, batch_size=args.batch, shuffle=True, num_workers=0, drop_last=True)
+    val_loader = DataLoader(val_ds, batch_size=args.batch, shuffle=False, num_workers=0)
+
+    # 모델 초기화 (production과 동일 아키텍처)
+    model = BoundaryAwareDualEncoder(
+        vocab_src=len(vocab_src) + 1,
+        vocab_tgt=len(vocab_tgt) + 1,
+    ).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
-    # Trace 기록용
-    trace_records = []
+    print(f"\nTraining: {args.epochs} epochs, batch={args.batch}, lr={args.lr}")
+    print(f"temperature={args.temperature}, boundary_weight={args.boundary_weight}, patience={args.patience}")
+    print("-" * 60)
 
-    # 학습 루프
+    best_val_loss = float("inf")
+    best_state = None
+    patience_counter = 0
+
     for epoch in range(1, args.epochs + 1):
+        # --- Train ---
         model.train()
-        total_loss = 0.0
+        train_closs = 0.0
+        train_bloss = 0.0
         n_batches = 0
 
-        for xs, xt, _ in train_loader:
-            xs = xs.to(device)
-            xt = xt.to(device)
+        for src_ids, tgt_ids in train_loader:
+            src_ids = src_ids.to(device)
+            tgt_ids = tgt_ids.to(device)
 
-            v_src, v_tgt = model(xs, xt)
+            # Forward: get embeddings only (boundary는 별도 계산)
+            zs, zt = model(src_ids, tgt_ids, compute_boundary_match=False)
 
-            # Contrastive loss: In-batch negatives
-            # 정답: 대각선 (i-th src와 i-th tgt가 매칭)
-            # 오답: 같은 배치 내 다른 쌍
-            sim = torch.matmul(v_src, v_tgt.T)  # [B, B]
-            labels = torch.arange(xs.size(0), device=device)
+            # Contrastive loss
+            closs = contrastive_loss(zs, zt, args.temperature)
 
-            loss_src = nn.CrossEntropyLoss()(sim, labels)
-            loss_tgt = nn.CrossEntropyLoss()(sim.T, labels)
-            loss = (loss_src + loss_tgt) / 2
+            # Boundary classifier loss
+            bloss = boundary_classifier_loss(model, zs, zt)
+
+            # Combined loss
+            loss = closs + args.boundary_weight * bloss
 
             optimizer.zero_grad()
             loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
 
-            total_loss += loss.item()
+            train_closs += closs.item()
+            train_bloss += bloss.item()
             n_batches += 1
 
-        avg_loss = total_loss / max(1, n_batches)
-        print(f"Epoch {epoch}/{args.epochs}: loss={avg_loss:.4f}")
+        scheduler.step()
+        avg_train_closs = train_closs / max(1, n_batches)
+        avg_train_bloss = train_bloss / max(1, n_batches)
 
-        # Trace 기록
-        if args.trace:
-            from datetime import datetime
+        # --- Validation ---
+        val_closs, val_boundary_acc = compute_val_metrics(
+            model, val_loader, device, args.temperature
+        )
 
-            trace_records.append(
-                {
-                    "epoch": epoch,
-                    "loss": avg_loss,
-                    "timestamp": datetime.now().isoformat(),
-                    "stage": "train_sentence_alignment",
-                }
-            )
+        lr_now = scheduler.get_last_lr()[0]
+        print(
+            f"Epoch {epoch:3d}/{args.epochs}: "
+            f"train_closs={avg_train_closs:.4f}  train_bloss={avg_train_bloss:.4f}  "
+            f"val_closs={val_closs:.4f}  val_bacc={val_boundary_acc:.4f}  "
+            f"lr={lr_now:.6f}"
+        )
 
-    # 모델 저장
-    out_path = WORKSPACE_ROOT / args.out
+        # Early stopping (val contrastive loss 기준)
+        if val_closs < best_val_loss:
+            best_val_loss = val_closs
+            best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+            patience_counter = 0
+            print(f"  -> best val_closs 갱신: {best_val_loss:.4f}")
+        else:
+            patience_counter += 1
+            if patience_counter >= args.patience:
+                print(f"  Early stopping (patience={args.patience})")
+                break
+
+    print("-" * 60)
+    print(f"Best val contrastive loss: {best_val_loss:.4f}")
+
+    # 모델 저장 (production loader 호환 형식)
+    out_path = WORKSPACE_ROOT / args.out if not Path(args.out).is_absolute() else Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    save_state = best_state if best_state is not None else model.state_dict()
     torch.save(
         {
-            "state_dict": model.state_dict(),
-            "vocab_src": train_ds.vocab_src,
-            "vocab_tgt": train_ds.vocab_tgt,
+            "state_dict": save_state,
+            "vocab_src": vocab_src,
+            "vocab_tgt": vocab_tgt,
             "max_len": args.max_len,
-            "config": {
-                "epochs": args.epochs,
-                "batch": args.batch,
-                "lr": args.lr,
-            },
         },
         out_path,
     )
-    print(f"💾 Model saved: {out_path}")
 
-    # Trace 저장
-    if args.trace:
-        import json
-
-        trace_path = Path(args.trace)
-        trace_path.parent.mkdir(parents=True, exist_ok=True)
-        with trace_path.open("w", encoding="utf-8") as f:
-            for r in trace_records:
-                f.write(json.dumps(r, ensure_ascii=False) + "\n")
-        print(f"📝 Trace saved: {trace_path}")
-
-    print("✅ 원문 ↔ 번역문 정렬 모델 훈련 완료!")
+    print(f"Model saved: {out_path}")
+    print(f"  vocab_src={len(vocab_src)}, vocab_tgt={len(vocab_tgt)}, max_len={args.max_len}")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

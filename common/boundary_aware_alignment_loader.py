@@ -296,6 +296,39 @@ class BoundaryAwareAlignmentMatcher:
 
         return cos_sim, boundary_match
 
+    def compute_similarity_batch(
+        self, pairs: List[Tuple[str, str]]
+    ) -> List[float]:
+        """(src, tgt) 쌍 리스트를 한 번의 GPU forward pass로 처리.
+
+        개별 compute_similarity() 반복 호출 대비 GPU utilization 향상.
+        """
+        if not pairs:
+            return []
+        n = len(pairs)
+        max_len = 512
+
+        # 배치 인코딩 (CPU)
+        src_batch = torch.zeros(n, max_len, dtype=torch.long)
+        tgt_batch = torch.zeros(n, max_len, dtype=torch.long)
+        for i, (src_text, tgt_text) in enumerate(pairs):
+            for j, ch in enumerate(src_text[:max_len]):
+                src_batch[i, j] = self.vocab_src.get(ch, 0)
+            for j, ch in enumerate(tgt_text[:max_len]):
+                tgt_batch[i, j] = self.vocab_tgt.get(ch, 0)
+
+        src_batch = src_batch.to(self.device)
+        tgt_batch = tgt_batch.to(self.device)
+
+        with torch.no_grad():
+            v_src, v_tgt, boundary_scores = self.model(
+                src_batch, tgt_batch, compute_boundary_match=True
+            )
+            cos_sims = (v_src * v_tgt).sum(dim=-1)  # [n]
+            w = self.boundary_weight
+            combined = (1 - w) * cos_sims + w * boundary_scores  # [n]
+            return combined.cpu().tolist()
+
     def compute_similarity(self, src_text: str, tgt_text: str) -> float:
         """
         기존 AlignmentMatcher와 호환되는 인터페이스
@@ -419,16 +452,23 @@ class BoundaryAwareAlignmentMatcher:
                 src_idx + 1, len(src_segments) - (remaining_tgt - 1)
             )
             max_end = min(src_idx + 5, latest_end_allowed + 1)
+
+            # 후보 수집 후 배치 스코어링
+            candidates = []
             for end_idx in range(src_idx + 1, max_end):
                 window = src_segments[src_idx:end_idx]
                 src_text = "".join(window)
-                extra_bounds = self._segment_boundaries_from_segments(window)
-                score = _score_pair(
-                    src_text, tgt_seg, src_extra_boundaries=extra_bounds
-                )
-                if score > best_score:
-                    best_score = score
-                    best_end = end_idx
+                candidates.append((end_idx, src_text))
+
+            if len(candidates) == 1:
+                best_end = candidates[0][0]
+            elif len(candidates) > 1:
+                pairs = [(src_text, tgt_seg) for _, src_text in candidates]
+                scores = self.compute_similarity_batch(pairs)
+                for (end_idx, _), score in zip(candidates, scores):
+                    if score > best_score:
+                        best_score = score
+                        best_end = end_idx
 
             if best_end <= src_idx:
                 best_end = min(src_idx + 1, len(src_segments))

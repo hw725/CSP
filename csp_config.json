@@ -20,7 +20,10 @@
   "thresholds": {
     "pa": {
       "unit": "row",
-      "metrics": ["partial_match", "target_avg_similarity"],
+      "metrics": [
+        "partial_match",
+        "target_avg_similarity"
+      ],
       "levels": {
         "min": {
           "partial_match": 0.1,
@@ -38,7 +41,10 @@
     },
     "sa": {
       "unit": "row",
-      "metrics": ["partial_match", "target_avg_similarity"],
+      "metrics": [
+        "partial_match",
+        "target_avg_similarity"
+      ],
       "levels": {
         "min": {
           "partial_match": 0.885,
@@ -57,7 +63,7 @@
   },
   "p2s_selection_params": {
     "candidate_prior_bonus_by_prefix": {
-      "supar(": 0.4,
+      "supar(": 0.42,
       "boundary(": 0.4
     },
     "boundary_style_prior": {
@@ -73,7 +79,16 @@
         "하야,",
         "하여,"
       ],
-      "continuation_tail_cjk": ["而", "以", "則", "乃", "故", "及", "與", "且"],
+      "continuation_tail_cjk": [
+        "而",
+        "以",
+        "則",
+        "乃",
+        "故",
+        "及",
+        "與",
+        "且"
+      ],
       "terminal_suffixes": [
         "이라",
         "矣라",
@@ -84,7 +99,14 @@
         "哉아",
         "邪아"
       ],
-      "terminal_punct": [".", "!", "?", "。", "！", "？"]
+      "terminal_punct": [
+        ".",
+        "!",
+        "?",
+        "。",
+        "！",
+        "？"
+      ]
     },
     "penalty_short_pairs": {
       "long_tgt_threshold": 40,
