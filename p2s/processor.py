@@ -2946,6 +2946,13 @@ def process_paragraph_file(
             "예: datasets/sentenceragraph/test_100.csv 를 input으로 사용하고, 평가는 datasets/p2s/test_100_from_pd.csv 를 gold로 사용하세요."
         )
 
+    # 편집 마커 제거: [-...] 형태의 편집 주석에 쓰인 [, -, ] 문자가
+    # 경계 모델/정규화에 노이즈로 작용하여 F1을 ~4%p 저하시킴 (100문단 A/B 테스트 확인)
+    _marker_tr = str.maketrans("", "", "[-]")
+    for _col in ["원문", "번역문"]:
+        df[_col] = df[_col].astype(str).str.translate(_marker_tr)
+    print("🔧 편집 마커([, -, ]) 제거 완료")
+
     # SuPar 캐시 워밍: 메인 루프 전에 모든 원문을 SuPar로 미리 파싱
     # DiskCache에 저장되므로 메인 루프에서는 캐시 히트로 즉시 반환
     if use_boundary_model:

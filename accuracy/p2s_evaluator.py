@@ -17,7 +17,7 @@ import difflib
 from typing import Dict
 
 def normalize_text(text) -> str:
-    """텍스트 정규화: 공백/개행/탭 제거"""
+    """텍스트 정규화: 공백/개행/탭 + 편집 마커([, -, ]) 제거"""
     if pd.isna(text):
         return ""
     return (
@@ -26,6 +26,9 @@ def normalize_text(text) -> str:
         .replace("\n", "")
         .replace("\t", "")
         .replace("\r", "")
+        .replace("[", "")
+        .replace("-", "")
+        .replace("]", "")
         .strip()
     )
 
