@@ -1,0 +1,9 @@
+﻿total_paragraphs,global_integrity,integrity_details,boundary_precision,boundary_recall,boundary_f1,target_exact_match_para,target_exact_rate_para,target_exact_match_sent_count,source_similarity_on_tgt_match_sent
+4934,False,"Gold 총 길이: 319308, Pred 총 길이: 336633
+불일치 문단 수: 228
+  - 문단 ('사정전훈의자치통감강목16', 7): Gold 길이=1, Pred 길이=75
+  - 문단 ('사정전훈의자치통감강목16', 11): Gold 길이=2, Pred 길이=174
+  - 문단 ('사정전훈의자치통감강목16', 24): Gold 길이=2, Pred 길이=179
+  - 문단 ('사정전훈의자치통감강목16', 31): Gold 길이=2, Pred 길이=10
+  - 문단 ('사정전훈의자치통감강목16', 42): Gold 길이=2, Pred 길이=20
+",1.0,0.8839823008849558,0.9384189017802622,4104,0.8317794892582083,11300,0.9758862486096889
