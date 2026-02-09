@@ -110,6 +110,70 @@ def _norm_for_boundary(s: str) -> str:
     return str(s).replace(" ", "").replace("\n", "").replace("\t", "").strip()
 
 
+def _build_eojeol_end_set(raw_text: str) -> set:
+    """원본 텍스트에서 어절 끝 위치를 정규화 좌표(norm_pos)로 반환.
+
+    어절 = 공백으로 구분된 단위.  어절의 마지막 문자 위치만 유효한 경계.
+    예) "ABC DEF" → 어절 "ABC"의 끝=2(C), "DEF"의 끝=6(F)
+        정규화 "ABCDEF" → norm 위치 2, 5가 유효 경계.
+    """
+    valid = set()
+    norm_idx = -1
+    for i, ch in enumerate(raw_text):
+        if ch in (" ", "\n", "\t", "\r"):
+            continue
+        norm_idx += 1
+        # 다음 문자가 공백이거나 텍스트 끝이면 → 어절 끝
+        next_i = i + 1
+        if next_i >= len(raw_text) or raw_text[next_i] in (" ", "\n", "\t", "\r"):
+            valid.add(norm_idx)
+    return valid
+
+
+def _snap_to_eojeol_end(
+    raw_text: str,
+    peaks: List[tuple],
+) -> List[tuple]:
+    """경계 위치를 가장 가까운 어절 끝(정규화 좌표)으로 스냅.
+
+    어절 내부에서 분리하는 것을 절대 허용하지 않는다.
+    경계가 어절 중간에 있으면 해당 어절의 끝으로 이동(forward snap).
+    """
+    if not peaks or not raw_text:
+        return peaks
+
+    valid_ends = _build_eojeol_end_set(raw_text)
+    if not valid_ends:
+        return peaks
+
+    # 정규화 텍스트의 총 길이
+    norm_len = sum(1 for ch in raw_text if ch not in (" ", "\n", "\t", "\r"))
+
+    adjusted = []
+    for pos, logit in peaks:
+        if pos in valid_ends:
+            adjusted.append((pos, logit))
+            continue
+        # forward snap: 현재 위치보다 크거나 같은 가장 가까운 어절 끝
+        snapped = None
+        for candidate in range(pos, norm_len):
+            if candidate in valid_ends:
+                snapped = candidate
+                break
+        if snapped is None:
+            # 앞에 어절 끝이 없으면 backward snap
+            for candidate in range(pos - 1, -1, -1):
+                if candidate in valid_ends:
+                    snapped = candidate
+                    break
+        if snapped is not None:
+            adjusted.append((snapped, logit))
+        else:
+            adjusted.append((pos, logit))
+
+    return adjusted
+
+
 def _model_topk_split(
     raw_text: str,
     norm_logits: List[float],
@@ -158,6 +222,19 @@ def _model_topk_split(
     peaks.sort(key=lambda x: x[1], reverse=True)
     selected = sorted(peaks[:n_boundaries], key=lambda x: x[0])
 
+    if len(selected) < n_boundaries:
+        return None
+
+    # 2.5) 어절 내부 분리 방지: 경계를 어절 끝으로 스냅
+    selected = _snap_to_eojeol_end(raw_text, selected)
+    # 이동 후 중복 제거 (같은 위치로 합쳐진 경우)
+    seen = set()
+    deduped = []
+    for pos, logit in selected:
+        if pos not in seen:
+            seen.add(pos)
+            deduped.append((pos, logit))
+    selected = sorted(deduped, key=lambda x: x[0])
     if len(selected) < n_boundaries:
         return None
 
@@ -1486,6 +1563,52 @@ def process_paragraph_alignment_with_boundary_model(
 
         refined = list(src_list)
 
+        import re as _re_bge
+
+        _re_token_bge = _re_bge.compile(r"\S+", _re_bge.S)
+
+        def _token_boundary_positions(text: str, center: int, window: int) -> list[int]:
+            """토큰(어절) 경계 위치만 반환 — 문자 단위 후보 대신 사용하여 S/N 개선."""
+            positions: set[int] = set()
+            lo = max(3, center - window)
+            hi = min(len(text) - 3, center + window)
+            # 토큰 경계 = 공백 직후 또는 직전
+            for m in _re_token_bge.finditer(text):
+                a, b = m.start(), m.end()
+                if lo <= a <= hi:
+                    positions.add(a)
+                if lo <= b <= hi:
+                    positions.add(b)
+            # 현재 경계도 포함 (항상 기준선)
+            if lo <= center <= hi:
+                positions.add(center)
+            return sorted(positions)
+
+        def _hyeonto_ending_bonus(text: str, pos: int) -> float:
+            """pos 직전이 현토 종결 어미이면 보너스를 반환."""
+            if pos <= 0 or pos > len(text):
+                return 0.0
+            j = pos - 1
+            while j >= 0 and text[j].isspace():
+                j -= 1
+            if j < 0:
+                return 0.0
+            window = text[max(0, j - 7) : j + 1]
+            for ending in _SORTED_ENDINGS:
+                if window.endswith(ending):
+                    return 0.06
+            return 0.0
+
+        def _length_balance_bonus(pos: int, total_src: int, tgt_l_len: int, tgt_r_len: int) -> float:
+            """src 분할 비율이 tgt 분할 비율과 가까울수록 보너스."""
+            total_tgt = tgt_l_len + tgt_r_len
+            if total_tgt == 0 or total_src == 0:
+                return 0.0
+            src_ratio = pos / total_src
+            tgt_ratio = tgt_l_len / total_tgt
+            # 비율 차이에 비례하는 페널티 (max ~0.03)
+            return -0.06 * abs(src_ratio - tgt_ratio)
+
         for i in range(len(refined) - 1):
             combined = refined[i] + refined[i + 1]
             if not combined.strip():
@@ -1498,14 +1621,8 @@ def process_paragraph_alignment_with_boundary_model(
             if not tgt_left.strip() or not tgt_right.strip():
                 continue
 
-            # 후보 위치 생성: 현재 경계 ±max_shift_chars, step=1
-            candidates = []
-            for offset in range(-max_shift_chars, max_shift_chars + 1):
-                pos = boundary + offset
-                # 빈 세그먼트 방지: 최소 3자
-                if pos < 3 or pos > len(combined) - 3:
-                    continue
-                candidates.append(pos)
+            # 후보 위치 생성: 토큰 경계만 (노이즈 대폭 감소)
+            candidates = _token_boundary_positions(combined, boundary, max_shift_chars)
 
             if not candidates:
                 continue
@@ -1523,33 +1640,48 @@ def process_paragraph_alignment_with_boundary_model(
             left_embs = all_embs[2 : 2 + len(candidates)]
             right_embs = all_embs[2 + len(candidates) :]
 
-            # 현재 위치의 점수 계산 (기준선)
+            # tgt 길이 (정규화된 길이 — 공백 제거)
+            tgt_l_len = len(tgt_left.replace(" ", ""))
+            tgt_r_len = len(tgt_right.replace(" ", ""))
+            total_src = len(combined.replace(" ", ""))
+
+            # 현재 위치의 점수 계산 (기준선 — 현토 보너스 + 길이 비율 보너스)
             current_idx = None
             for j, pos in enumerate(candidates):
                 if pos == boundary:
                     current_idx = j
                     break
             if current_idx is None:
-                continue
-            current_score = float(
-                _np.dot(left_embs[current_idx], tgt_left_emb)
-            ) + float(_np.dot(right_embs[current_idx], tgt_right_emb))
+                dists = [(abs(pos - boundary), j) for j, pos in enumerate(candidates)]
+                dists.sort()
+                current_idx = dists[0][1] if dists else 0
+            cur_pos = candidates[current_idx]
+            cur_src_left_len = len(combined[:cur_pos].replace(" ", ""))
+            current_score = (
+                float(_np.dot(left_embs[current_idx], tgt_left_emb))
+                + float(_np.dot(right_embs[current_idx], tgt_right_emb))
+                + _hyeonto_ending_bonus(combined, cur_pos)
+                + _length_balance_bonus(cur_src_left_len, total_src, tgt_l_len, tgt_r_len)
+            )
 
-            # 각 후보의 점수 계산
+            # 각 후보의 점수 계산 (현토 보너스 + 길이 비율 보너스 포함)
             best_pos = boundary
             best_score = current_score
             for j, pos in enumerate(candidates):
                 sim_left = float(_np.dot(left_embs[j], tgt_left_emb))
                 sim_right = float(_np.dot(right_embs[j], tgt_right_emb))
-                score = sim_left + sim_right
+                src_left_len = len(combined[:pos].replace(" ", ""))
+                score = (
+                    sim_left + sim_right
+                    + _hyeonto_ending_bonus(combined, pos)
+                    + _length_balance_bonus(src_left_len, total_src, tgt_l_len, tgt_r_len)
+                )
                 if score > best_score:
                     best_score = score
                     best_pos = pos
 
-            # 유의미한 개선이 있을 때만 적용 (노이즈 방지)
-            # TODO: BGE refinement 현재 비활성화 (시그널/노이즈 비율 부족)
-            min_improvement = 999.0
-            if best_pos != boundary and (best_score - current_score) >= min_improvement:
+            # 개선이 있으면 적용 (0 이상 — 미세한 개선도 수용)
+            if best_pos != boundary and best_score > current_score:
                 refined[i] = combined[:best_pos]
                 refined[i + 1] = combined[best_pos:]
 
@@ -2339,17 +2471,18 @@ def process_paragraph_alignment_with_boundary_model(
         try:
             if (
                 best_tag is not None
-                and (best_tag.startswith("boundary(") or best_tag.startswith("model_topk("))
                 and isinstance(src_sentences, list)
                 and len(src_sentences) == len(tgt_sentences)
                 and len(src_sentences) >= 2
             ):
                 src_before_bge = list(src_sentences)
-                src_sentences = _bge_refine_boundaries(
-                    src_sentences,
-                    tgt_sentences,
-                    max_shift_chars=20,
-                )
+                # 2-pass BGE refinement: 첫 pass에서 놓친 경계를 두 번째에서 포착
+                for _bge_pass in range(3):
+                    src_sentences = _bge_refine_boundaries(
+                        src_sentences,
+                        tgt_sentences,
+                        max_shift_chars=40,
+                    )
 
                 bge_changed = 0
                 try:
@@ -2360,7 +2493,7 @@ def process_paragraph_alignment_with_boundary_model(
                     bge_changed = 0
 
                 if verbose and bge_changed > 0:
-                    print(f"   BGE-M3 refinement: {bge_changed} segments adjusted")
+                    print(f"   BGE-M3 refinement: {bge_changed} segments adjusted (2-pass)")
 
                 if trace is not None:
                     try:
@@ -3222,7 +3355,7 @@ def process_paragraph_file(
                         threshold=boundary_threshold,
                         boundary_min_len=boundary_min_len,
                         tgt_split_max_length=max_length,
-                        adjacent_refine_max_shift_tokens=(4 if enable_refine else 1),
+                        adjacent_refine_max_shift_tokens=(4 if enable_refine else 2),
                         enable_adjacent_boundary_refine=enable_adjacent_boundary_refine,
                         boundary_bonus_factor=boundary_bonus_factor,
                         shift_penalty_factor=shift_penalty_factor,
