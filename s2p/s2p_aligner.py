@@ -1,5 +1,5 @@
 """
-SA (Semantic Alignment) 모듈
+S2P (Sentence to Phrase) 모듈
 원문을 공백 단위로 분할하고 번역문을 정렬하는 핵심 기능
 
 완전한 원본 텍스트 무결성 보장:
@@ -92,7 +92,7 @@ try:
         siku_similarity,
     )
 except ImportError as e:
-    logger.warning(f"⚠️ SA: 하이브리드 토크나이저 초기화 실패: {e}")
+    logger.warning(f"⚠️ S2P: 하이브리드 토크나이저 초기화 실패: {e}")
     # 폴백: 기본 split() 사용
 
 logger = logging.getLogger(__name__)
@@ -167,7 +167,7 @@ def _prepare_supar_safe_loading():
 
 def split_src_meaning_units(text: str, **kwargs) -> List[str]:
     """
-    SA 핵심 기능: 원문을 공백 단위로 분할 (무결성 보장)
+    S2P 핵심 기능: 원문을 공백 단위로 분할 (무결성 보장)
 
     Args:
         text: 분할할 원문 텍스트
@@ -179,7 +179,7 @@ def split_src_meaning_units(text: str, **kwargs) -> List[str]:
     if not text or not text.strip():
         return []
 
-    # 🎯 SA 핵심 원칙: 무조건 공백 단위로만 분할
+    # 🎯 S2P 핵심 원칙: 무조건 공백 단위로만 분할
     # 사용자가 입력한 공백 구조를 그대로 보존
     words = text.split()
 
@@ -192,7 +192,7 @@ def split_src_meaning_units(text: str, **kwargs) -> List[str]:
     try:
         siku_tokens = _han_token_pattern.findall(text)
     except Exception as e:
-        logger.debug(f"SA: SikuBERT 한자 토큰 추출 실패: {e}")
+        logger.debug(f"S2P: SikuBERT 한자 토큰 추출 실패: {e}")
 
     try:
         from common.tokenizers import get_kiwi_tokenizer
@@ -202,9 +202,9 @@ def split_src_meaning_units(text: str, **kwargs) -> List[str]:
         try:
             kiwi_particles = kiwi.extract_particles(text)
         except Exception as e:
-            logger.debug(f"SA: Kiwipiepy 토씨 추출 실패: {e}")
+            logger.debug(f"S2P: Kiwipiepy 토씨 추출 실패: {e}")
     except Exception as e:
-        logger.debug(f"SA: Kiwipiepy 초기화 실패: {e}")
+        logger.debug(f"S2P: Kiwipiepy 초기화 실패: {e}")
 
     token_capture = kwargs.get("token_capture")
     if isinstance(token_capture, dict):
@@ -628,7 +628,7 @@ def split_tgt_meaning_units(
                 same_text = "".join(llm_flat.split()) == "".join(original_flat.split())
 
                 if not same_text:
-                    logger.warning(f"SA LLM boundary rejected: text mismatch")
+                    logger.warning(f"S2P LLM boundary rejected: text mismatch")
                 elif len(llm_checked) == src_units_count:
                     # 개수 정확히 일치 - 바로 적용
                     result = llm_checked
@@ -837,7 +837,7 @@ def _split_tgt_by_src_units_semantic(
 
                 # 🆕 고어 패턴 보정 적용
                 try:
-                    archaic_bonus = get_archaic_bonus(unit_text, mode="SA")
+                    archaic_bonus = get_archaic_bonus(unit_text, mode="S2P")
                     if archaic_bonus > 0.05:
                         logger.debug(
                             f"기본 분할에서 고어 패턴 감지: {unit_text} (보너스: {archaic_bonus})"
@@ -1244,7 +1244,7 @@ def _split_tgt_by_src_units_simple(
 
                 return get_embedder(embedder_name, device_id=embedder_device_id)
         except Exception as e:
-            logger.debug(f"⚠️ SA 폴백 임베더 초기화 실패: {e}")
+            logger.debug(f"⚠️ S2P 폴백 임베더 초기화 실패: {e}")
             return None
 
     embed_func = _get_embed_func()
@@ -1261,7 +1261,7 @@ def _split_tgt_by_src_units_simple(
             sim = _cosine(a, b)
             return max(0.0, 1.0 - sim)
         except Exception as e:
-            logger.debug(f"⚠️ SA 폴백 의미 스코어 실패: {e}")
+            logger.debug(f"⚠️ S2P 폴백 의미 스코어 실패: {e}")
             return 0.0
 
     candidates: List[Tuple[int, str]] = []
@@ -1285,7 +1285,7 @@ def _split_tgt_by_src_units_simple(
             if 0 < offset < text_len:
                 candidates.append((offset, "PUNC"))
     except Exception as e:
-        logger.debug(f"⚠️ SA 구두점 후보 추출 실패: {e}")
+        logger.debug(f"⚠️ S2P 구두점 후보 추출 실패: {e}")
 
     # Kiwi EC/EF 기반 후보
     try:
@@ -1299,7 +1299,7 @@ def _split_tgt_by_src_units_simple(
             if tag.startswith(("EF", "EC")):
                 candidates.append((tok.start + tok.len, tag[:2]))
     except Exception as e:
-        logger.debug(f"⚠️ SA Kiwi 후보 추출 실패: {e}")
+        logger.debug(f"⚠️ S2P Kiwi 후보 추출 실패: {e}")
 
     # 후보 없으면 기존 단순 분배
     if not candidates:
@@ -1405,10 +1405,10 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
 
     if use_boundary_model:
         try:
-            from s2p.io_manager import safe_process_sa_row
+            from s2p.io_manager import safe_process_s2p_row
 
-            boundary_model = getattr(safe_process_sa_row, "_boundary_model", None)
-            alignment_model = getattr(safe_process_sa_row, "_alignment_model", None)
+            boundary_model = getattr(safe_process_s2p_row, "_boundary_model", None)
+            alignment_model = getattr(safe_process_s2p_row, "_alignment_model", None)
             threshold = float(kwargs.get("boundary_threshold", 0.5))
 
             if boundary_model is not None:
@@ -1452,7 +1452,9 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
                     )
 
                 # 너무 극단적인 분할(0개/1개)은 이득이 없으므로 스킵
-                if tgt_units_by_model and len(tgt_units_by_model) >= 2:
+                # 🔧 과다 분할 방지: 모델 세그먼트가 source 단위의 2배 초과 시 거부
+                max_segments = max(len(src_units) * 2, 4)
+                if tgt_units_by_model and 2 <= len(tgt_units_by_model) <= max_segments:
                     # 무결성 검증: 번역문
                     tgt_ok = "".join(str(translation_text).split()) == "".join(
                         "".join(tgt_units_by_model).split()
@@ -1486,58 +1488,116 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
                         )
                         len_ok = len(src_units_by_model) == len(tgt_units_by_model)
 
+                        # 🔧 빈 세그먼트 감지: 하나라도 빈 source가 있으면 거부
+                        has_empty_src = any(
+                            not str(s).strip() for s in src_units_by_model
+                        )
+                        if has_empty_src:
+                            src_ok = False
+                            logger.debug(
+                                f"S2P refinement 빈 source 감지 → 폴백 (id={base_id})"
+                            )
+
                         if src_ok and len_ok:
-                            # 🆕 LLM 보정 단계 (USE_LLM_BOUNDARY_VERIFY 환경변수가 설정된 경우만)
-                            import os
+                            # 🆕 Refinement quality guard (P2S 교훈 적용)
+                            # boundary model 결과가 기존 DP 결과보다 나은지 확인
+                            # 사전계산된 임베딩 캐시에서 가져와 배치 효율성 확보
+                            accept_refinement = True
+                            try:
+                                from common.embedders.bge import get_embedding_manager
+                                _em = get_embedding_manager()
 
-                            if os.getenv("USE_LLM_BOUNDARY_VERIFY"):
-                                try:
-                                    ref_text = " ".join(src_units_by_model)
-                                    llm_refined = refine_boundaries_with_llm(
-                                        str(translation_text),
-                                        tgt_units_by_model,
-                                        task="sa",
-                                        max_segments=30,
-                                        reference_text=ref_text,
-                                    )
-                                    if llm_refined and len(llm_refined) == len(
-                                        tgt_units_by_model
-                                    ):
-                                        # LLM 결과 무결성 검증
-                                        llm_text = "".join("".join(llm_refined).split())
-                                        orig_text = "".join(
-                                            str(translation_text).split()
-                                        )
-                                        if llm_text == orig_text:
-                                            tgt_units_by_model = llm_refined
-                                            method_label = method_label + "+llm_refine"
-                                            logger.info(
-                                                f"✅ LLM 경계 보정 적용 (id={base_id})"
+                                # 모든 텍스트를 한 번에 배치 임베딩
+                                all_texts = []
+                                orig_pairs = []
+                                model_pairs = []
+                                for s, t in zip(src_units, trans_units):
+                                    s_str, t_str = str(s).strip(), str(t).strip()
+                                    if s_str and t_str:
+                                        orig_pairs.append((len(all_texts), len(all_texts) + 1))
+                                        all_texts.extend([s_str, t_str])
+                                for s, t in zip(src_units_by_model, tgt_units_by_model):
+                                    s_str, t_str = str(s).strip(), str(t).strip()
+                                    if s_str and t_str:
+                                        model_pairs.append((len(all_texts), len(all_texts) + 1))
+                                        all_texts.extend([s_str, t_str])
+
+                                if all_texts and orig_pairs and model_pairs:
+                                    all_embs = _em.compute_embeddings_with_cache(all_texts, batch_size=len(all_texts))
+                                    if all_embs is not None and len(all_embs) == len(all_texts):
+                                        def _batch_avg_sim(pairs):
+                                            sims = []
+                                            for si, ti in pairs:
+                                                dot = float(np.dot(all_embs[si], all_embs[ti]))
+                                                n0 = float(np.linalg.norm(all_embs[si]))
+                                                n1 = float(np.linalg.norm(all_embs[ti]))
+                                                sims.append(dot / (n0 * n1 + 1e-8))
+                                            return sum(sims) / len(sims) if sims else 0.0
+
+                                        orig_sim = _batch_avg_sim(orig_pairs)
+                                        model_sim = _batch_avg_sim(model_pairs)
+
+                                        # 🔧 엄격한 guard: boundary model이 DP보다 확실히 좋을 때만 수락
+                                        if model_sim < orig_sim + 0.01:
+                                            accept_refinement = False
+                                            logger.debug(
+                                                f"S2P refinement guard: 모델({model_sim:.3f}) <= 원본({orig_sim:.3f}), 원본 유지 (id={base_id})"
                                             )
-                                except Exception as llm_err:
-                                    logger.debug(f"LLM 보정 스킵: {llm_err}")
+                            except Exception:
+                                pass  # guard 실패 시 refinement 수락
 
-                            src_units = src_units_by_model
-                            trans_units = tgt_units_by_model
-                            method_label = method_label + "+boundary_tgt"
-                            if alignment_model is not None:
-                                method_label += "+align_src"
-                            else:
-                                method_label += "+dp_src"
+                            if accept_refinement:
+                                # 🆕 LLM 보정 단계 (USE_LLM_BOUNDARY_VERIFY 환경변수가 설정된 경우만)
+                                import os
+
+                                if os.getenv("USE_LLM_BOUNDARY_VERIFY"):
+                                    try:
+                                        ref_text = " ".join(src_units_by_model)
+                                        llm_refined = refine_boundaries_with_llm(
+                                            str(translation_text),
+                                            tgt_units_by_model,
+                                            task="sa",
+                                            max_segments=30,
+                                            reference_text=ref_text,
+                                        )
+                                        if llm_refined and len(llm_refined) == len(
+                                            tgt_units_by_model
+                                        ):
+                                            # LLM 결과 무결성 검증
+                                            llm_text = "".join("".join(llm_refined).split())
+                                            orig_text = "".join(
+                                                str(translation_text).split()
+                                            )
+                                            if llm_text == orig_text:
+                                                tgt_units_by_model = llm_refined
+                                                method_label = method_label + "+llm_refine"
+                                                logger.info(
+                                                    f"✅ LLM 경계 보정 적용 (id={base_id})"
+                                                )
+                                    except Exception as llm_err:
+                                        logger.debug(f"LLM 보정 스킵: {llm_err}")
+
+                                src_units = src_units_by_model
+                                trans_units = tgt_units_by_model
+                                method_label = method_label + "+boundary_tgt"
+                                if alignment_model is not None:
+                                    method_label += "+align_src"
+                                else:
+                                    method_label += "+dp_src"
                         else:
                             logger.warning(
-                                f"SA refinement 무결성 실패로 폴백 (id={base_id}, src_ok={src_ok}, len_ok={len_ok}, src_len={len(src_units_by_model)}, tgt_len={len(tgt_units_by_model)})"
+                                f"S2P refinement 무결성 실패로 폴백 (id={base_id}, src_ok={src_ok}, len_ok={len_ok}, src_len={len(src_units_by_model)}, tgt_len={len(tgt_units_by_model)})"
                             )
                     else:
                         logger.warning(
-                            f"SA boundary tgt 무결성 실패로 폴백 (id={base_id})"
+                            f"S2P boundary tgt 무결성 실패로 폴백 (id={base_id})"
                         )
                 else:
                     logger.debug(
                         f"DEBUG: 모델 분할 개수 부족 ({len(tgt_units_by_model)})"
                     )
         except Exception as e:
-            logger.warning(f"SA refinement 실패로 폴백 (id={base_id}): {e}")
+            logger.warning(f"S2P refinement 실패로 폴백 (id={base_id}): {e}")
             import traceback
 
             logger.warning(traceback.format_exc())
@@ -1557,7 +1617,7 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
         if original_flat_tgt != processed_flat_tgt:
             diff_chars = len(original_flat_tgt) - len(processed_flat_tgt)
             logger.warning(
-                f"⚠️ SA 번역문 무결성 불일치: {diff_chars:+d}자 (id={base_id}) → 단순 분할로 폴백"
+                f"⚠️ S2P 번역문 무결성 불일치: {diff_chars:+d}자 (id={base_id}) → 단순 분할로 폴백"
             )
 
             # split_tgt_meaning_units는 내부에서 semantic→simple→evenly 폴백을 하므로,
@@ -1571,7 +1631,7 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
             )
             method_label = method_label + "+integrity_fallback"
     except Exception as e:
-        logger.warning(f"SA 무결성 가드레일 실패(기존 결과 유지): {e}")
+        logger.warning(f"S2P 무결성 가드레일 실패(기존 결과 유지): {e}")
 
     # 각 단위별로 개별 행 생성
     result_rows = []
@@ -1633,12 +1693,12 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
     # try:
     #     from common.korean_particle_matcher import enhance_sa_results_with_particles
     #     result_rows = enhance_sa_results_with_particles(result_rows)
-    #     logger.debug(f"SA 토씨 매칭 보완 완료: {len(result_rows)}개 행")
+    #     logger.debug(f"S2P 토씨 매칭 보완 완료: {len(result_rows)}개 행")
     # except Exception as e:
-    #     logger.warning(f"SA 토씨 매칭 보완 실패 (기존 결과 유지): {e}")
+    #     logger.warning(f"S2P 토씨 매칭 보완 실패 (기존 결과 유지): {e}")
     #     # 실패해도 기존 result_rows 그대로 사용
 
-    # 🔒 SA 무결성 검증: 번역문 텍스트 보존 확인
+    # 🔒 S2P 무결성 검증: 번역문 텍스트 보존 확인
     # 주의: 마스킹된 상태에서 검증하면 마스크 토큰 길이 차이로 오류가 발생할 수 있으므로
     # 원본 입력과 비교하는 것이 정확함
     try:
@@ -1650,7 +1710,7 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
 
         # 무결성 검증
         if input_trans_for_check != processed_trans:
-            logger.error(f"SA 무결성 실패: {base_id}")
+            logger.error(f"S2P 무결성 실패: {base_id}")
             logger.error(f"  입력 길이: {len(input_trans_for_check)}자")
             logger.error(f"  처리 후 길이: {len(processed_trans)}자")
             logger.error(
@@ -1680,7 +1740,7 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
                     )
                 )
                 if diff:
-                    logger.error(f"SA 텍스트 차이점 분석: {base_id}")
+                    logger.error(f"S2P 텍스트 차이점 분석: {base_id}")
                     logger.error(
                         f"  입력 샘플: '{input_trans_for_check[:50]}{'...' if len(input_trans_for_check) > 50 else ''}'"
                     )
@@ -1690,13 +1750,13 @@ def process_single_row(row_data: Dict[str, Any], **kwargs) -> List[Dict[str, Any
 
             # 무결성 실패시에도 결과는 반환 (분석용)
         else:
-            logger.debug(f"SA 무결성 확인: {base_id} ✅")
+            logger.debug(f"S2P 무결성 확인: {base_id} ✅")
 
     except Exception as e:
-        logger.warning(f"SA 무결성 검증 실패: {e}")
+        logger.warning(f"S2P 무결성 검증 실패: {e}")
 
     # 🔧 기본 모드에서는 상세 로깅 제거, verbose에서만 출력
-    logger.debug(f"SA 처리 완료: {len(src_units)}개 단위, 시대: {period}")
+    logger.debug(f"S2P 처리 완료: {len(src_units)}개 단위, 시대: {period}")
 
     return result_rows
 
@@ -1755,7 +1815,7 @@ def process_sa_alignment(
     src_text: str, translation: str, **kwargs
 ) -> Dict[str, List[str]]:
     """
-    SA 통합 처리: 원문 분할 + 번역문 정렬
+    S2P 통합 처리: 원문 분할 + 번역문 정렬
 
     Args:
         src_text: 원문 텍스트
@@ -1843,7 +1903,7 @@ def process_sa_alignment(
     }
 
     logger.debug(
-        f"SA 처리 완료: {metadata['source_count']}개 단위, 시대: {metadata['detected_period']}"
+        f"S2P 처리 완료: {metadata['source_count']}개 단위, 시대: {metadata['detected_period']}"
     )
 
     return result

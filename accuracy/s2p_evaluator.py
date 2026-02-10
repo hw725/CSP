@@ -49,6 +49,14 @@ def evaluate_src_exact_subset(
     # 정규화된 원문 추가
     gold_df = gold_df.copy()
     pred_df = pred_df.copy()
+
+    # 책명 → book_name 통합 (P2S 평가기와 동일)
+    for df in (gold_df, pred_df):
+        if "책명" in df.columns and "book_name" not in df.columns:
+            df["book_name"] = df["책명"]
+        if "book_name" not in df.columns:
+            df["book_name"] = ""
+
     gold_df["_src_norm"] = gold_df["원문"].apply(normalize_text)
     pred_df["_src_norm"] = pred_df["원문"].apply(normalize_text)
 

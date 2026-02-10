@@ -96,6 +96,13 @@ class SafeFileProcessor:
                 logger.error("❌ 유효한 데이터 없음 (모두 NaN)")
                 return False
 
+            # 편집 마커 제거: [-...] 형태의 편집 주석에 쓰인 [, -, ] 문자가
+            # 경계 모델/정규화에 노이즈로 작용 (P2S와 동일 전처리)
+            _marker_tr = str.maketrans("", "", "[-]")
+            for _col in ["원문", "번역문"]:
+                df[_col] = df[_col].str.translate(_marker_tr)
+            logger.info("🔧 편집 마커([, -, ]) 제거 완료")
+
             # 전체 데이터 무결성 등록
             file_id = f"file_{hashlib.md5(input_file.encode()).hexdigest()[:8]}"
             self._register_file_integrity(df, file_id)
@@ -112,7 +119,7 @@ class SafeFileProcessor:
             processed_rows = 0
 
             print(
-                f"📊 SA 처리 시작: {total_rows:,}개 행 ({len(chunks)}개 청크)",
+                f"📊 S2P 처리 시작: {total_rows:,}개 행 ({len(chunks)}개 청크)",
                 flush=True,
             )
 
@@ -167,15 +174,22 @@ class SafeFileProcessor:
 
                 # 🚀 [청크별] 경계 배치 사전 계산
                 batch_boundary_cache = {}
-                if use_boundary_model:
+                use_phrase_alignment = kwargs.get("use_phrase_alignment", False)
+                if use_boundary_model or use_phrase_alignment:
                     try:
-                        from common.s2p_crossattn_boundary_loader import (
-                            get_crossattn_boundary_tagger,
-                        )
-
-                        boundary_model = get_crossattn_boundary_tagger(
-                            device=kwargs.get("device", "cuda")
-                        )
+                        # preload된 모델 재사용 (v1 또는 v2)
+                        boundary_model = getattr(safe_process_s2p_row, "_boundary_model", None)
+                        if boundary_model is None:
+                            if use_phrase_alignment:
+                                from common.s2p_phrase_alignment_loader import get_phrase_alignment_tagger
+                                boundary_model = get_phrase_alignment_tagger(
+                                    device=kwargs.get("device", "cuda")
+                                )
+                            else:
+                                from common.s2p_crossattn_boundary_loader import get_crossattn_boundary_tagger
+                                boundary_model = get_crossattn_boundary_tagger(
+                                    device=kwargs.get("device", "cuda")
+                                )
 
                         # 청크의 원문/번역문 수집
                         chunk_src = []
@@ -228,7 +242,7 @@ class SafeFileProcessor:
                     ):
                         pct = processed_rows * 100 // total_rows
                         print(
-                            f"🔄 SA 처리: {processed_rows:,}/{total_rows:,} ({pct}%) 성공={self.processed_count} 실패={self.error_count}",
+                            f"🔄 S2P 처리: {processed_rows:,}/{total_rows:,} ({pct}%) 성공={self.processed_count} 실패={self.error_count}",
                             flush=True,
                         )
 
@@ -269,7 +283,7 @@ class SafeFileProcessor:
                         logger.warning(f"⚠️ 체크포인트 저장 실패: {e}")
 
             # 완료 메시지
-            print(f"✅ SA 처리 완료: {self.processed_count:,}개 구문 생성", flush=True)
+            print(f"✅ S2P 처리 완료: {self.processed_count:,}개 구문 생성", flush=True)
 
             # 3. 결과 저장 및 검증
             if results:
@@ -484,12 +498,14 @@ class SafeFileProcessor:
                     # 처리 함수 실행
                     row_result = processing_function(row, row_id=row_id, **kwargs)
 
-                    # 🔧 [수정] 메타데이터 보존 (book_name, 문장식별자)
+                    # 🔧 [수정] 메타데이터 보존 (book_name/책명, 문장식별자)
                     if row_result:
                         metadata = {}
-                        # book_name 보존
+                        # book_name 보존 (책명 컬럼도 지원)
                         if "book_name" in row and pd.notna(row["book_name"]):
                             metadata["book_name"] = row["book_name"]
+                        elif "책명" in row and pd.notna(row["책명"]):
+                            metadata["book_name"] = row["책명"]
                         # 🔧 문장식별자 유지 (갱신하지 않음)
                         if "문장식별자" in row and pd.notna(row["문장식별자"]):
                             metadata["문장식별자"] = row["문장식별자"]
@@ -761,7 +777,7 @@ class SafeFileProcessor:
 
         return parts
 
-# ===== 기존 SA 호환 함수들 =====
+# ===== 기존 S2P 호환 함수들 =====
 
 def process_file(
     input_file: str,
@@ -776,10 +792,10 @@ def process_file(
     device: str = "cuda",  # 🆕 디바이스 설정
     **kwargs,
 ) -> bool:
-    """기존 SA 호환 파일 처리 함수 (무결성 보장)"""
+    """기존 S2P 호환 파일 처리 함수 (무결성 보장)"""
 
     if verbose:
-        logger.info(f"SA 파일 처리 시작: {input_file}")
+        logger.info(f"S2P 파일 처리 시작: {input_file}")
         logger.info(
             f"설정: 임베더={embedder_name}, 병렬={use_parallel}, 워커={max_workers}"
         )
@@ -789,11 +805,11 @@ def process_file(
             )
 
     try:
-        # SA 처리 함수 import (패키지 경로)
+        # S2P 처리 함수 import (패키지 경로)
         from s2p.s2p_aligner import (
             process_single_row,
             reset_segment_counter,
-        )  # 🆕 SA 얼라이너에서 import
+        )  # 🆕 S2P 얼라이너에서 import
 
         # 구식별자를 파일 단위로 리셋해 누적 증가하도록 설정
         reset_segment_counter()
@@ -809,7 +825,7 @@ def process_file(
         success = processor.process_file_with_integrity(
             input_file=input_file,
             output_file=output_file,
-            processing_function=safe_process_sa_row,
+            processing_function=safe_process_s2p_row,
             embedder_name=embedder_name,
             use_boundary_model=use_boundary_model,  # 🆕 경계 모델 옵션 전달
             boundary_threshold=boundary_threshold,  # 🆕 임계값 전달
@@ -819,21 +835,21 @@ def process_file(
 
         if success:
             if verbose:
-                logger.info(f"✅ SA 파일 처리 완료: {output_file}")
+                logger.info(f"✅ S2P 파일 처리 완료: {output_file}")
         else:
             if verbose:
-                logger.error(f"❌ SA 파일 처리 실패")
+                logger.error(f"❌ S2P 파일 처리 실패")
 
         return success
 
     except ImportError as e:
-        logger.error(f"SA 모듈 import 실패: {e}")
+        logger.error(f"S2P 모듈 import 실패: {e}")
         # 폴백: 기본 처리
         success = process_file_fallback(input_file, output_file, **kwargs)
         return success  # 🔧 bool 반환
 
     except Exception as e:
-        logger.error(f"SA 파일 처리 중 오류: {e}")
+        logger.error(f"S2P 파일 처리 중 오류: {e}")
         logger.error(traceback.format_exc())
         return False
 
@@ -853,6 +869,12 @@ def process_file_fallback(input_file: str, output_file: str, **kwargs) -> bool:
         original_rows = len(df)
         df["원문"] = df["원문"].fillna("").astype(str)
         df["번역문"] = df["번역문"].fillna("").astype(str)
+
+        # 편집 마커 제거 (P2S와 동일 전처리)
+        _marker_tr = str.maketrans("", "", "[-]")
+        for _col in ["원문", "번역문"]:
+            df[_col] = df[_col].str.translate(_marker_tr)
+        logger.info("🔧 편집 마커([, -, ]) 제거 완료")
 
         empty_rows = len(
             df[(df["원문"].str.strip() == "") & (df["번역문"].str.strip() == "")]
@@ -1053,8 +1075,8 @@ def split_dataframe_into_chunks(
     logger.info(f"데이터프레임 분할: {len(df)}행 → {len(chunks)}개 청크")
     return chunks
 
-def safe_process_sa_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Dict]:
-    """SA 행 처리 무결성 보장 래퍼
+def safe_process_s2p_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Dict]:
+    """S2P 행 처리 무결성 보장 래퍼
 
     🆕 통합 모드: use_boundary_model=True이면
     - 기존 process_single_row 실행 (BGE 기반)
@@ -1063,28 +1085,36 @@ def safe_process_sa_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Di
 
     try:
         # 🔧 process_single_row 캐싱 (매번 import 안 하도록)
-        if not hasattr(safe_process_sa_row, "_process_func"):
+        if not hasattr(safe_process_s2p_row, "_process_func"):
             from s2p.s2p_aligner import process_single_row
 
-            safe_process_sa_row._process_func = process_single_row
+            safe_process_s2p_row._process_func = process_single_row
 
         # 경계 모델 사용 시 모델 로드 (캐싱)
         use_boundary_model = kwargs.get("use_boundary_model", False)
+        use_phrase_alignment = kwargs.get("use_phrase_alignment", False)
 
-        if use_boundary_model and not hasattr(safe_process_sa_row, "_boundary_model"):
-            # 🆕 Cross-Attention SA 경계 모델 사용
-            from common.s2p_crossattn_boundary_loader import (
-                get_crossattn_boundary_tagger,
-            )
-
+        if (use_boundary_model or use_phrase_alignment) and not hasattr(safe_process_s2p_row, "_boundary_model"):
             device = kwargs.get("device", "cuda")
 
-            logger.info(f"🔧 Cross-Attention SA 경계 모델 로드 중... (device={device})")
-
-            # Cross-Attention 모델 로드
-            safe_process_sa_row._boundary_model = get_crossattn_boundary_tagger(
-                device=device
-            )
+            if use_phrase_alignment:
+                # v2: Phrase Alignment 모델
+                from common.s2p_phrase_alignment_loader import (
+                    get_phrase_alignment_tagger,
+                )
+                logger.info(f"🔧 Phrase Alignment 모델 (v2) 로드 중... (device={device})")
+                safe_process_s2p_row._boundary_model = get_phrase_alignment_tagger(
+                    device=device
+                )
+            else:
+                # v1: Cross-Attention 경계 모델
+                from common.s2p_crossattn_boundary_loader import (
+                    get_crossattn_boundary_tagger,
+                )
+                logger.info(f"🔧 Cross-Attention S2P 경계 모델 (v1) 로드 중... (device={device})")
+                safe_process_s2p_row._boundary_model = get_crossattn_boundary_tagger(
+                    device=device
+                )
 
             # Alignment 모델은 기존 경로 유지
             from common.alignment_model_loader import AlignmentMatcher
@@ -1097,17 +1127,17 @@ def safe_process_sa_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Di
                 (p for p in alignment_candidates if p.exists()), None
             )
             if alignment_model_path:
-                safe_process_sa_row._alignment_model = AlignmentMatcher(
+                safe_process_s2p_row._alignment_model = AlignmentMatcher(
                     model_path=alignment_model_path, device=device
                 )
             else:
-                safe_process_sa_row._alignment_model = None
+                safe_process_s2p_row._alignment_model = None
                 logger.warning(
                     "⚠️ Alignment 모델 없음: "
                     + ", ".join(str(p) for p in alignment_candidates)
                 )
 
-            logger.info("✅ Cross-Attention SA 경계 모델 로드 완료")
+            logger.info("✅ Cross-Attention S2P 경계 모델 로드 완료")
 
         # 원본 데이터 추출
         src_text = str(row.get("원문", ""))
@@ -1125,10 +1155,10 @@ def safe_process_sa_row(row: pd.Series, row_id: str = None, **kwargs) -> List[Di
 
         # 🚨 마스킹 비활성화: 괄호 마스킹 없이 직접 처리
         # (PUA 토큰 분할 문제 해결을 위해 마스킹 로직 완전 우회)
-        return safe_process_sa_row._process_func(row, row_id=row_id, **kwargs)
+        return safe_process_s2p_row._process_func(row, row_id=row_id, **kwargs)
 
     except Exception as e:
-        logger.error(f"SA 행 처리 실패: {e}")
+        logger.error(f"S2P 행 처리 실패: {e}")
         # 폴백: 원본 데이터 반환
         return [
             {

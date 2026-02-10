@@ -1,4 +1,4 @@
-"""SA (Sentence Aligner) 메인 실행 파일"""
+"""S2P (Sentence to Phrase) 메인 실행 파일"""
 
 import argparse
 import time
@@ -67,7 +67,8 @@ def setup_logging(verbose: bool = False):
         warnings.filterwarnings("ignore")
 
 def _preload_models(
-    use_boundary_model: bool = False, device: str = "cuda", verbose: bool = False
+    use_boundary_model: bool = False, device: str = "cuda", verbose: bool = False,
+    use_phrase_alignment: bool = False,
 ):
     """모델 사전 로드 및 워밍업"""
     try:
@@ -82,31 +83,49 @@ def _preload_models(
         # 워밍업 (더미 데이터로 첫 실행 지연 제거)
         manager.compute_embeddings_with_cache(["워밍업"])
 
-        # 2. SA 처리 함수 캐싱
+        # 2. S2P 처리 함수 캐싱
         if verbose:
-            print("  - SA Aligner 모듈 로드 중...")
+            print("  - S2P Aligner 모듈 로드 중...")
         from s2p.s2p_aligner import process_single_row
-        from s2p.io_manager import safe_process_sa_row
+        from s2p.io_manager import safe_process_s2p_row
 
-        safe_process_sa_row._process_func = process_single_row
+        safe_process_s2p_row._process_func = process_single_row
 
         # 3. 경계 모델 로드 (옵션)
-        if use_boundary_model:
+        if use_phrase_alignment:
+            # v2: Phrase Alignment 모델 (BGE-M3 기반 구 단위 정렬)
             if verbose:
-                print("  - Cross-Attention 경계 모델 로드 중...")
-            from common.s2p_crossattn_boundary_loader import (
-                get_crossattn_boundary_tagger,
+                print("  - Phrase Alignment 모델 (v2) 로드 중...")
+            from common.s2p_phrase_alignment_loader import (
+                get_phrase_alignment_tagger,
             )
 
-            safe_process_sa_row._boundary_model = get_crossattn_boundary_tagger(
+            safe_process_s2p_row._boundary_model = get_phrase_alignment_tagger(
                 device=device
             )
             # 워밍업
             try:
-                safe_process_sa_row._boundary_model.segment_text("원문", "번역문")
-            except:
+                safe_process_s2p_row._boundary_model.segment_text("원문 테스트", "번역문 테스트")
+            except Exception:
                 pass
 
+        elif use_boundary_model:
+            if verbose:
+                print("  - Cross-Attention 경계 모델 (v1) 로드 중...")
+            from common.s2p_crossattn_boundary_loader import (
+                get_crossattn_boundary_tagger,
+            )
+
+            safe_process_s2p_row._boundary_model = get_crossattn_boundary_tagger(
+                device=device
+            )
+            # 워밍업
+            try:
+                safe_process_s2p_row._boundary_model.segment_text("원문", "번역문")
+            except Exception:
+                pass
+
+        if use_boundary_model or use_phrase_alignment:
             # Alignment 모델
             from common.alignment_model_loader import AlignmentMatcher
 
@@ -120,7 +139,7 @@ def _preload_models(
             if alignment_model_path:
                 if verbose:
                     print("  - Alignment 모델 로드 중...")
-                safe_process_sa_row._alignment_model = AlignmentMatcher(
+                safe_process_s2p_row._alignment_model = AlignmentMatcher(
                     model_path=alignment_model_path, device=device
                 )
             elif verbose:
@@ -231,6 +250,12 @@ def main():
         help="구문 파서 힌트 사용 (기본: ko, 한국어 강화)",
     )
     parser.add_argument(
+        "--similarity-threshold",
+        type=float,
+        default=0.50,
+        help="DP 유사도 임계값 (기본: 0.50, S2P 구 단위에 최적화)",
+    )
+    parser.add_argument(
         "--comma-bonus",
         type=float,
         default=0.2,
@@ -274,6 +299,12 @@ def main():
         help="경계 모델 비활성화",
     )
 
+    parser.add_argument(
+        "--use-phrase-alignment",
+        action="store_true",
+        default=False,
+        help="v2 Phrase Alignment 모델 사용 (BGE-M3 기반, --use-boundary-model 대신)",
+    )
     parser.add_argument(
         "--boundary-threshold",
         type=float,
@@ -336,7 +367,7 @@ def main():
     # use_boundary_model은 argparse에서 직접 설정됨 (p2s와 동일 패턴)
 
     if args.verbose:
-        print("🚀 SA 파일 처리 시작:", args.input_file)
+        print("🚀 S2P 파일 처리 시작:", args.input_file)
         print(
             f"⚙️  설정: 임베더={args.embedder}, 병렬={use_parallel}, 워커={args.max_workers}"
         )
@@ -346,13 +377,13 @@ def main():
     else:
         # 설정 출력
         if args.embedder == "none":
-            print("🚀 SA (Sentence Aligner) 시작")
+            print("🚀 S2P (Sentence to Phrase) 시작")
             print(
                 f"⚙️ 설정: 임베더=none, 청크={args.chunk_size}, 배치={args.batch_size}"
             )
             print("⚡ 순차 분할 모드 (임베더 미사용, 빠른 처리)")
         else:
-            print("🚀 SA (Sentence Aligner) 시작", flush=True)
+            print("🚀 S2P (Sentence to Phrase) 시작", flush=True)
             print(
                 f"⚙️ 설정: 임베더={args.embedder}, 청크={args.chunk_size}, 배치={args.batch_size}, 모델={args.use_boundary_model}",
                 flush=True,
@@ -366,7 +397,10 @@ def main():
     # 🆕 모델 사전 로드 (--preload-models 옵션)
     if args.preload_models:
         print("🔄 모델 사전 로드 중...", flush=True)
-        _preload_models(args.use_boundary_model, args.device, args.verbose)
+        _preload_models(
+            args.use_boundary_model, args.device, args.verbose,
+            use_phrase_alignment=getattr(args, 'use_phrase_alignment', False),
+        )
         print("✅ 모델 로드 완료", flush=True)
 
     try:
@@ -398,6 +432,7 @@ def main():
             particle_bonus=args.particle_bonus,
             length_penalty=args.length_penalty,
             sim_gamma=args.sim_gamma,
+            similarity_threshold=args.similarity_threshold,
             syntax_hints=args.syntax_hints,
             comma_bonus=args.comma_bonus,
             comma_mode=args.comma_mode,
@@ -405,6 +440,7 @@ def main():
             hybrid_embed=not args.no_hybrid_embed,
             verbose=args.verbose,
             use_boundary_model=args.use_boundary_model,
+            use_phrase_alignment=getattr(args, 'use_phrase_alignment', False),
             boundary_threshold=args.boundary_threshold,
             device=args.device,
         )

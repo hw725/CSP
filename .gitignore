@@ -282,7 +282,7 @@ common/global_integrity_restorer.py
 archive/
 .claude
 .vscode
-cache/sa_semantic
+cache/
 embeddings_cache_gemini
 instructions
 
@@ -365,6 +365,16 @@ tmpclaude-*
 
 # Precomputed embeddings (large, regenerate locally)
 datasets/precomputed/
+
+# Experimental model variants (regenerate via training)
+models/semantic_boundary_dicebce.pt
+models/semantic_boundary_focal.pt
+models/semantic_boundary_large.pt
+models/semantic_boundary_pw5.pt
+models/semantic_boundary_retrained.pt
+
+# PDF files (research materials, do not commit)
+*.pdf
 
 # Recovered junk folders (root-level, 복구 잔해 방지)
 /csv/
