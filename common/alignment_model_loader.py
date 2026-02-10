@@ -8,6 +8,56 @@ from typing import List, Dict
 import torch
 from torch import nn
 
+def _split_seg_at_eojeol(seg: str, k: int) -> list:
+    """세그먼트를 k개로 분할 — 어절 내부 분리 절대 금지.
+
+    공백 위치에서만 분할한다. 공백이 부족하면 가능한 만큼만 분할하고
+    나머지는 분할하지 않는다 (문자 균등분할 폴백 없음).
+    """
+    if k <= 1 or len(seg) <= 1:
+        return [seg]
+
+    valid_splits = []
+    for i, ch in enumerate(seg):
+        if ch in (" ", "\n", "\t", "\r") and i + 1 < len(seg):
+            valid_splits.append(i + 1)
+
+    if not valid_splits:
+        return [seg]
+
+    n_splits = min(k - 1, len(valid_splits))
+
+    targets = [(len(seg) * (j + 1)) // (n_splits + 1) for j in range(n_splits)]
+    chosen = []
+    used = set()
+    for target in targets:
+        best_sp = None
+        best_dist = float("inf")
+        for sp in valid_splits:
+            if sp in used:
+                continue
+            dist = abs(sp - target)
+            if dist < best_dist:
+                best_dist = dist
+                best_sp = sp
+        if best_sp is not None:
+            chosen.append(best_sp)
+            used.add(best_sp)
+
+    chosen.sort()
+
+    pieces = []
+    pos = 0
+    for sp in chosen:
+        if sp > pos and sp <= len(seg):
+            pieces.append(seg[pos:sp])
+            pos = sp
+    if pos < len(seg):
+        pieces.append(seg[pos:])
+
+    return [p for p in pieces if p]
+
+
 class CharEncoderForAlignment(nn.Module):
     """정렬용 문자 인코더"""
 
@@ -173,22 +223,13 @@ class AlignmentMatcher:
                     pieces_per_seg[i] += 1
                     extra -= 1
 
-                # 2) 각 세그먼트를 내부에서 문자 단위 균등분할하여 총 target_count를 만든다
+                # 2) 각 세그먼트를 내부에서 어절 경계 기준 분할하여 총 target_count를 만든다
                 expanded: List[str] = []
                 for seg, k in zip(base_segments, pieces_per_seg):
                     if k <= 1 or len(seg) <= 1:
                         expanded.append(seg)
                         continue
-                    base = len(seg) // k
-                    rem = len(seg) % k
-                    pos = 0
-                    for j in range(k):
-                        step = base + (1 if j < rem else 0)
-                        nxt = pos + step
-                        expanded.append(seg[pos:nxt])
-                        pos = nxt
-                    if pos < len(seg):
-                        expanded[-1] = expanded[-1] + seg[pos:]
+                    expanded.extend(_split_seg_at_eojeol(seg, k))
 
                 # 방어: 비어있는 조각이 생기면 제거 후, 마지막에 합쳐 개수 보존을 시도
                 expanded = [p for p in expanded if p is not None and p != ""]

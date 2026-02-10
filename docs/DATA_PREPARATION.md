@@ -358,7 +358,40 @@ docker-compose run --rm csp python xlsx_scripts/add_paragraph_id_to_gubyeollyeol
 
 ---
 
-## 🔀 완전한 실행 플로우
+### Phase 4: 머지 및 분할 (평가용 데이터셋 생성)
+
+#### Step 4.1: 전체 병렬 데이터 머지
+
+**스크립트**: `xlsx_scripts/merge_parallel_xlsx.py`
+
+**목적**: 책별 XLSX 파일들을 하나의 통합 파일로 머지
+
+**핵심 기능**: **헤더 기반 컬럼 매핑** — 파일마다 컬럼 구조가 다를 수 있으므로 컬럼명으로 필요한 데이터를 추출
+
+```
+XML 기반 파일: [문단식별자, 문장식별자, 원문, 번역문] (4컬럼)
+원본 Excel:    [No., 문단식별자, 문장식별자, 원문, 번역문, 원문_어절수, ...] (9컬럼)
+                → 헤더에서 필요한 컬럼만 자동 추출
+```
+
+**검증**: 머지 후 원문 필드에 숫자만 있는 행이 없는지 자동 확인 (`validate_merged_data()`)
+
+> **이전 버그**: 구버전 머지 스크립트가 위치 기반(`[book_name] + row`)으로 컬럼을 매핑하여, "No." 컬럼이 있는 원본 Excel에서 원문 필드에 문장식별자(숫자)가 들어가는 오류 발생. 사정전훈의자치통감강목 228문단이 영향받음. 2026-02-10 수정 완료.
+
+#### Step 4.2: Train/Val/Test 분할
+
+**스크립트**: `scripts/split_excel.py`
+
+**작동 원리**:
+1. 문단식별자 기준으로 train/val/test 분할 (RANDOM_STATE=42)
+2. 문장/구 데이터는 부모 문단의 분할을 따름
+3. 3종(문단/문장/구) x 3분할(train/val/test) = 9개 파일 생성
+
+**교차 오염 검증**: 동일 문단식별자가 다른 분할에 나타나지 않음 확인 완료 (paragraph/sentence/phrase 간에도)
+
+---
+
+## 완전한 실행 플로우
 
 ### 일반 서종 (당송팔대가문초 등) - 37권
 
@@ -380,6 +413,12 @@ docker-compose run --rm csp python xlsx_scripts/create_paragraph_parallel.py
 
 # Step 3.3: 구병렬에 문단식별자 추가
 docker-compose run --rm csp python xlsx_scripts/add_paragraph_id_to_gubyeollyeol.py
+
+# Step 4.1: 전체 머지 (헤더 기반 컬럼 매핑)
+docker-compose run --rm csp python xlsx_scripts/merge_parallel_xlsx.py
+
+# Step 4.2: Train/Val/Test 분할
+docker-compose run --rm csp python scripts/split_excel.py
 ```
 
 ### 특수 서종 (예기 5권) - 추가 단계
@@ -530,6 +569,11 @@ docker-compose run --rm csp python xlsx_scripts/extract_yeogi.py
 - 예기집설대전1,2 + 당시삼백수1~3은 별도 로직 필요
 - 일반 스크립트로 처리 시 데이터 손실 가능
 
+### 6. XML 없는 원본 Excel 파일
+- 사정전훈의자치통감강목 16, 21, 22, 23은 **XML 소스가 없음** — Excel 파일이 원본
+- 이 파일들은 일반 Excel과 컬럼 구조가 다를 수 있음 (No., 어절수 등 추가 컬럼)
+- 머지 시 반드시 **헤더 기반 컬럼 매핑** 사용 (위치 기반 매핑 금지)
+
 ---
 
 ## 🔍 검증 체크리스트
@@ -582,4 +626,4 @@ docker-compose run --rm csp python batch_43books.py
 
 ---
 
-**작성**: 2025년 12월 19일 | **최종 업데이트**: 2025년 12월 19일
+**작성**: 2025년 12월 19일 | **최종 업데이트**: 2026년 2월 10일 - Phase 4 (머지/분할) 추가, 컬럼 매핑 버그 수정 기록, XML 없는 원본 Excel 주의사항 추가

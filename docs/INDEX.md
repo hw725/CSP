@@ -258,15 +258,20 @@
 ## 🗂️ 파일 구조
 
 ```
-documents/
-├── INDEX.md                          ← 📍 이 파일 (문서 가이드)
+docs/
+├── INDEX.md                          ← 이 파일 (문서 가이드)
+├── P2S_MECHANISM.md                  ← P2S 메커니즘 상세 (F1=0.9384)
+├── P2S_CODE_ANATOMY.md               ← P2S 코드 해부 (경계 모델 아키텍처)
+├── S2P_MECHANISM.md                  ← S2P 메커니즘 상세 (F1=0.8555, v2.1)
+├── S2P_CODE_ANATOMY.md               ← S2P 코드 해부 (v2.1 Phrase Alignment 아키텍처)
 ├── DATA_PREPARATION.md               ← 데이터 처리 과정
-├── WORKFLOW.md                       ← PA/SA 워크플로우
-├── ROADMAP_TO_F1_0.9.md              ← PA F1 0.90 로드맵
+├── WORKFLOW.md                       ← 전체 워크플로우
+├── PERFORMANCE.md                    ← 성능 벤치마크
+├── CLOUD_GPU_TESTING.md              ← RunPod GPU 테스트 가이드 + 결과
 ├── TROUBLESHOOTING.md                ← 문제 해결
-├── PERFORMANCE.md                    ← 성능 최적화
-├── OBSERVABILITY_FIRST_PROMPT_DESIGN_MANUAL.md ← 관측성 우선 설계 매뉴얼
-└── MULTIVECTOR_VS_DENSE.md           ← Multi-Vector vs Dense 임베딩 비교
+├── RESEARCH_STRATEGY_MEMO.md         ← 연구 전략 메모
+├── MULTIVECTOR_VS_DENSE.md           ← Multi-Vector vs Dense 임베딩 비교
+└── OBSERVABILITY_FIRST_PROMPT_DESIGN_MANUAL.md ← 관측성 우선 설계 매뉴얼
 ```
 
 ---
@@ -303,17 +308,24 @@ documents/
 
 ---
 
-## 📝 문서 업데이트 이력
+## 문서 업데이트 이력
+
+### 2026년 2월 10일 (v2.1 업데이트)
+- **S2P F1=0.8555** (v2.1 Phrase Alignment, 446문장) 반영
+- S2P_CODE_ANATOMY.md 전면 재작성 (v2.1 상세 아키텍처)
+- S2P_MECHANISM.md v2.1 반영
+- PERFORMANCE.md, WORKFLOW.md S2P 지표 갱신
+
+### 2026년 2월 10일 (초기)
+- **P2S F1=0.9384** (4,934문단 전체 테스트 완료) 반영
+- **S2P F1=0.6900** (v2 Phrase Alignment) 반영
+- BGE Refinement v3 (3-pass, 활성) 반영
+- P2S_CODE_ANATOMY.md 경계 모델 아키텍처 상세 추가
 
 ### 2025년 12월 19일
 - **XLSX 기반 완전 재정리**
 - 구 XML 파이프라인 문서 삭제
-- 새로운 4개 문서 작성:
-  - README.md (프로젝트 개요)
-  - WORKFLOW.md (시스템 상세)
-  - TROUBLESHOOTING.md (문제 해결)
-  - PERFORMANCE.md (성능 최적화)
-  - INDEX.md (이 파일)
+- 초기 문서 작성
 
 ---
 
@@ -415,5 +427,5 @@ git clone https://github.com/hw725/CSP.git
 
 ---
 
-**마지막 업데이트**: 2026년 1월 13일
-**문서 버전**: 2.1 (PA F1 0.87 달성 반영, 문서 정리)
+**마지막 업데이트**: 2026년 2월 10일
+**문서 버전**: 3.1 (P2S F1=0.9384, S2P F1=0.8555 v2.1 Phrase Alignment, BGE Refinement v3)

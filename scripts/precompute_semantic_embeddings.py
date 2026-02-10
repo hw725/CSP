@@ -29,10 +29,15 @@ from common.semantic_boundary_model import POS_TAGS, POS_DIM
 
 
 def normalize_text(text: str) -> str:
-    """공백/개행/탭 제거"""
+    """공백/개행/탭 + 편집 마커([, -, ]) 제거"""
     if pd.isna(text):
         return ""
-    return str(text).replace(" ", "").replace("\n", "").replace("\t", "").replace("\r", "").strip()
+    return (
+        str(text)
+        .replace(" ", "").replace("\n", "").replace("\t", "").replace("\r", "")
+        .replace("[", "").replace("-", "").replace("]", "")
+        .strip()
+    )
 
 
 def build_sentence_boundary_labels(

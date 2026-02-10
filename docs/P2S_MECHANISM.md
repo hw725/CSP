@@ -1,8 +1,9 @@
 # P2S (Paragraph-to-Sentence Aligner) 메커니즘 상세 설명
 
-**버전**: 2026-01-15
+**버전**: 2026-02-10
 **목적**: 고전 한문(원문)과 현대 한국어(번역문) 간의 문장 단위 정렬
 **약칭**: P2S (구: PA)
+**현재 F1**: 0.9384 (4,934문단 전체, RunPod H200 SXM)
 
 ---
 
@@ -57,82 +58,85 @@ PA(Paragraph Aligner)는 **문단 단위**로 입력된 원문-번역문 쌍을 
 
 ## 2. 파이프라인 구조
 
-PA는 크게 5단계로 구성됩니다:
+P2S는 크게 6단계로 구성됩니다:
 
 ```
 [입력 문단]
     ↓
-[1단계] 문장 분할 (각 언어별)
+[1단계] 번역문 문장 분할 (rule-based, 개수 M 확정)
     ↓
-[2단계] 경계 후보 생성
+[2단계] 원문 경계 후보 다중 생성
+         ├─ SuPar (구문 분석 기반)
+         ├─ Boundary Model (다중 threshold)
+         ├─ Model Top-K (logit peak 기반)
+         └─ Whitespace DP (공백 기반 의미 정렬)
     ↓
-[3단계] 유사도 기반 매칭
+[3단계] 후보별 alignment score + prior + style bonus → 최고 후보 선택
     ↓
-[4단계] DP 리파인 (선택적)
+[4단계] Adjacent Refinement (boundary/model_topk만, supar 제외)
+    ↓
+[5단계] 무결성 검증 + 체크포인트 저장
     ↓
 [출력 정렬 쌍]
 ```
 
 ---
 
-## 3. 1단계: 문장 분할
+## 3. 1단계: 번역문 문장 분할
 
-### 3.1 원문(한문) 분할: SuPar-Kanbun
+### 3.1 번역문(한국어) 분할: Rule-based (`_split_target_sentences_pa`)
 
-**SuPar-Kanbun**은 고전 한문 전용 의존 구문 분석기(Dependency Parser)입니다.
-
-**작동 원리**:
-1. 연속된 한자 문자열을 입력받음
-2. 각 문자 간의 문법적 관계(주어-동사, 동사-목적어 등)를 분석
-3. 문장 종결 위치를 추론하여 분할
-
-**예시**:
-```
-입력: "子曰學而時習之不亦說乎有朋自遠方來不亦樂乎"
-출력: ["子曰學而時習之不亦說乎", "有朋自遠方來不亦樂乎"]
-```
-
-### 3.2 번역문(한국어) 분할: Stanza
-
-**Stanza**는 Stanford NLP Group의 다국어 NLP 도구입니다.
+번역문 분할은 **rule-based 전용**입니다 (boundary 모델 사용 금지). 개수 M이 확정되면 원문은 M개로 분할해야 합니다.
 
 **작동 원리**:
-1. 한국어 문장을 토큰화
-2. 구두점(., !, ?)과 문법 구조를 분석
-3. 문장 경계를 결정
+1. Stanza로 기초 문장 경계 감지
+2. 발화자-발화내용 통합, 인용 종결부 통합 등 의미 기반 후처리
+3. `max_length` 초과 시 추가 분할
 
 **예시**:
 ```
 입력: "선생님께서 말씀하셨다. 배우고 때때로 익히면 기쁘지 아니한가."
 출력: ["선생님께서 말씀하셨다.", "배우고 때때로 익히면 기쁘지 아니한가."]
+→ M = 2 확정
 ```
+
+### 3.2 원문(한문) 분할
+
+원문은 1단계에서 분할하지 않습니다. 2단계에서 다중 후보 방식으로 생성됩니다.
+
+SuPar-Kanbun은 **후보 생성기 중 하나**로 사용됩니다:
+- 한자만 추출(`\p{Han}`) → SuPar 실행 → 오프셋 역매핑
+- 결과는 `supar(N)` 태그로 candidate_sets에 추가
 
 ---
 
-## 4. 2단계: 경계 후보 생성
+## 4. 2단계: 원문 경계 후보 다중 생성
 
-문장 분할기 외에도 다양한 소스에서 경계 후보를 수집합니다.
+각 후보 방식이 독립적으로 원문 분할안을 생성하며, 3단계에서 최고 후보를 선택합니다.
 
-### 4.1 경계 후보 소스
+### 4.1 경계 후보 소스 (4종)
 
-| 소스 | 설명 | 신뢰도 |
-|------|------|--------|
-| **SuPar** | 구문 분석 기반 분할점 | 높음 |
-| **Stanza** | 문법 구조 기반 분할점 | 높음 |
-| **어절 경계** | 공백 위치 (한국어) | 중간 |
-| **구두점** | 마침표, 물음표 등 | 높음 |
-| **Boundary Model** | 신경망 예측 경계 | 가변 |
+| 소스 | 태그 | 설명 | 특징 |
+|------|------|------|------|
+| **SuPar** | `supar(N)` | 고전 한문 의존 구문 분석 | 문법 기반, 정확하지만 개수 불일치 가능 |
+| **Boundary Model** | `boundary(th=X,N)` | 신경망 경계 예측, threshold를 낮춰가며 시도 | 다중 threshold (0.72→0.62→0.52→0.42) |
+| **Model Top-K** | `model_topk(N)` | Logit 상위 (M-1)개 peak를 경계로 직접 사용 | 정확히 desired 개수 보장 |
+| **Whitespace DP** | `whitespace_dp(N)` | 공백 기반 의미 정렬 DP | 어절 내부 분할 원천 차단 |
 
 ### 4.2 Boundary Model
 
-별도 학습된 신경망 모델이 각 문자 위치가 "문장 경계일 확률"을 예측합니다.
+별도 학습된 신경망(BiLSTM + CrossAttention)이 각 문자 위치의 경계 확률을 예측합니다.
 
-**구조**:
-- 입력: 원문 + 번역문 문자 시퀀스
-- 출력: 각 위치의 경계 확률 (0~1)
+**작동**:
+1. 정규화된 원문(`_norm_for_boundary`: 공백/개행/탭 제거)에 대해 logit 한 번 계산
+2. 이 logit을 여러 threshold에서 재사용 (사전 계산 캐싱)
+3. threshold를 순차 하강하며 desired 개수 이상 세그먼트를 생성하는 최초 결과 채택
 
-**적용**:
-- `boundary_threshold` (예: 0.72) 이상인 위치만 경계 후보로 채택
+### 4.3 Model Top-K
+
+Boundary Model의 logit 중 상위 (desired-1)개 peak를 직접 경계로 사용합니다.
+- threshold 방식과 달리 **정확히 desired 개수 보장**
+- 모델 확신도 기반으로 가장 확실한 경계만 선택
 
 ---
 
@@ -182,63 +186,78 @@ similarity = (벡터A · 벡터B) / (||벡터A|| × ||벡터B||)
 - 0에 가까울수록 관련 없음
 - -1에 가까울수록 반대 의미
 
-### 5.2 후보 매칭
+### 5.2 후보별 스코어링 및 최고 후보 선택
 
-모든 가능한 (원문 세그먼트, 번역문 세그먼트) 조합에 대해 유사도를 계산하고, 가장 높은 점수의 매칭을 선택합니다.
+각 후보 세트에 대해 `match_segments()`로 alignment 유사도를 계산하고, 보정 항목을 더해 최고 후보를 선택합니다.
 
-**점수 구성**:
+**점수 구성** (코드 순서):
 ```
-총점 = 유사도_점수 + 경계_보너스 + 스타일_보너스 - 패널티
+score  = avg_similarity                     # Alignment Model 평균 유사도
+score -= 0.05 × shortfall                   # desired 미달 패널티
+score += prior_bonus                        # 후보 유형별 사전 보너스
+       (boundary 후보가 연결형>종결형이면 prior 제거)
+score += style_bonus                        # 종결/연결 어미 보너스
+       (avg_sim<0.6이면 무시, whitespace_dp는 항상 적용)
+score -= per_pair_penalty × short_pairs     # 긴 tgt↔짧은 src 쌍 패널티
+score -= penalty_empty_src                  # 빈 원문 세그먼트 패널티 (0.5)
+       + whitespace_dp 전용 추가 패널티들
 ```
 
-| 요소 | 설명 |
-|------|------|
-| 유사도_점수 | BGE 임베딩 코사인 유사도 |
-| 경계_보너스 | Boundary Model이 예측한 경계일 때 추가 점수 |
-| 스타일_보너스 | 문장 종결형 어미("-다", "-까")로 끝날 때 가산 |
-| 패널티 | 너무 짧은 세그먼트, 불균형 길이 등에 감점 |
+| 요소 | 값/기준 | 설명 |
+|------|---------|------|
+| **base_score** | alignment sim 평균 | Dual Encoder Alignment Model |
+| **shortfall_penalty** | 0.05/개 | desired 미달 시 match_segments 내부 분할 의존 감소 |
+| **prior_bonus** | supar: 0.42, boundary: 0.40 | 동점 제거 + 자연 경계 선호 |
+| **style_bonus** | 종결형 +, 연결형 - | "니라", "도다" 등 한문 현토 종결 패턴 |
+| **short_pair_penalty** | 0.015/쌍 | tgt≥40자인데 src≤12자인 쌍 |
+| **empty_src_penalty** | 0.5 | 빈 원문 세그먼트 존재 시 |
 
 ---
 
-## 6. 4단계: DP 리파인 (Dynamic Programming Refinement)
+## 6. 4단계: Adjacent Refinement (인접 경계 미세 조정)
 
 ### 6.1 목적
 
-3단계의 탐욕적(Greedy) 매칭은 지역 최적(Local Optimum)에 빠질 수 있습니다. DP 리파인은 **전역 최적(Global Optimum)**을 찾습니다.
+3단계에서 선택된 최고 후보의 경계를 인접 위치로 이동시켜 alignment score를 개선합니다.
 
-### 6.2 문제 정의
+### 6.2 적용 조건
 
-- **원문**: 총 N개의 경계 후보 위치
-- **번역문**: M개의 문장으로 분할됨
-- **목표**: N개 후보 중 M-1개를 선택하여 원문을 M등분
+| 후보 유형 | Refinement 적용 |
+|----------|----------------|
+| `boundary(...)` | O |
+| `model_topk(...)` | O |
+| `supar(...)` | **X** (supar 경계는 refinement 제외) |
+| `whitespace_dp(...)` | O |
 
-### 6.3 DP 알고리즘
+**supar 제외 이유**: SuPar가 gold와 완벽 일치하는 경계를 생성해도, DP 기반 adjacent refinement이 alignment model 점수 최적화 과정에서 경계를 이동시켜 결과를 악화시킴. (F1 0.82 → 0.9048 달성의 핵심 변경)
 
-**상태 정의**:
-```
-dp[i][j] = i번째 번역문 문장까지 매칭할 때,
-           j번째 경계 후보를 선택했을 때의 최대 총점
-```
+### 6.3 알고리즘
 
-**전이 (Transition)**:
-```
-dp[i][j] = max(dp[i-1][k] + score(k→j, target[i])) for all valid k < j
-```
-
-여기서 `score(k→j, target[i])`는:
-- 원문의 k~j 구간과 번역문 i번째 문장 간의 유사도
-
-**시간 복잡도**: O(M × N²)
-
-### 6.4 Do-No-Harm 게이트
-
-DP 리파인 결과가 원래 결과보다 **명확히 좋을 때만** 적용합니다.
+각 내부 경계에 대해 좌우 `max_shift_tokens`만큼 이동을 시도하고, alignment score가 개선되면 채택합니다.
 
 ```
-적용 조건: DP_총점 > 원래_총점 + min_gain
+for 각 경계 i in [1, M-1]:
+    현재_score = alignment_score(현재_분할)
+    for shift in [-max_shift, ..., +max_shift]:
+        새_분할 = 경계[i]를 shift만큼 이동
+        새_score = alignment_score(새_분할) - shift_penalty * |shift|
+        if 새_score > 현재_score:
+            경계[i] = 새 위치
 ```
 
-이는 미세한 차이로 경계가 크게 변하는 것을 방지합니다.
+### 6.4 BGE Refinement (3-pass, 활성)
+
+BGE-M3 문자 수준 유사도 기반 경계 미세 조정. **v3에서 재활성화**되어 F1 향상의 핵심 역할.
+
+**핵심 메커니즘**:
+1. **토큰 경계만 후보** (`_token_boundary_positions()`): 문자 단위 대신 어절 경계만 탐색 → S/N 대폭 개선
+2. **현토 종결 어미 보너스** (+0.06): `니라`, `리라`, `리오` 등 한문 현토 종결 패턴
+3. **길이 비율 보너스** (`_length_balance_bonus`): src/tgt 분할 비율 일치 여부로 3~6자 미세 이동 감지
+4. **3-pass refinement**: 순차 의존성 해소 (경계 i의 이동이 경계 i+1에 영향)
+5. **min_improvement = 0**: 미세한 개선도 수용 (길이비율 보너스가 노이즈 방지)
+6. **max_shift_chars = 40**: 넓은 탐색 범위
+
+**교훈**: BGE 유사도만으로는 3~6자 이동을 감지 못함 → 길이 비율이 결정적 보조 시그널
 
 ---
 
@@ -274,25 +293,26 @@ DP 알고리즘의 핵심 루프를 **Numba**로 컴파일하여 C 수준의 속
 
 ### 8.1 주요 파라미터
 
-| 파라미터 | 기본값 | 설명 |
-|----------|--------|------|
-| `boundary_aware_weight` | 0.30 | 경계 모델 점수 가중치 |
-| `supar_bonus` | 0.20 | SuPar 경계에 주는 보너스 |
-| `boundary_threshold` | 0.72 | 경계로 인정할 최소 확률 |
-| `weight_terminal` | 0.018 | 종결 어미 보너스 |
-| `weight_continuation` | -0.030 | 연결 어미 페널티 |
+| 파라미터 | 현재 값 | 설명 |
+|----------|---------|------|
+| `boundary_threshold` | 0.72 | 경계 모델 기본 threshold (다중 threshold 하강: 0.72→0.62→0.52→0.42) |
+| `candidate_prior_bonus_by_prefix` | supar: 0.42, boundary: 0.40 | 후보 유형별 사전 보너스 (동점 제거) |
+| `shortfall_penalty` | 0.05/개 | desired 미달 후보에 대한 감점 |
+| `shift_penalty_factor` | 0.0008 | Adjacent refinement 시 이동 거리 페널티 |
+| `adjacent_refine_max_shift_tokens` | 1 | 경계 이동 최대 토큰 수 |
 
-### 8.2 파라미터 튜닝
+### 8.2 최적화 히스토리
 
-**Grid Search**를 통해 F1 점수를 최대화하는 파라미터 조합을 탐색합니다.
-
-```
-for bw in [0.25, 0.30, 0.35]:
-    for sb in [0.15, 0.20, 0.25]:
-        F1 = run_and_evaluate(bw, sb)
-        if F1 > best_F1:
-            best_params = (bw, sb)
-```
+| 변경 사항 | F1 변화 | 측정 기준 |
+|----------|---------|----------|
+| 정규화 버그 수정 (공백/개행/탭 제거 통일) | 0.69 → 0.82 | 10문단 gold |
+| Adjacent refinement에서 supar 제외 | 0.82 → 0.86+ | 10문단 gold |
+| Shortfall penalty 추가 | 0.86+ → 0.88+ | 10문단 gold |
+| Prior 차별화 (supar > boundary) | 0.88+ → 0.9048 | 10문단 gold |
+| **v1**: BGE refinement 재활성화 | 0.6684 → 0.7977 | 100문단 test |
+| **v2**: min_improvement↓ + 2-pass | 0.7977 → 0.8937 | 100문단 test |
+| **v3**: 길이비율 보너스 + 3-pass + min_imp=0 | 0.8937 → 0.9273 | 100문단 test |
+| **전체 테스트** (RunPod H200) | → **0.9384** | **4,934문단 전체** |
 
 ---
 
@@ -337,11 +357,22 @@ F1 = 2 × (Precision × Recall) / (Precision + Recall)
 3. **도메인 특화**: 한문-한국어에 최적화
    - 다른 언어쌍 적용 시 재학습 필요
 
-### 10.2 향후 개선 방향
+4. **무결성 FAIL**: 228개 문단 (전부 '사정전훈의자치통감강목' 책) — 골드 데이터의 원문 필드에 숫자가 들어있는 이슈 (프로세서 버그 아님, 머지 스크립트 컬럼 매핑 오류로 확인 및 수정 완료)
+
+### 10.2 전체 테스트 결과 (4,934문단, RunPod H200 SXM)
+
+| 지표 | 값 |
+|------|------|
+| **F1** | **0.9384** |
+| **Precision** | 1.0 |
+| **Recall** | 0.8840 |
+| **원문유사도** | 0.9759 |
+| **처리 시간** | ~5.2시간 |
+
+### 10.3 향후 개선 방향
 
 1. **N:M 정렬 지원**: 유연한 매칭 구조
-2. **Transformer 기반 Aligner**: End-to-end 학습
-3. **문맥 인식**: 문단 간 정보 활용
+2. **Recall 개선**: 현재 0.8840 → FN 발생 패턴 분석 필요
 
 ---
 

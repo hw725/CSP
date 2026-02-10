@@ -24,6 +24,58 @@ from common.semantic_boundary_model import (
 )
 
 
+def _build_eojeol_end_set(raw_text: str) -> set:
+    """원본 텍스트에서 어절 끝 위치를 정규화 좌표(norm_pos)로 반환.
+
+    어절 = 공백으로 구분된 단위.  어절의 마지막 문자 위치만 유효한 경계.
+    """
+    valid = set()
+    norm_idx = -1
+    for i, ch in enumerate(raw_text):
+        if ch in (" ", "\n", "\t", "\r"):
+            continue
+        norm_idx += 1
+        next_i = i + 1
+        if next_i >= len(raw_text) or raw_text[next_i] in (" ", "\n", "\t", "\r"):
+            valid.add(norm_idx)
+    return valid
+
+
+def _snap_peaks_to_eojeol(
+    raw_text: str,
+    peaks: List[tuple],
+) -> List[tuple]:
+    """경계 위치를 가장 가까운 어절 끝으로 스냅 (어절 내부 분리 방지)."""
+    if not peaks or not raw_text:
+        return peaks
+
+    valid_ends = _build_eojeol_end_set(raw_text)
+    if not valid_ends:
+        return peaks
+
+    norm_len = sum(1 for ch in raw_text if ch not in (" ", "\n", "\t", "\r"))
+
+    adjusted = []
+    for pos, logit in peaks:
+        if pos in valid_ends:
+            adjusted.append((pos, logit))
+            continue
+        # forward snap
+        snapped = None
+        for candidate in range(pos, norm_len):
+            if candidate in valid_ends:
+                snapped = candidate
+                break
+        if snapped is None:
+            for candidate in range(pos - 1, -1, -1):
+                if candidate in valid_ends:
+                    snapped = candidate
+                    break
+        adjusted.append((snapped if snapped is not None else pos, logit))
+
+    return adjusted
+
+
 class SemanticBoundaryLoader:
     """Semantic Cross-Lingual Boundary 모델 로더"""
 
@@ -291,6 +343,17 @@ class SemanticBoundaryLoader:
                     filtered_peaks[-1] = (i, p)
             else:
                 filtered_peaks.append((i, p))
+
+        # 어절 내부 분리 방지: 경계를 어절 끝으로 스냅
+        filtered_peaks = _snap_peaks_to_eojeol(src_text, filtered_peaks)
+        # 스냅 후 중복 제거
+        seen = set()
+        deduped = []
+        for i, p in filtered_peaks:
+            if i not in seen:
+                seen.add(i)
+                deduped.append((i, p))
+        filtered_peaks = sorted(deduped, key=lambda x: x[0])
 
         norm_boundaries = [i for i, _ in filtered_peaks]
         if not norm_boundaries:

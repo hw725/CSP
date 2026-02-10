@@ -11,6 +11,61 @@ from typing import List, Dict, Tuple
 import torch
 from torch import nn
 
+def _split_seg_at_eojeol(seg: str, k: int) -> list:
+    """세그먼트를 k개로 분할 — 어절 내부 분리 절대 금지.
+
+    공백 위치에서만 분할한다. 공백이 부족하면 가능한 만큼만 분할하고
+    나머지는 분할하지 않는다 (문자 균등분할 폴백 없음).
+    """
+    if k <= 1 or len(seg) <= 1:
+        return [seg]
+
+    # 유효 분할점 = 공백 바로 뒤 위치 (어절 시작점)
+    valid_splits = []
+    for i, ch in enumerate(seg):
+        if ch in (" ", "\n", "\t", "\r") and i + 1 < len(seg):
+            valid_splits.append(i + 1)
+
+    if not valid_splits:
+        # 공백이 전혀 없으면 분할 불가 — 원본 유지
+        return [seg]
+
+    # 필요한 분할점 수 = min(k-1, 사용 가능한 공백 수)
+    n_splits = min(k - 1, len(valid_splits))
+
+    # 균등 간격 목표 위치에서 가장 가까운 공백을 선택
+    targets = [(len(seg) * (j + 1)) // (n_splits + 1) for j in range(n_splits)]
+    chosen = []
+    used = set()
+    for target in targets:
+        best_sp = None
+        best_dist = float("inf")
+        for sp in valid_splits:
+            if sp in used:
+                continue
+            dist = abs(sp - target)
+            if dist < best_dist:
+                best_dist = dist
+                best_sp = sp
+        if best_sp is not None:
+            chosen.append(best_sp)
+            used.add(best_sp)
+
+    chosen.sort()
+
+    # 분할
+    pieces = []
+    pos = 0
+    for sp in chosen:
+        if sp > pos and sp <= len(seg):
+            pieces.append(seg[pos:sp])
+            pos = sp
+    if pos < len(seg):
+        pieces.append(seg[pos:])
+
+    return [p for p in pieces if p]
+
+
 class BoundaryAwareCharEncoder(nn.Module):
     """Boundary 정보를 포함한 Character Encoder"""
 
@@ -402,16 +457,7 @@ class BoundaryAwareAlignmentMatcher:
                     if k <= 1 or len(seg) <= 1:
                         expanded.append(seg)
                         continue
-                    base = len(seg) // k
-                    rem = len(seg) % k
-                    pos = 0
-                    for j in range(k):
-                        step = base + (1 if j < rem else 0)
-                        nxt = pos + step
-                        expanded.append(seg[pos:nxt])
-                        pos = nxt
-                    if pos < len(seg):
-                        expanded[-1] = expanded[-1] + seg[pos:]
+                    expanded.extend(_split_seg_at_eojeol(seg, k))
 
                 expanded = [p for p in expanded if p is not None and p != ""]
                 if not expanded:

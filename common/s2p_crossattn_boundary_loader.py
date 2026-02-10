@@ -288,6 +288,11 @@ class CrossAttnBoundaryTaggerLoader:
                 results.append([tgt_text] if tgt_text else [])
                 continue
 
+            # 🔧 n_segments <= 1이면 분할 불필요 — 원문 전체 반환
+            if n_segments is not None and n_segments <= 1:
+                results.append([tgt_text])
+                continue
+
             probs = probs_batch[i][: len(tgt_text)]
             attn = attn_batch[i][: len(tgt_text), : len(src_text)]
 
@@ -322,7 +327,8 @@ class CrossAttnBoundaryTaggerLoader:
                     segments.append(tgt_text[start:pos])
                     start = pos
                 segments.append(tgt_text[start:])
-                segments = [s for s in segments if s.strip()]
+                # 🔧 빈 세그먼트 병합 (개수 보존)
+                segments = CrossAttnBoundaryTaggerLoader._merge_empty_segments(segments)
                 results.append(segments if segments else [tgt_text])
             else:
                 # threshold 기준 분할
@@ -362,6 +368,10 @@ class CrossAttnBoundaryTaggerLoader:
         """
         if not tgt_text.strip():
             return [tgt_text] if tgt_text else []
+
+        # 🔧 n_segments <= 1이면 분할 불필요
+        if n_segments is not None and n_segments <= 1:
+            return [tgt_text]
 
         with torch.no_grad():
             src = self._encode(src_text, self.src_vocab, self.src_max_len)
@@ -413,8 +423,8 @@ class CrossAttnBoundaryTaggerLoader:
                 start = pos
             segments.append(tgt_text[start:])
 
-            # 빈 세그먼트 제거
-            segments = [s for s in segments if s.strip()]
+            # 🔧 빈 세그먼트 처리: 제거 대신 인접 세그먼트에 병합 (개수 보존)
+            segments = self._merge_empty_segments(segments)
             return segments if segments else [tgt_text]
 
         # threshold 기준 분할 (기존 방식)
@@ -430,10 +440,38 @@ class CrossAttnBoundaryTaggerLoader:
         if start < len(tgt_text):
             segments.append(tgt_text[start:])
 
-        # 빈 세그먼트 제거
+        # 빈 세그먼트는 제거 (threshold 모드에서는 개수 제약 없음)
         segments = [s for s in segments if s.strip()]
 
         return segments if segments else [tgt_text]
+
+    @staticmethod
+    def _merge_empty_segments(segments: List[str]) -> List[str]:
+        """빈 세그먼트를 인접 세그먼트에 병합하여 개수를 보존한다.
+
+        빈 세그먼트(공백만 포함)가 있으면 다음 세그먼트 앞에 붙인다.
+        마지막이 빈 경우는 이전 세그먼트 뒤에 붙인다.
+        """
+        if not segments:
+            return segments
+
+        merged = []
+        pending = ""
+        for seg in segments:
+            if seg.strip():
+                merged.append(pending + seg)
+                pending = ""
+            else:
+                # 빈 세그먼트: 다음에 붙일 pending으로 누적
+                pending += seg
+
+        # 마지막에 남은 pending은 마지막 세그먼트에 병합
+        if pending and merged:
+            merged[-1] = merged[-1] + pending
+        elif pending:
+            merged.append(pending)
+
+        return merged
 
     def predict_boundary_probs(self, src_text: str, tgt_text: str) -> List[float]:
         """각 번역문 문자 위치의 경계 확률 반환"""

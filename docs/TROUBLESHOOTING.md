@@ -466,4 +466,28 @@ A: `p2s/main.py`의 `save_results()` 함수 수정.
 
 ---
 
-**최근 업데이트**: 2025년 12월 19일 - XLSX 기반 완전 재정리
+---
+
+## 데이터 머지 문제
+
+### 1. 원문 필드에 숫자가 들어감
+
+```
+원문: 7, 11, 24, ...  (실제 한문 대신 문단 ID 숫자)
+```
+
+**원인**: 구버전 머지 스크립트(`merge_parallel_xlsx.py`)가 위치 기반 컬럼 매핑을 사용하여, "No." 컬럼이 있는 원본 Excel 파일에서 컬럼이 1칸씩 밀림.
+
+**영향 범위**: 사정전훈의자치통감강목 16, 21, 22, 23 (총 228문단)
+
+**해결**: 헤더 기반 컬럼 매핑을 사용하는 새 머지 스크립트(`xlsx_scripts/merge_parallel_xlsx.py`)로 교체. `validate_merged_data()`로 머지 후 검증.
+
+```bash
+# 재머지 + 재분할
+docker-compose run --rm csp python xlsx_scripts/merge_parallel_xlsx.py
+docker-compose run --rm csp python scripts/split_excel.py
+```
+
+---
+
+**최근 업데이트**: 2026년 2월 10일 - 데이터 머지 컬럼 매핑 문제 추가

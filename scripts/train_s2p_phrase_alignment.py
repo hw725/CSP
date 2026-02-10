@@ -122,19 +122,71 @@ def load_phrase_data(excel_path: Path) -> List[Dict]:
 def precompute_bge_embeddings(
     samples: List[Dict], cache_path: Path = None
 ) -> Tuple[Dict[str, int], np.ndarray]:
-    """BGE-M3로 모든 고유 원문 구의 임베딩을 사전계산"""
+    """BGE-M3로 모든 고유 원문 구의 임베딩을 사전계산
+
+    캐시가 있으면 로드하되, 현재 데이터에 누락된 구가 있으면 추가 인코딩.
+    """
+    # 현재 데이터의 모든 고유 구 수집
+    all_unique = []
+    all_phrase_set = set()
+    for sample in samples:
+        for phrase in sample["src_phrases"]:
+            if phrase not in all_phrase_set:
+                all_phrase_set.add(phrase)
+                all_unique.append(phrase)
+
+    # 캐시 로드 시도
     if cache_path and cache_path.exists():
         print(f"  캐시 로드: {cache_path}")
         cache = torch.load(cache_path, weights_only=False)
-        return cache["phrase_to_idx"], cache["embeddings"]
+        cached_p2i = cache["phrase_to_idx"]
+        cached_embs = cache["embeddings"]
 
-    unique_phrases = []
-    phrase_to_idx = {}
-    for sample in samples:
-        for phrase in sample["src_phrases"]:
-            if phrase not in phrase_to_idx:
-                phrase_to_idx[phrase] = len(unique_phrases)
-                unique_phrases.append(phrase)
+        # 누락 구 확인
+        missing = [p for p in all_unique if p not in cached_p2i]
+        if not missing:
+            print(f"  캐시 유효: {len(cached_p2i)}개 구 (누락 없음)")
+            return cached_p2i, cached_embs
+
+        # 누락 구 추가 인코딩
+        print(f"  캐시에 누락 구 {len(missing)}개 발견 — 추가 인코딩")
+        try:
+            from FlagEmbedding import BGEM3FlagModel
+
+            bge = BGEM3FlagModel("BAAI/bge-m3", use_fp16=True)
+            batch_size = 256
+            new_embs_list = []
+            for i in range(0, len(missing), batch_size):
+                batch = missing[i : i + batch_size]
+                embs = bge.encode(batch)["dense_vecs"]
+                new_embs_list.append(embs)
+            new_embs = np.concatenate(new_embs_list, axis=0).astype(np.float32)
+            del bge
+            torch.cuda.empty_cache()
+        except ImportError:
+            bge_dim = cached_embs.shape[1]
+            new_embs = np.random.randn(len(missing), bge_dim).astype(np.float32)
+
+        # 기존 캐시에 추가
+        phrase_to_idx = dict(cached_p2i)
+        start_idx = len(cached_embs)
+        for i, p in enumerate(missing):
+            phrase_to_idx[p] = start_idx + i
+        embeddings = np.concatenate([cached_embs, new_embs], axis=0)
+
+        # 갱신된 캐시 저장
+        if cache_path:
+            torch.save(
+                {"phrase_to_idx": phrase_to_idx, "embeddings": embeddings},
+                cache_path,
+            )
+            print(f"  캐시 갱신 저장: {cache_path} ({len(phrase_to_idx)}개 구)")
+
+        return phrase_to_idx, embeddings
+
+    # 캐시 없음 — 전체 인코딩
+    unique_phrases = all_unique
+    phrase_to_idx = {p: i for i, p in enumerate(unique_phrases)}
 
     print(f"  고유 원문 구: {len(unique_phrases)}개")
 

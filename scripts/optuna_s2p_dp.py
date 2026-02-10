@@ -81,12 +81,12 @@ def objective(trial):
     from s2p.s2p_aligner import process_single_row
 
     # 경계 모델 주입 (s2p_aligner가 참조할 수 있도록)
-    from s2p.io_manager import safe_process_sa_row
+    from s2p.io_manager import safe_process_s2p_row
 
-    if not hasattr(safe_process_sa_row, "_boundary_model"):
+    if not hasattr(safe_process_s2p_row, "_boundary_model"):
         from common.s2p_crossattn_boundary_loader import get_crossattn_boundary_tagger
 
-        safe_process_sa_row._boundary_model = get_crossattn_boundary_tagger()
+        safe_process_s2p_row._boundary_model = get_crossattn_boundary_tagger()
         print("✅ Optuna: Cross-Attention 경계 모델 주입 완료")
 
     tp = fp = fn = 0
