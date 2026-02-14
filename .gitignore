@@ -236,7 +236,6 @@ xlsx/
 sources/
 목차정보/
 models/*
-!models/*.pt
 !models/README.md
 
 # 압축 파일
@@ -346,7 +345,6 @@ pyi/
 *.npy
 *.npz
 *.pt
-!models/*.pt
 *.bz2
 *.lzma
 
