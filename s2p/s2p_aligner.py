@@ -1,4 +1,5 @@
-"""
+"""S2P phrase aligner — performs sentence-to-phrase alignment using BiLSTM model with Viterbi decoding and BGE-M3 scoring.
+
 S2P (Sentence to Phrase) 모듈
 원문을 공백 단위로 분할하고 번역문을 정렬하는 핵심 기능
 

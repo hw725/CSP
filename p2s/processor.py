@@ -1,4 +1,7 @@
-"""P2S 메인 프로세서 - import 문제 해결"""
+"""P2S main processor — orchestrates paragraph-to-sentence splitting with multi-strategy candidate generation and BGE refinement.
+
+P2S 메인 프로세서 - import 문제 해결
+"""
 
 import sys
 import os

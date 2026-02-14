@@ -1,4 +1,7 @@
-"""S2P (Sentence to Phrase) 메인 실행 파일"""
+"""S2P CLI entry point — parses arguments, preloads models, and runs the sentence-to-phrase pipeline.
+
+S2P (Sentence to Phrase) 메인 실행 파일
+"""
 
 import argparse
 import time

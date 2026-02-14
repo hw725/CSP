@@ -1,4 +1,5 @@
-"""
+"""Text normalization utilities — Unicode normalization, whitespace handling, and character-level comparison for both pipelines.
+
 공통 텍스트 정규화 모듈 - SA/PA 모두 사용
 """
 

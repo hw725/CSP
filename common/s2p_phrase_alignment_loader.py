@@ -1,4 +1,6 @@
-"""S2P Phrase Alignment Model 로더 (v2)
+"""S2P Phrase Alignment model loader (v2.1) — loads BiLSTM + Guided Attention model for phrase boundary prediction.
+
+S2P Phrase Alignment Model 로더 (v2)
 
 학습된 s2p_phrase_alignment.pt를 로드하여 구 단위 정렬 기반 경계 추론.
 기존 CrossAttnBoundaryTaggerLoader와 동일한 인터페이스 제공.

@@ -1,4 +1,5 @@
-"""
+"""Kiwipiepy tokenizer — Korean morphological analysis for sentence splitting and eojeol boundary detection.
+
 Kiwipiepy 한국어 토크나이저 모듈
 한글 형태소 분석 전용
 """

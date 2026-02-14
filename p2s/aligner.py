@@ -1,4 +1,7 @@
-"""P2S 전용 정렬기 - SA의 Vice Versa 방식 (완벽한 무결성 보장)"""
+"""P2S aligner — alignment algorithms including DP-based matching, BGE refinement, and length-ratio optimization.
+
+P2S 전용 정렬기 - SA의 Vice Versa 방식 (완벽한 무결성 보장)
+"""
 
 import sys
 import os

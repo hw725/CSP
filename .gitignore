@@ -215,6 +215,7 @@ cumulative_analysis.db
 
 # Local/generated datasets (do not commit)
 datasets/*
+!datasets/README.md
 !datasets/splits/
 datasets/splits/*
 !datasets/splits/*_test.xlsx
@@ -236,6 +237,7 @@ sources/
 목차정보/
 models/*
 !models/*.pt
+!models/README.md
 
 # 압축 파일
 *.zip

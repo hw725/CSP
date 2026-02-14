@@ -1,4 +1,6 @@
-"""BGE 임베더 - 프로세스 안전 버전
+"""BGE-M3 embedding manager — GPU-accelerated dense/sparse/ColBERT embeddings with disk caching and batch processing.
+
+BGE 임베더 - 프로세스 안전 버전
 
 주의:
 - 로컬 환경에 torch가 없을 수 있어(예: Docker-only 구성), torch 의존 부분은 optional로 처리한다.

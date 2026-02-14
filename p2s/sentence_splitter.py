@@ -1,4 +1,7 @@
-"""P2S 문장 분할기 - SuPar-Kanbun & Stanza 기반 (spaCy 대체)"""
+"""P2S sentence splitter — detects sentence boundaries in Korean translations using SuPar-Kanbun and Stanza.
+
+P2S 문장 분할기 - SuPar-Kanbun & Stanza 기반 (spaCy 대체)
+"""
 
 from typing import Any, Dict, List, Tuple
 

@@ -1,4 +1,5 @@
-"""
+"""SikuBERT tokenizer — Classical Chinese subword tokenization using the Siku Quanshu-trained BERT model.
+
 SikuBERT 토크나이저 - 전통중문(고전) 전용
 四庫全書 기반 학습으로 고전 텍스트에 최적화
 """

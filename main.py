@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""
+"""CSP universal entry point — auto-detects input file format (XML/XLSX/TXT/CSV) and runs the appropriate pipeline.
+
 CSP (Classical Korean Parallel Processing) 범용 메인 실행 파일
 
 지원 파일 형식:

@@ -1,5 +1,7 @@
 # S2P (Sentence-to-Phrase Aligner) 메커니즘 상세 설명
 
+> **Abstract**: The S2P (Sentence to Phrase) pipeline splits sentence-level parallel text into phrase-level 1:1 aligned pairs. It employs a BiLSTM-based Phrase Alignment model (v2.1) with Guided Attention and Viterbi decoding for optimal segmentation. BGE-M3 embeddings provide semantic scoring, and an integrity guard ensures 100% character preservation. Achieves F1 = 0.8555 on 446 sentences.
+
 **버전**: 2026-02-10
 **목적**: 문장 내 구(Phrase) 단위의 정렬 및 경계 추출 메커니즘 분석
 **약칭**: S2P (구: SA)

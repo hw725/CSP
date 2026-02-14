@@ -1,5 +1,7 @@
 # P2S (Paragraph-to-Sentence Aligner) 코드 해부
 
+> **Abstract**: Detailed code walkthrough of the P2S pipeline implementation. Covers the call hierarchy from `p2s/main.py` through `processor.py` (multi-strategy candidate generation, stage tracing) to `aligner.py` (DP alignment, BGE refinement with token-boundary candidates). Includes Mermaid diagrams for architecture visualization and the boundary model architecture (CharEncoder + MultiHead).
+
 **버전**: 2026-02-10
 **목적**: P2S 파이프라인의 함수 로직과 알고리즘을 낱낱이 분석
 **현재 F1**: 0.9384 (4934문단 전체, RunPod H200)

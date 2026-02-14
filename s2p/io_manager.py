@@ -1,4 +1,7 @@
-"""간소화된 병렬 처리 - 완벽한 무결성 보장"""
+"""S2P I/O manager — batch file processing with integrity guarantees and format conversion.
+
+간소화된 병렬 처리 - 완벽한 무결성 보장
+"""
 
 import os
 import time

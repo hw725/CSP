@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
+"""CSP configuration manager — loads and provides access to csp_config.json settings for alignment parameters and thresholds.
+
 공통 환경 설정 모듈
 - 환경 변수와 기본값을 중앙에서 관리하여 일관성 제공
 """

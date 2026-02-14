@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""44권 전체 P2S+S2P 배치 처리"""
+"""Batch processor for all 44 classical text books — runs P2S + S2P pipelines sequentially.
+
+44권 전체 P2S+S2P 배치 처리
+"""
 
 import subprocess
 import os

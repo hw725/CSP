@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
+"""P2S accuracy evaluator — computes F1 score, precision, recall, and source similarity against gold-standard paragraph-to-sentence alignments.
+
 P2S 정확도 평가 스크립트 (간소화 버전)
 
 핵심 지표:

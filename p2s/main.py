@@ -1,4 +1,7 @@
-"""P2S (Paragraph-to-Sentence) 메인 실행기"""
+"""P2S CLI entry point — parses arguments and runs the paragraph-to-sentence pipeline.
+
+P2S (Paragraph-to-Sentence) 메인 실행기
+"""
 
 import sys
 from pathlib import Path

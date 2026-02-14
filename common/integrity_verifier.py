@@ -1,4 +1,5 @@
-"""
+"""Global text integrity verifier — ensures 100% character preservation across P2S and S2P transformations.
+
 전역 무결성 검증 모듈 (SA/PA 공통)
 - 입력(GT) 전체 텍스트 vs 출력(Pred) 전체 텍스트 비교
 - 손실/추가된 문자 상세 분석

@@ -1,10 +1,12 @@
-"""
-SA (Semantic Alignment) 패키지
+"""S2P (Sentence to Phrase) package — splits sentence-level parallel text into phrase-level 1:1 aligned pairs.
+
+S2P (문장→구 분할) 패키지
 
 핵심 기능:
-- 원문 공백 단위 분할 (완전한 무결성 보장)
-- 번역문 원문 단위 맞춤 정렬
-- 메타데이터 생성 (시대 정보 등)
+- BiLSTM + Guided Attention 기반 구 경계 예측
+- Viterbi 디코딩을 통한 최적 분할
+- BGE-M3 임베딩 기반 유사도 평가
+- 100% 텍스트 무결성 보장
 
 원본 텍스트 무결성 보장:
 - 모든 분할은 공백 기준으로만 수행

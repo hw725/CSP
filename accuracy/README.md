@@ -1,5 +1,7 @@
 # Analytics Directory
 
+> Analysis and visualization tools for the CSP pipeline. Includes clustering analysis (K-means, DBSCAN), real-time monitoring dashboards, and cumulative performance tracking across all 44 classical text books.
+
 이 디렉토리는 CSP(고전 산문 병렬화) 프로젝트의 분석 및 시각화 도구들을 포함합니다.
 
 ## 📁 디렉토리 구조

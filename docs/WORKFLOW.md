@@ -1,5 +1,7 @@
 # CSP 전체 워크플로우
 
+> **Abstract**: End-to-end workflow guide for the CSP system. Describes the complete data flow from XLSX input through P2S (paragraph splitting) and S2P (phrase alignment) pipelines to evaluation. Covers system architecture, batch processing of 44 classical text books, integrity verification, and accuracy evaluation methodology.
+
 ## 시스템 아키텍처
 
 ```

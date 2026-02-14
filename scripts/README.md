@@ -1,5 +1,9 @@
 # Scripts Index
 
+> Training, evaluation, tuning, and analysis scripts for the CSP pipeline. Includes model training (P2S boundary, S2P phrase alignment), hyperparameter optimization (Optuna), error analysis, clustering, and visualization tools.
+>
+> **Warning**: Do not move scripts to subdirectories — `sys.path` dependencies will break.
+
 > **경고**: 스크립트를 하위 폴더로 이동하지 마세요. `sys.path` 의존성이 깨집니다.
 >
 > **최종 업데이트**: 2026-02-04

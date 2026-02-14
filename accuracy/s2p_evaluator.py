@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
+"""S2P accuracy evaluator — computes F1 score, precision, recall, and target similarity against gold-standard sentence-to-phrase alignments.
+
 S2P 정확도 평가 스크립트 (간소화 버전)
 
 핵심 지표: src exact subset 내에서의 번역문 F1과 유사도

@@ -1,5 +1,7 @@
 # P2S (Paragraph-to-Sentence Aligner) 메커니즘 상세 설명
 
+> **Abstract**: The P2S (Paragraph to Sentence) pipeline splits paragraph-level Classical Chinese-Korean parallel text into sentence-level aligned pairs. It uses a target-anchored approach: Korean translation sentence boundaries serve as anchors, and Classical Chinese source boundaries are optimized using multi-strategy candidate generation (SuPar parsing, boundary model, whitespace DP, TopK) followed by 3-pass BGE refinement with length-ratio bonus. Achieves F1 = 0.9384 on 4,934 paragraphs.
+
 **버전**: 2026-02-10
 **목적**: 고전 한문(원문)과 현대 한국어(번역문) 간의 문장 단위 정렬
 **약칭**: P2S (구: PA)

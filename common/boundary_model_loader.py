@@ -1,4 +1,5 @@
-"""
+"""P2S boundary model loader — loads the Cross-Attention multitask boundary detection model for Chinese text segmentation.
+
 Boundary Multitask 모델 로더 및 추론 엔진
 - boundary_multitask.pt로부터 문단/문장/구 경계 태깅
 """

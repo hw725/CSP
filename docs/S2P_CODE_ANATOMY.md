@@ -1,5 +1,7 @@
 # S2P (Sentence-to-Phrase Aligner) 코드 해부
 
+> **Abstract**: Detailed code walkthrough of the S2P v2.1 pipeline implementation. Covers the Phrase Alignment model architecture (Source/Target BiLSTM encoders, Guided Attention, boundary head), Viterbi decoding with transition matrix, and the IntegrityGuard system. Includes Mermaid diagrams and model parameter details (6.7M params, hidden=512).
+
 **버전**: 2026-02-10
 **목적**: S2P 파이프라인의 함수 로직과 Phrase Alignment v2.1 모델 내부 구조를 상세 분석
 **현재 F1**: 0.8555 (446문장 샘플, Docker RTX 3070 Ti)

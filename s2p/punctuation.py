@@ -1,4 +1,7 @@
-"""괄호 및 구두점 처리 모듈 - 완벽한 무결성 보장"""
+"""S2P punctuation and integrity guard — handles bracket/punctuation boundaries and guarantees 100% character preservation.
+
+괄호 및 구두점 처리 모듈 - 완벽한 무결성 보장
+"""
 
 import logging
 import regex  # 🆕 유니코드 속성 정규식
