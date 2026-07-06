@@ -12,6 +12,8 @@
 
 **목표**: 데이터 처리의 정합성(integrity)과 투명성(transparency)을 보장합니다.
 
+> **[2026-07-06 스크립트 복구 안내]** 특수 서종 처리기 `extract_yeogi.py`·`create_yeogi_paragraph.py`·`add_paragraph_id_to_gubyeollyeol.py`(모두 `xlsx_scripts/`)와 `merge_parallel_xlsx.py`는 한동안 저장소에서 누락돼 있었으나 git 이력(2026-01~02 시점)에서 복구했다. **복구된 과거 버전이므로 현행 파이프라인(xml_extractor 리팩터 이후) 대비 검증 후 사용할 것.** 또한 아래 본문에서 `merge_parallel_xlsx.py`의 경로는 `xlsx_scripts/`로 표기돼 있으나 실제 경로는 `scripts/merge_parallel_xlsx.py`다.
+
 ---
 
 ## 📊 데이터 구조
