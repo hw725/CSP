@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSP 인지 부채 감사 (2026-07-04)</title>
+<style>
+  :root {
+    --bg: #faf8f4; --ink: #2b2620; --muted: #6d6459; --line: #e2dbd0;
+    --accent: #8a4b2d; --card: #ffffff; --danger: #b3372b; --warn: #a86a1f;
+    --ok: #3d6b45; --code-bg: #f1ece3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1rem 4rem; background: var(--bg); color: var(--ink);
+    font-family: 'Pretendard GOV Variable', 'Pretendard Variable', Pretendard, sans-serif; line-height: 1.7;
+  }
+  main { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; border-bottom: 3px solid var(--accent); padding-bottom: .5rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.5rem; color: var(--accent); }
+  h3 { font-size: 1.05rem; margin-top: 1.5rem; }
+  p, li { font-size: .95rem; }
+  code {
+    background: var(--code-bg); padding: .1em .35em; border-radius: 4px;
+    font-family: 'Sarasa Fixed K', 'Sarasa Mono K', Consolas, monospace; font-size: .85em;
+  }
+  .lede { font-size: 1.02rem; color: var(--muted); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 1rem 1.25rem; margin: 1rem 0;
+  }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: .88rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  .risk-high { color: var(--danger); font-weight: 700; }
+  .risk-mid { color: var(--warn); font-weight: 700; }
+  .risk-low { color: var(--ok); font-weight: 700; }
+  .badge {
+    display: inline-block; font-size: .75rem; padding: .1em .5em; border-radius: 999px;
+    border: 1px solid currentColor; margin-right: .4em;
+  }
+  /* quiz */
+  .q { margin-bottom: 1.6rem; }
+  .q p.stem { font-weight: 700; }
+  .q button {
+    display: block; width: 100%; text-align: left; margin: .35rem 0; padding: .55rem .8rem;
+    border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer;
+    font: inherit; font-size: .9rem; color: var(--ink);
+  }
+  .q button:hover { border-color: var(--accent); }
+  .q button.correct { background: #e8f2ea; border-color: var(--ok); }
+  .q button.wrong { background: #f9e8e6; border-color: var(--danger); }
+  .q .explain {
+    display: none; margin-top: .5rem; padding: .7rem .9rem; border-left: 4px solid var(--accent);
+    background: var(--code-bg); border-radius: 0 8px 8px 0; font-size: .88rem;
+  }
+  .q .explain.show { display: block; }
+  #score { font-weight: 700; margin-top: 1rem; }
+  svg text { font-family: 'Pretendard GOV Variable', 'Pretendard Variable', Pretendard, sans-serif; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>CSP 인지 부채 감사</h1>
+<p class="lede">기준일 2026-07-04 · 대상 <code>head-repo\hw725\CSP</code> · 마지막 커밋 2026-02-26 (d64772f) · 미커밋 변경 15건.
+이 문서는 "코드는 존재하지만 내 이해가 따라가지 못한 지점"의 지도다. 유지보수문서 01이 이미 다루는 내용(P2S/S2P 알고리즘, worktree 원격 분리)은 반복하지 않는다.</p>
+
+<h2>1. 배경 — 이 프로젝트가 실제로 하는 일</h2>
+<div class="card">
+<p>CSP는 한문 원문과 한국어 번역문을 <strong>문단 → 문장 → 구</strong> 세 층위에서 1:1로 정렬하는 파이프라인이다.
+다만 유지보수문서가 "XLSX 문단 병렬본을 입력받아"라고 서술하는 것과 달리, 2026년 2월 말부터의 실제 작업은 그 <strong>앞 단계</strong>,
+즉 고전번역원 XML(<code>sources/</code>, 134개 파일·92MB)에서 3종 병렬 XLSX를 뽑아내는 <strong>추출 계층</strong>에 집중되어 있었다.
+미커밋 15건 전부가 이 계층(<code>xlsx_scripts/</code>, <code>xml_pipeline/</code>, <code>xml_extractor/</code>)에 몰려 있다.</p>
+</div>
+
+<h2>2. 직관 — 3층 구조로 기억하라</h2>
+<div class="card">
+<ol>
+<li><strong>추출층</strong> (최근 활동, 절반쯤 커밋됨): <code>sources/</code> XML → <code>xlsx_scripts/</code> 6단계 워크플로우 → <code>xlsx/</code> 44권 폴더에 문단·문장·구병렬 XLSX 생성.</li>
+<li><strong>정렬층</strong> (문서화 잘 됨, 안정): <code>batch_44books.py</code>가 책마다 P2S(문단→문장, BiLSTM 경계 + BGE 정제) → S2P(문장→구, Viterbi + Punctuation Guard) 실행 → <code>xlsx_pipeline_results/</code>.</li>
+<li><strong>분석층</strong> (거의 미문서화): <code>hyeonto/</code> — 추적 파일 127개로 repo에서 가장 큰 모듈. 현토 마커 클러스터링, 공기 네트워크, LLM 검증(Triple-Threat), 대시보드 서버(<code>md_server.py</code>).</li>
+</ol>
+</div>
+
+<h2>3. 핵심 흐름</h2>
+<div class="card scroll">
+<svg viewBox="0 0 860 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CSP 데이터 흐름도">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#8a4b2d"/>
+    </marker>
+  </defs>
+  <!-- row 1: extraction -->
+  <rect x="10" y="20" width="150" height="58" rx="8" fill="#f1ece3" stroke="#8a4b2d"/>
+  <text x="85" y="44" text-anchor="middle" font-size="13" font-weight="bold">sources/ XML</text>
+  <text x="85" y="63" text-anchor="middle" font-size="11">134개 · 92MB (로컬 전용)</text>
+
+  <rect x="230" y="20" width="185" height="58" rx="8" fill="#fdf3ec" stroke="#b3372b" stroke-dasharray="5 3"/>
+  <text x="322" y="40" text-anchor="middle" font-size="13" font-weight="bold">xlsx_scripts/ + xml_extractor/</text>
+  <text x="322" y="57" text-anchor="middle" font-size="11" fill="#b3372b">⚠ 미커밋 리팩터 진행 중</text>
+  <text x="322" y="71" text-anchor="middle" font-size="11">6단계 추출 워크플로우</text>
+
+  <rect x="485" y="20" width="160" height="58" rx="8" fill="#f1ece3" stroke="#8a4b2d"/>
+  <text x="565" y="44" text-anchor="middle" font-size="13" font-weight="bold">xlsx/ 44권 폴더</text>
+  <text x="565" y="63" text-anchor="middle" font-size="11">문단·문장·구병렬 XLSX</text>
+
+  <line x1="160" y1="49" x2="228" y2="49" stroke="#8a4b2d" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="415" y1="49" x2="483" y2="49" stroke="#8a4b2d" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- row 2: alignment -->
+  <line x1="565" y1="78" x2="565" y2="118" stroke="#8a4b2d" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="585" y="103" font-size="11">batch_44books.py</text>
+
+  <rect x="330" y="120" width="200" height="58" rx="8" fill="#f1ece3" stroke="#8a4b2d"/>
+  <text x="430" y="143" text-anchor="middle" font-size="13" font-weight="bold">P2S (문단→문장)</text>
+  <text x="430" y="162" text-anchor="middle" font-size="11">BiLSTM 경계 + BGE 정제 · F1 0.938</text>
+
+  <rect x="330" y="200" width="200" height="58" rx="8" fill="#f1ece3" stroke="#8a4b2d"/>
+  <text x="430" y="223" text-anchor="middle" font-size="13" font-weight="bold">S2P (문장→구)</text>
+  <text x="430" y="242" text-anchor="middle" font-size="11">Viterbi + Punctuation Guard(1:1)</text>
+
+  <line x1="565" y1="149" x2="532" y2="149" stroke="#8a4b2d" stroke-width="2" marker-end="url(#arr)" transform="translate(0,0)"/>
+  <line x1="430" y1="178" x2="430" y2="198" stroke="#8a4b2d" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- config feeds -->
+  <rect x="60" y="150" width="190" height="78" rx="8" fill="#fffdf8" stroke="#a86a1f"/>
+  <text x="155" y="172" text-anchor="middle" font-size="12" font-weight="bold">csp_config.json ≻ 환경변수</text>
+  <text x="155" y="190" text-anchor="middle" font-size="11">device: cuda:0 하드코딩</text>
+  <text x="155" y="207" text-anchor="middle" font-size="11">models/*.pt · datasets/ 25GB</text>
+  <text x="155" y="222" text-anchor="middle" font-size="11" fill="#a86a1f">전부 로컬 전용 (git 밖)</text>
+  <line x1="250" y1="189" x2="328" y2="170" stroke="#a86a1f" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+  <line x1="250" y1="210" x2="328" y2="226" stroke="#a86a1f" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+
+  <!-- outputs -->
+  <rect x="620" y="150" width="220" height="50" rx="8" fill="#f1ece3" stroke="#8a4b2d"/>
+  <text x="730" y="171" text-anchor="middle" font-size="13" font-weight="bold">xlsx_pipeline_results/</text>
+  <text x="730" y="189" text-anchor="middle" font-size="11">정렬 결과 + accuracy/ 평가</text>
+  <line x1="530" y1="229" x2="620" y2="192" stroke="#8a4b2d" stroke-width="2" marker-end="url(#arr)"/>
+
+  <rect x="620" y="240" width="220" height="58" rx="8" fill="#f5f0e8" stroke="#6d6459"/>
+  <text x="730" y="263" text-anchor="middle" font-size="13" font-weight="bold">hyeonto/ 연구 분석</text>
+  <text x="730" y="282" text-anchor="middle" font-size="11">127개 파일 · 문서화 거의 없음</text>
+  <line x1="730" y1="200" x2="730" y2="238" stroke="#6d6459" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+</svg>
+<p style="font-size:.85rem;color:var(--muted)">점선 상자·화살표 = 위험 또는 암묵 의존. 진입점 <code>main.py</code>는 이름과 달리 XML 계열 전용 래퍼이며, XLSX 정렬의 실제 진입은 <code>batch_44books.py</code>·<code>p2s/main.py</code>·<code>s2p/main.py</code>다.</p>
+</div>
+
+<h2>4. 핫스팟 위험 순위표</h2>
+<div class="card scroll">
+<table>
+<thead><tr><th>#</th><th>위험</th><th>핫스팟 (경로)</th><th>무엇이 문제인가</th><th>지금 이해하지 않으면 나중에…</th></tr></thead>
+<tbody>
+<tr>
+  <td>1</td><td class="risk-high">높음</td>
+  <td><code>xml_extractor/</code> (git 미추적)</td>
+  <td>완전히 새 모듈인데 untracked. 그런데 미커밋 상태의 <code>xml_pipeline/__init__.py</code>가 여기서 <code>XMLProcessor, XMLPair</code> 등을 import하도록 이미 수정됨.</td>
+  <td><code>git clean -fd</code> 한 번, 혹은 폴더 정리 중 삭제 한 번이면 <strong>복구 불가</strong>(백업 없음)이고 xml_pipeline 전체가 import 에러로 죽는다.</td>
+</tr>
+<tr>
+  <td>2</td><td class="risk-high">높음</td>
+  <td><code>xml_pipeline/xml_pipeline_processor.py</code> (−394줄 unstaged) + <code>xlsx_scripts/</code> 9개 (staged)</td>
+  <td>추출 로직을 xml_extractor로 이관하는 리팩터가 4개월째 반쯤 커밋된 채 정지 (마지막 커밋 2026-02-26).</td>
+  <td>staged만 커밋하거나 unstaged만 되돌리면 <strong>절반씩 다른 세계</strong>가 된다. xml_pipeline 수정 + xml_extractor 신규 추적을 한 세트로 커밋해야 클론이 동작한다.</td>
+</tr>
+<tr>
+  <td>3</td><td class="risk-high">높음</td>
+  <td>git 브랜치 상태 (main ↔ csp/main)</td>
+  <td>11 ahead / 11 behind 분기. 양쪽 HEAD 커밋 메시지가 동일("xml_pipeline 복구") — 같은 작업이 로컬·원격에 따로 커밋된 흔적. 정체불명 <code>codex/pre-rebase-5ec5931</code> 브랜치도 존재.</td>
+  <td>급하게 push하면 거부되고, force push하면 원격 11개 커밋이 소실된다. 어느 쪽이 정본인지 비교·정리 없이는 백업(push) 자체가 불가능한 상태가 지속된다.</td>
+</tr>
+<tr>
+  <td>4</td><td class="risk-high">높음</td>
+  <td><code>xlsx_scripts/README.md</code>의 유령 스크립트</td>
+  <td>특수 서종 4권(예기집설대전1, 당시삼백수1~3)의 처리기로 지시된 <code>extract_yeogi.py</code>·<code>create_yeogi_paragraph.py</code>가 repo 어디에도 없음 (2025구축 상위 3단계에서도 미발견 — 소재 미확인).</td>
+  <td>특수 4권은 <code>&lt;단락 id&gt;</code> 구조라 일반 스크립트가 처리 못한다. XML에서 XLSX를 재생성해야 하는 날, <strong>4권만 만들 방법이 없다</strong>.</td>
+</tr>
+<tr>
+  <td>5</td><td class="risk-mid">중간</td>
+  <td><code>jti_code_mappings.py</code>·<code>xml_unit_parser.py</code>·<code>xml_file_browser.py</code></td>
+  <td>xml_pipeline/과 xml_extractor/에 md5 동일 사본 3쌍. 어느 쪽이 canonical인지 미확정 (리팩터 방향상 xml_extractor로 추정).</td>
+  <td>한쪽만 고치면 조용히 갈라져서, 실행 경로에 따라 다른 결과가 나오는 재현 불가 버그가 된다.</td>
+</tr>
+<tr>
+  <td>6</td><td class="risk-mid">중간</td>
+  <td><code>common/config.py</code> + <code>csp_config.json</code></td>
+  <td>설정 우선순위가 json ≻ 환경변수. <code>device: "cuda:0"</code>이 json에 하드코딩되어 CSP_DEVICE 환경변수로 못 덮는다. API 키는 json이 null이라 <code>.env</code>로 폴백.</td>
+  <td>GPU 없는 로컬이나 새 환경에서 "환경변수를 설정했는데 왜 안 먹지"로 시간을 잃는다. Docker(PyTorch 2.6.0)와 로컬(2.9.1) 버전 차와 겹치면 재현 실패 원인 추적이 배로 어려워진다.</td>
+</tr>
+<tr>
+  <td>7</td><td class="risk-mid">중간</td>
+  <td><code>hyeonto/</code> (추적 127개 파일)</td>
+  <td>repo 최대 모듈인데 README 없음. 유지보수문서 01에는 <code>md_server.py</code> 한 줄만 언급. 분석 스크립트 30여 개의 실행 순서·의존 관계 미기록.</td>
+  <td>논문 수치의 산출 경로(어느 스크립트가 어느 데이터로 어떤 그림을 만들었나)를 재구성할 수 없게 된다 — 투고·심사 대응 시 가장 비싸지는 부채.</td>
+</tr>
+<tr>
+  <td>8</td><td class="risk-low">낮음</td>
+  <td><code>renumber_excel_indices.py</code></td>
+  <td>원본 XML 식별자(ID:W1 등)를 1, 2, 3… 연번으로 덮어씀.</td>
+  <td>이 단계 이후 XLSX 행을 원본 XML 위치로 역추적할 수 없다. 사료 충실성 감사가 필요해지는 순간 비용이 커진다.</td>
+</tr>
+<tr>
+  <td>9</td><td class="risk-low">낮음</td>
+  <td><code>datasets/</code> 25GB · <code>cache/</code> 6.5GB · <code>models/*.pt</code> 78MB</td>
+  <td>전부 git 밖 로컬 전용. 이 PC가 유일본.</td>
+  <td>디스크 장애 시 gold standard·학습 가중치·임베딩 캐시 전부 소실. 모델은 재학습(H200 ~5.2h+) 비용, gold standard는 재구축 비용.</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h2>5. Drift 로그 — 유지보수문서 01의 서술 중 더 이상 정확하지 않은 것</h2>
+<div class="card">
+<ol>
+<li><strong>"XLSX 문단 병렬본을 입력받아"</strong> — 현재 실질 작업의 중심은 그 앞의 XML 추출층이다. 문서의 핵심 파일 표에 <code>xlsx_scripts/</code>·<code>xml_pipeline/</code>·<code>xml_extractor/</code>가 전혀 없다. <em>증거: 미커밋 15건 전부 + 마지막 커밋 d64772f(2026-02-26 "xml_pipeline 복구")가 모두 이 계층.</em></li>
+<li><strong>"main.py — 파일형식 XML/XLSX/CSV/TXT 자동감지"</strong> — 과장. 실제 main.py의 txt·xlsx 서브커맨드는 "미래 지원" 스텁이고 동작하는 것은 xml·xml-merged·auto뿐. <em>증거: <code>main.py</code>의 "🚧 상세 처리는 향후 구현 예정" 출력.</em></li>
+<li><strong>"44권"</strong> — <code>batch_44books.py</code>는 44권이지만, 새 추출 워크플로우(<code>xlsx_scripts/README.md</code>, staged)는 일관되게 <strong>43권</strong>(일반 39 + 특수 4)을 기준으로 한다. 1권의 차이가 무엇인지 미기록(미확인). </li>
+<li><strong>워크트리 origin 분리 서술은 여전히 사실</strong>이나, 문서에 없는 브랜치 <code>codex/pre-rebase-5ec5931</code>이 존재하고, dansa-research 브랜치는 csp/main 대비 59 ahead / 97 behind로 더 벌어졌다. <em>증거: <code>git branch -vv</code>.</em></li>
+<li><strong>문서 작성 이후 생긴 것들</strong>: <code>xml_extractor_results/</code>·<code>xml_pipeline_results/</code>(untracked 결과 폴더), <code>xml_extractor/toc_generator.py</code>·<code>toc_dashboard.py</code>(2026-06-10 수정 — 커밋 없는 6월 작업의 증거), <code>sources/</code> 디렉토리 자체(2026-06-09 갱신). 문서 01은 sources/를 "2025구축이 참조하는 경로"로만 언급하고 CSP 자신의 입력이라는 사실은 누락.</li>
+<li><strong>미커밋 상태 자체가 문서에 없다</strong> — 문서는 repo가 정지 상태인 것처럼 읽히지만, 실제로는 staged 1,372줄 + unstaged −394줄의 리팩터가 걸려 있는 "작업 중단" 상태다.</li>
+</ol>
+</div>
+
+<h2>6. 자기점검 퀴즈 — 5문항</h2>
+<p class="lede">전부 "기존 코드 경로가 실제로 어떻게 동작하는가"를 겨냥한다. 오답을 눌러도 해설이 나온다.</p>
+<div class="card" id="quiz"></div>
+<p id="score"></p>
+
+<script>
+(function () {
+  var QUESTIONS = [
+    {
+      stem: "1. 지금 이 순간 “git clean -fd”를 실행하면 무슨 일이 일어나는가?",
+      choices: [
+        "untracked인 xml_extractor/가 삭제되고, 미커밋 xml_pipeline이 이를 import하므로 xml_pipeline까지 동작 불능이 된다",
+        "아무 일도 없다 — 추적 중인 파일은 건드리지 않으므로 안전하다",
+        "staged된 xlsx_scripts/ 파일들이 사라진다",
+        "models/*.pt가 삭제된다"
+      ],
+      answer: 0,
+      explain: "xml_extractor/는 git 미추적이라 clean -fd의 삭제 대상이고 백업이 없다. 게다가 미커밋 상태의 xml_pipeline/__init__.py가 ‘from xml_extractor import XMLProcessor, XMLPair …’로 수정돼 있어 연쇄로 죽는다. 다시 읽기: xml_pipeline/__init__.py 상단 import, AGENTS.md 함정 1."
+    },
+    {
+      stem: "2. CSP_DEVICE=cpu 환경변수를 설정하고 파이프라인을 돌렸다. 어떤 장치가 사용되는가?",
+      choices: [
+        "cpu — 환경변수가 항상 우선한다",
+        "cuda:0 — csp_config.json의 device 값이 환경변수보다 우선하기 때문",
+        "자동 감지 — GPU가 없으면 cpu로 폴백한다",
+        "에러 — 두 설정이 충돌하면 실행이 중단된다"
+      ],
+      answer: 1,
+      explain: "common/config.py의 get_device()는 ‘cfg.get(\"device\") or os.getenv(\"CSP_DEVICE\")’ 순서다. csp_config.json에 “cuda:0”이 박혀 있는 한 환경변수는 절대 읽히지 않는다. 장치를 바꾸려면 json을 직접 고쳐야 한다. 다시 읽기: common/config.py get_device(), csp_config.json."
+    },
+    {
+      stem: "3. sources/의 XML에서 예기집설대전1·당시삼백수1~3(특수 4권)의 문장병렬 XLSX를 재생성해야 한다. 가능한가?",
+      choices: [
+        "가능 — xml_to_sentence_parallel.py가 모든 책을 처리한다",
+        "가능 — xlsx_scripts/README.md의 extract_yeogi.py를 실행하면 된다",
+        "현재 불가능 — README가 지시하는 extract_yeogi.py 등이 repo에 존재하지 않고, 특수 4권은 단락 구조가 달라 일반 스크립트로는 처리되지 않는다",
+        "불필요 — 특수 4권은 파이프라인 대상이 아니다"
+      ],
+      answer: 2,
+      explain: "특수 4권은 문단이 〈단락 id〉 요소로 표시되는 다른 구조라 일반 스크립트(원문 식별자=ID:W1 기반)가 놓친다. README가 지시하는 extract_yeogi.py·create_yeogi_paragraph.py는 repo 어디에도 없다(소재 미확인). 다시 읽기: xlsx_scripts/README.md ‘일반 서종 vs 특수 서종’, find_danlak_books.py."
+    },
+    {
+      stem: "4. 지금 “git push”를 실행하면?",
+      choices: [
+        "정상적으로 CSP.git에 올라간다",
+        "dansa-research.git으로 잘못 올라간다",
+        "non-fast-forward로 거부된다 — 로컬 main과 csp/main이 11 ahead / 11 behind로 분기해 있기 때문",
+        "미커밋 변경 때문에 push 자체가 막힌다"
+      ],
+      answer: 2,
+      explain: "origin은 2026-07-01 분리로 CSP.git이 맞지만, 로컬 main(d64772f)과 csp/main(a8085a9)은 서로 다른 11개 커밋을 가진 분기 상태다(양쪽 HEAD 메시지가 동일한 것이 이중 커밋의 흔적). force push는 원격 이력 11개를 지우므로 금지 — rebase/merge로 정본을 먼저 정하라. 다시 읽기: 유지보수문서 01 gotcha 1, git branch -vv."
+    },
+    {
+      stem: "5. xml_pipeline/과 xml_extractor/ 양쪽에 있는 xml_unit_parser.py 중 한쪽에서 버그를 고쳤다. 안전한가?",
+      choices: [
+        "안전 — 한쪽은 다른 쪽의 심볼릭 링크다",
+        "안전 — import는 항상 xml_extractor 쪽만 사용한다",
+        "위험 — 두 파일은 md5까지 동일한 별개 사본이라, 한쪽만 고치면 실행 경로에 따라 다른 결과가 나오는 잠복 분기가 생긴다",
+        "위험하지만 xml_pipeline 쪽만 고치면 된다 — 그쪽이 canonical이다"
+      ],
+      answer: 2,
+      explain: "jti_code_mappings.py·xml_unit_parser.py·xml_file_browser.py 3쌍이 양쪽에 동일 사본으로 존재한다(md5 확인). 미커밋 리팩터의 방향은 xml_extractor를 canonical로 삼는 것이지만 아직 확정·커밋되지 않았다. 고치기 전에 어느 경로가 import되는지 확인하고, 가급적 리팩터를 먼저 완결하라. 다시 읽기: xml_pipeline/__init__.py의 re-export 주석, AGENTS.md 함정 5."
+    }
+  ];
+
+  var quizEl = document.getElementById("quiz");
+  var answered = 0, correct = 0;
+
+  QUESTIONS.forEach(function (q, qi) {
+    var wrap = document.createElement("div");
+    wrap.className = "q";
+    var stem = document.createElement("p");
+    stem.className = "stem";
+    stem.textContent = q.stem;
+    wrap.appendChild(stem);
+
+    var explain = document.createElement("div");
+    explain.className = "explain";
+
+    var buttons = [];
+    q.choices.forEach(function (choice, ci) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = String.fromCharCode(9312 + ci) + " " + choice;
+      btn.addEventListener("click", function () {
+        if (wrap.dataset.done) return;
+        wrap.dataset.done = "1";
+        answered++;
+        buttons.forEach(function (b) { b.disabled = true; });
+        buttons[q.answer].classList.add("correct");
+        if (ci === q.answer) {
+          correct++;
+          explain.innerHTML = "<strong>정답.</strong> " + q.explain;
+        } else {
+          btn.classList.add("wrong");
+          explain.innerHTML = "<strong>오답.</strong> 정답은 " + String.fromCharCode(9312 + q.answer) + ". " + q.explain;
+        }
+        explain.classList.add("show");
+        var scoreEl = document.getElementById("score");
+        scoreEl.textContent = "진행: " + answered + "/5 · 정답 " + correct + "개" +
+          (answered === 5 ? (correct >= 4 ? " — 핵심 경로를 파악했다." : " — 오답 문항의 ‘다시 읽기’ 파일부터 열어볼 것.") : "");
+      });
+      buttons.push(btn);
+      wrap.appendChild(btn);
+    });
+
+    wrap.appendChild(explain);
+    quizEl.appendChild(wrap);
+  });
+})();
+</script>
+
+</main>
+</body>
+</html>
