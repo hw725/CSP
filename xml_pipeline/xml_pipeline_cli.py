@@ -21,14 +21,12 @@ if parent_dir not in sys.path:
 
 # XML 파이프라인 모듈 import
 try:
-    from xml_pipeline.xml_pipeline_processor import (
-        XMLPipelineProcessor, XMLPair, create_xml_pair_from_directory
-    )
+    from xml_pipeline.xml_pipeline_processor import XMLPipelineProcessor
+    from xml_extractor import XMLPair, create_xml_pair_from_directory
 except ImportError:
     # 직접 실행 시 대체 import
-    from xml_pipeline_processor import (
-        XMLPipelineProcessor, XMLPair, create_xml_pair_from_directory
-    )
+    from xml_pipeline_processor import XMLPipelineProcessor
+    from xml_extractor import XMLPair, create_xml_pair_from_directory
 
 class XMLPipelineManager:
     """XML 파이프라인 관리자"""
