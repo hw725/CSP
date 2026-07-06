@@ -8,7 +8,9 @@
 - **[함정 1 해소]** `xml_extractor/`를 추적 편입(커밋). `git clean` 붕괴 위험 제거. 감사 문서(AGENTS.md·cognitive-debt-audit.html)도 함께 추적.
 - **[함정 2 해소]** 4개월 정지 리팩터를 논리적 1커밋으로 마무리 — 추출 로직을 `xml_extractor`로 분리(−394줄), `xml_pipeline`은 re-export만, `xlsx_scripts` 9종 추적.
 - **[함정 3 해소]** 로컬 `main`↔`csp/main` 11:11 분기는 최종 트리 동일한 이중커밋(허깨비)로 확인 → `reset --soft`로 원격과 역사 일치. `origin/main`(6bb01dc)은 비표준 refspec(`+refs/heads/*:refs/remotes/csp/*`)이 만든 화석 ref이고, **진짜 원격은 `csp/main`**. force push 없이 정리됨.
-- **[미해소]** 함정 4(유령 스크립트 `extract_yeogi.py`·`create_yeogi_paragraph.py` 부재 → 특수 4권 재생성 불가), 함정 5(3중 복제 — 이제 양쪽 다 추적되나 canonical 미확정)는 후속 과제.
+- **[함정 4 해소]** 누락된 특수 서종 스크립트 4종(`xlsx_scripts/extract_yeogi.py`·`create_yeogi_paragraph.py`·`add_paragraph_id_to_gubyeollyeol.py`·`scripts/merge_parallel_xlsx.py`)을 git 이력(2026-01~02 시점)에서 복구. 복구본은 과거 버전이라 현행 파이프라인 대비 검증 후 사용.
+- **[함정 5 해소]** 3중 복제본(`jti_code_mappings`·`xml_unit_parser`·`xml_file_browser`)의 `xml_pipeline` 사본을 `xml_extractor`를 re-export하는 얇은 껍데기로 교체. **정본=xml_extractor 단일화**, 한쪽만 고쳐 갈라질 위험 제거.
+- **[잔여]** `codex/pre-rebase-5ec5931`·`dansa-research` 워크트리(별개 라인) 정리 여부만 미결.
 
 ## 인지 부채 지도 (2026-07-04 감사 시점 스냅샷 — 해소 항목은 위 로그 참조)
 
